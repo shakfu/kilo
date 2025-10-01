@@ -32,7 +32,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define KILO_VERSION "0.2.0"
+#define KILO_VERSION "0.3.0"
 
 #ifdef __linux__
 #define _POSIX_C_SOURCE 200809L
@@ -54,10 +54,13 @@
 #include <fcntl.h>
 #include <signal.h>
 
-/* Lua scripting support */
-#include "lua.h"
-#include "lualib.h"
-#include "lauxlib.h"
+/* Lua scripting support (from Homebrew) */
+#include <lua.h>
+#include <lualib.h>
+#include <lauxlib.h>
+
+/* libcurl for async HTTP */
+#include <curl/curl.h>
 
 /* Syntax highlight types */
 #define HL_NORMAL 0
@@ -123,6 +126,32 @@ static struct t_editor_config E;
 /* Flag to indicate window size change (set by signal handler) */
 static volatile sig_atomic_t winsize_changed = 0;
 
+/* ======================= Async HTTP Infrastructure ======================== */
+
+/* Structure to hold response data from curl */
+struct curl_response {
+    char *data;
+    size_t size;
+};
+
+/* Async HTTP request tracking */
+typedef struct async_http_request {
+    CURLM *multi_handle;
+    CURL *easy_handle;
+    struct curl_response response;
+    char *lua_callback;      /* Name of Lua function to call with response */
+    int completed;
+    int failed;
+    char error_buffer[CURL_ERROR_SIZE];
+} async_http_request;
+
+#define MAX_ASYNC_REQUESTS 10
+static async_http_request *pending_requests[MAX_ASYNC_REQUESTS] = {0};
+static int num_pending = 0;
+
+/* libcurl global initialization flag */
+static int curl_initialized = 0;
+
 enum KEY_ACTION{
         KEY_NULL = 0,       /* NULL */
         CTRL_C = 3,         /* Ctrl-c */
@@ -152,6 +181,8 @@ enum KEY_ACTION{
 
 void editor_set_status_msg(const char *fmt, ...);
 static void exec_lua_command(int fd);
+static void cleanup_curl(void);
+static void check_async_requests(void);
 
 /* =========================== Syntax highlights DB =========================
  *
@@ -230,6 +261,7 @@ void editor_atexit(void) {
         lua_close(E.L);
         E.L = NULL;
     }
+    cleanup_curl();
 }
 
 /* Raw mode: 1960 magic shit. */
@@ -1381,6 +1413,176 @@ void handle_windows_resize(void) {
     }
 }
 
+/* ======================= Async HTTP Implementation ======================= */
+
+/* Callback for curl to write received data */
+static size_t kilo_curl_write_callback(void *contents, size_t size, size_t nmemb, void *userp) {
+    size_t realsize = size * nmemb;
+    struct curl_response *resp = (struct curl_response *)userp;
+
+    char *ptr = realloc(resp->data, resp->size + realsize + 1);
+    if (!ptr) {
+        /* Out of memory */
+        return 0;
+    }
+
+    resp->data = ptr;
+    memcpy(&(resp->data[resp->size]), contents, realsize);
+    resp->size += realsize;
+    resp->data[resp->size] = 0;
+
+    return realsize;
+}
+
+/* Initialize curl globally */
+static void init_curl(void) {
+    if (!curl_initialized) {
+        curl_global_init(CURL_GLOBAL_DEFAULT);
+        curl_initialized = 1;
+    }
+}
+
+/* Cleanup curl globally */
+static void cleanup_curl(void) {
+    if (curl_initialized) {
+        curl_global_cleanup();
+        curl_initialized = 0;
+    }
+}
+
+/* Start an async HTTP request */
+static int start_async_http_request(const char *url, const char *method,
+                                     const char *body, const char **headers,
+                                     int num_headers, const char *lua_callback) {
+    if (num_pending >= MAX_ASYNC_REQUESTS) {
+        editor_set_status_msg("Too many pending requests");
+        return -1;
+    }
+
+    init_curl();
+
+    /* Find free slot */
+    int slot = -1;
+    for (int i = 0; i < MAX_ASYNC_REQUESTS; i++) {
+        if (!pending_requests[i]) {
+            slot = i;
+            break;
+        }
+    }
+    if (slot == -1) return -1;
+
+    /* Allocate request structure */
+    async_http_request *req = malloc(sizeof(async_http_request));
+    if (!req) return -1;
+
+    memset(req, 0, sizeof(async_http_request));
+    req->response.data = malloc(1);
+    req->response.data[0] = '\0';
+    req->response.size = 0;
+    req->lua_callback = strdup(lua_callback);
+
+    /* Initialize curl */
+    req->easy_handle = curl_easy_init();
+    if (!req->easy_handle) {
+        free(req->response.data);
+        free(req->lua_callback);
+        free(req);
+        return -1;
+    }
+
+    req->multi_handle = curl_multi_init();
+    if (!req->multi_handle) {
+        curl_easy_cleanup(req->easy_handle);
+        free(req->response.data);
+        free(req->lua_callback);
+        free(req);
+        return -1;
+    }
+
+    /* Set curl options */
+    curl_easy_setopt(req->easy_handle, CURLOPT_URL, url);
+    curl_easy_setopt(req->easy_handle, CURLOPT_WRITEFUNCTION, kilo_curl_write_callback);
+    curl_easy_setopt(req->easy_handle, CURLOPT_WRITEDATA, &req->response);
+    curl_easy_setopt(req->easy_handle, CURLOPT_ERRORBUFFER, req->error_buffer);
+    curl_easy_setopt(req->easy_handle, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(req->easy_handle, CURLOPT_FOLLOWLOCATION, 1L);
+
+    /* Set method */
+    if (strcmp(method, "POST") == 0) {
+        curl_easy_setopt(req->easy_handle, CURLOPT_POST, 1L);
+        if (body) {
+            curl_easy_setopt(req->easy_handle, CURLOPT_POSTFIELDS, body);
+        }
+    }
+
+    /* Set headers if provided */
+    if (headers && num_headers > 0) {
+        struct curl_slist *header_list = NULL;
+        for (int i = 0; i < num_headers; i++) {
+            header_list = curl_slist_append(header_list, headers[i]);
+        }
+        curl_easy_setopt(req->easy_handle, CURLOPT_HTTPHEADER, header_list);
+    }
+
+    /* Add to multi handle */
+    curl_multi_add_handle(req->multi_handle, req->easy_handle);
+
+    /* Store in pending requests */
+    pending_requests[slot] = req;
+    num_pending++;
+
+    return slot;
+}
+
+/* Check and process async HTTP requests */
+static void check_async_requests(void) {
+    for (int i = 0; i < MAX_ASYNC_REQUESTS; i++) {
+        async_http_request *req = pending_requests[i];
+        if (!req) continue;
+
+        /* Perform non-blocking work */
+        int still_running = 0;
+        curl_multi_perform(req->multi_handle, &still_running);
+
+        if (still_running == 0) {
+            /* Request completed */
+            long response_code = 0;
+            curl_easy_getinfo(req->easy_handle, CURLINFO_RESPONSE_CODE, &response_code);
+
+            /* Call Lua callback with response */
+            if (E.L && req->lua_callback) {
+                lua_getglobal(E.L, req->lua_callback);
+                if (lua_isfunction(E.L, -1)) {
+                    if (req->response.data && req->response.size > 0) {
+                        lua_pushstring(E.L, req->response.data);
+                    } else {
+                        lua_pushnil(E.L);
+                    }
+
+                    if (lua_pcall(E.L, 1, 0, 0) != LUA_OK) {
+                        const char *err = lua_tostring(E.L, -1);
+                        editor_set_status_msg("Lua callback error: %s", err);
+                        lua_pop(E.L, 1);
+                    }
+                } else {
+                    lua_pop(E.L, 1);
+                }
+            }
+
+            /* Cleanup */
+            curl_multi_remove_handle(req->multi_handle, req->easy_handle);
+            curl_easy_cleanup(req->easy_handle);
+            curl_multi_cleanup(req->multi_handle);
+            free(req->response.data);
+            free(req->lua_callback);
+            free(req);
+
+            pending_requests[i] = NULL;
+            num_pending--;
+        }
+    }
+}
+
 /* ======================= Lua API bindings ================================ */
 
 /* Lua API: kilo.status(message) - Set status message */
@@ -1433,6 +1635,59 @@ static int lua_kilo_get_filename(lua_State *L) {
     return 1;
 }
 
+/* Lua API: kilo.async_http(url, method, body, headers, callback) - Async HTTP request */
+static int lua_kilo_async_http(lua_State *L) {
+    const char *url = luaL_checkstring(L, 1);
+    const char *method = luaL_optstring(L, 2, "GET");
+    const char *body = luaL_optstring(L, 3, NULL);
+
+    /* Parse headers table (optional) */
+    const char **headers = NULL;
+    int num_headers = 0;
+
+    if (lua_istable(L, 4)) {
+        /* Count headers */
+        lua_pushnil(L);
+        while (lua_next(L, 4) != 0) {
+            num_headers++;
+            lua_pop(L, 1);
+        }
+
+        /* Allocate and populate headers array */
+        if (num_headers > 0) {
+            headers = malloc(sizeof(char*) * num_headers);
+            int i = 0;
+            lua_pushnil(L);
+            while (lua_next(L, 4) != 0) {
+                headers[i++] = strdup(lua_tostring(L, -1));
+                lua_pop(L, 1);
+            }
+        }
+    }
+
+    const char *callback = luaL_checkstring(L, 5);
+
+    /* Start async request */
+    int req_id = start_async_http_request(url, method, body, headers, num_headers, callback);
+
+    /* Free headers */
+    if (headers) {
+        for (int i = 0; i < num_headers; i++) {
+            free((void*)headers[i]);
+        }
+        free(headers);
+    }
+
+    if (req_id >= 0) {
+        editor_set_status_msg("HTTP request sent (async)...");
+        lua_pushinteger(L, req_id);
+        return 1;
+    } else {
+        lua_pushnil(L);
+        return 1;
+    }
+}
+
 /* Initialize Lua API */
 static void init_lua_api(lua_State *L) {
     /* Create kilo table */
@@ -1456,6 +1711,9 @@ static void init_lua_api(lua_State *L) {
 
     lua_pushcfunction(L, lua_kilo_get_filename);
     lua_setfield(L, -2, "get_filename");
+
+    lua_pushcfunction(L, lua_kilo_async_http);
+    lua_setfield(L, -2, "async_http");
 
     /* Set as global 'kilo' */
     lua_setglobal(L, "kilo");
@@ -1565,6 +1823,7 @@ int main(int argc, char **argv) {
         "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-L = lua");
     while(1) {
         handle_windows_resize();
+        check_async_requests();  /* Process any pending async HTTP requests */
         editor_refresh_screen();
         editor_process_keypress(STDIN_FILENO);
     }

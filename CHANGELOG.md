@@ -15,6 +15,63 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [0.3.0] - 2025-10-02
+
+### Added
+- **Async HTTP Support**: Non-blocking HTTP requests via libcurl multi interface
+  - `kilo.async_http(url, method, body, headers, callback)` Lua API function
+  - Up to 10 concurrent HTTP requests supported
+  - 30-second timeout per request
+  - Callback-based async pattern for response handling
+  - Editor remains fully responsive during requests
+- **AI Integration Examples**: Complete working examples in `.kilo.example/init.lua`
+  - `ai_complete()` - Send buffer content to OpenAI/compatible APIs
+  - `ai_explain()` - Get AI-powered code explanations
+  - `test_http()` - Test async HTTP with GitHub API
+  - Full JSON request/response handling examples
+- **Homebrew Integration**: Automatic detection of system libraries
+  - Auto-detects Lua or LuaJIT from Homebrew
+  - Auto-detects libcurl from Homebrew
+  - Prefers LuaJIT over Lua for better performance
+  - `make show-config` target to display detected libraries
+- **Example Configurations**: Enhanced `.kilo.example/` directory
+  - Complete AI integration examples with OpenAI
+  - Async HTTP usage examples
+  - Updated README with setup instructions
+
+### Changed
+- **Build System**: Completely rewritten Makefile
+  - Removed embedded Lua amalgamation approach
+  - Now uses system Lua/LuaJIT via Homebrew (dynamic linking)
+  - Reduced binary size from ~386KB to ~72KB
+  - Added `HOMEBREW_PREFIX` detection
+  - Simplified build process with automatic library detection
+- **Lua Integration**: Switched from embedded to system Lua
+  - Changed from `#include "lua.h"` to `#include <lua.h>` (system headers)
+  - Removed `lua_one.c` amalgamation file (no longer needed)
+  - Added `-lpthread` for curl multi-threading support
+- **Main Event Loop**: Enhanced to support async operations
+  - Added `check_async_requests()` call in main loop
+  - Non-blocking request processing every iteration
+  - Smooth integration with existing terminal I/O
+- **Cleanup**: Added curl cleanup to `editor_atexit()`
+  - Ensures proper curl_global_cleanup() on exit
+  - Prevents memory leaks from pending requests
+
+### Documentation
+- Updated README.md with async HTTP features and AI integration examples
+- Updated CLAUDE.md with complete `kilo.async_http()` API documentation
+- Created `.kilo.example/README.md` with async HTTP setup guide
+- Added AI integration workflow examples
+- Documented non-blocking architecture and use cases
+
+### Technical Details
+- **Dependencies**: Now requires Lua/LuaJIT and libcurl from Homebrew
+- **Architecture**: Uses libcurl multi interface for true async I/O
+- **Event Loop**: Non-blocking, integrated with terminal input handling
+- **Memory Management**: Proper cleanup of all async request structures
+- **Error Handling**: User-friendly error messages in status bar
+
 ## [0.2.0] - 2025-10-02
 
 ### Added
