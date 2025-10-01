@@ -32,7 +32,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define KILO_VERSION "0.0.1"
+#define KILO_VERSION "0.2.0"
 
 #ifdef __linux__
 #define _POSIX_C_SOURCE 200809L
@@ -53,6 +53,11 @@
 #include <stdarg.h>
 #include <fcntl.h>
 #include <signal.h>
+
+/* Lua scripting support */
+#include "lua.h"
+#include "lualib.h"
+#include "lauxlib.h"
 
 /* Syntax highlight types */
 #define HL_NORMAL 0
@@ -108,6 +113,7 @@ struct t_editor_config {
     char statusmsg[80];
     time_t statusmsg_time;
     struct t_editor_syntax *syntax;    /* Current syntax highlight, or NULL. */
+    lua_State *L;   /* Lua interpreter state */
 };
 
 /* Global editor state. Note: This makes the editor non-reentrant and
@@ -145,6 +151,7 @@ enum KEY_ACTION{
 };
 
 void editor_set_status_msg(const char *fmt, ...);
+static void exec_lua_command(int fd);
 
 /* =========================== Syntax highlights DB =========================
  *
@@ -219,6 +226,10 @@ void disable_raw_mode(int fd) {
 /* Called at exit to avoid remaining in raw mode. */
 void editor_atexit(void) {
     disable_raw_mode(STDIN_FILENO);
+    if (E.L) {
+        lua_close(E.L);
+        E.L = NULL;
+    }
 }
 
 /* Raw mode: 1960 magic shit. */
@@ -1324,8 +1335,12 @@ void editor_process_keypress(int fd) {
     case ARROW_RIGHT:
         editor_move_cursor(c);
         break;
-    case CTRL_L: /* ctrl+l, clear screen */
-        /* Just refresht the line as side effect. */
+    case CTRL_L: /* ctrl+l, execute Lua command */
+        if (E.L) {
+            exec_lua_command(fd);
+        } else {
+            editor_set_status_msg("Lua not available");
+        }
         break;
     case ESC:
         /* Nothing to do for ESC in this mode. */
@@ -1366,6 +1381,151 @@ void handle_windows_resize(void) {
     }
 }
 
+/* ======================= Lua API bindings ================================ */
+
+/* Lua API: kilo.status(message) - Set status message */
+static int lua_kilo_status(lua_State *L) {
+    const char *msg = luaL_checkstring(L, 1);
+    editor_set_status_msg("%s", msg);
+    return 0;
+}
+
+/* Lua API: kilo.get_line(row) - Get line content at row (0-indexed) */
+static int lua_kilo_get_line(lua_State *L) {
+    int row = luaL_checkinteger(L, 1);
+    if (row < 0 || row >= E.numrows) {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_pushstring(L, E.row[row].chars);
+    return 1;
+}
+
+/* Lua API: kilo.get_lines() - Get total number of lines */
+static int lua_kilo_get_lines(lua_State *L) {
+    lua_pushinteger(L, E.numrows);
+    return 1;
+}
+
+/* Lua API: kilo.get_cursor() - Get cursor position (returns row, col) */
+static int lua_kilo_get_cursor(lua_State *L) {
+    lua_pushinteger(L, E.cy);
+    lua_pushinteger(L, E.cx);
+    return 2;
+}
+
+/* Lua API: kilo.insert_text(text) - Insert text at cursor */
+static int lua_kilo_insert_text(lua_State *L) {
+    const char *text = luaL_checkstring(L, 1);
+    for (const char *p = text; *p; p++) {
+        editor_insert_char(*p);
+    }
+    return 0;
+}
+
+/* Lua API: kilo.get_filename() - Get current filename */
+static int lua_kilo_get_filename(lua_State *L) {
+    if (E.filename) {
+        lua_pushstring(L, E.filename);
+    } else {
+        lua_pushnil(L);
+    }
+    return 1;
+}
+
+/* Initialize Lua API */
+static void init_lua_api(lua_State *L) {
+    /* Create kilo table */
+    lua_newtable(L);
+
+    /* Register functions */
+    lua_pushcfunction(L, lua_kilo_status);
+    lua_setfield(L, -2, "status");
+
+    lua_pushcfunction(L, lua_kilo_get_line);
+    lua_setfield(L, -2, "get_line");
+
+    lua_pushcfunction(L, lua_kilo_get_lines);
+    lua_setfield(L, -2, "get_lines");
+
+    lua_pushcfunction(L, lua_kilo_get_cursor);
+    lua_setfield(L, -2, "get_cursor");
+
+    lua_pushcfunction(L, lua_kilo_insert_text);
+    lua_setfield(L, -2, "insert_text");
+
+    lua_pushcfunction(L, lua_kilo_get_filename);
+    lua_setfield(L, -2, "get_filename");
+
+    /* Set as global 'kilo' */
+    lua_setglobal(L, "kilo");
+}
+
+/* Load init.lua: try .kilo/init.lua (local) first, then ~/.kilo/init.lua (global) */
+static void load_lua_init(lua_State *L) {
+    char init_path[1024];
+
+    /* Try local .kilo/init.lua first (project-specific) */
+    snprintf(init_path, sizeof(init_path), ".kilo/init.lua");
+    if (access(init_path, R_OK) == 0) {
+        if (luaL_dofile(L, init_path) != LUA_OK) {
+            const char *err = lua_tostring(L, -1);
+            editor_set_status_msg("Lua init error (.kilo): %s", err);
+            lua_pop(L, 1);
+        }
+        return; /* Local config loaded, don't load global */
+    }
+
+    /* Fall back to global ~/.kilo/init.lua */
+    char *home = getenv("HOME");
+    if (!home) return;
+
+    snprintf(init_path, sizeof(init_path), "%s/.kilo/init.lua", home);
+    if (access(init_path, R_OK) == 0) {
+        if (luaL_dofile(L, init_path) != LUA_OK) {
+            const char *err = lua_tostring(L, -1);
+            editor_set_status_msg("Lua init error (~/.kilo): %s", err);
+            lua_pop(L, 1);
+        }
+    }
+}
+
+/* Execute Lua command from user input */
+static void exec_lua_command(int fd) {
+    char cmd[KILO_QUERY_LEN+1] = {0};
+    int cmdlen = 0;
+
+    while(1) {
+        editor_set_status_msg("Lua: %s", cmd);
+        editor_refresh_screen();
+
+        int c = editor_read_key(fd);
+        if (c == DEL_KEY || c == CTRL_H || c == BACKSPACE) {
+            if (cmdlen != 0) cmd[--cmdlen] = '\0';
+        } else if (c == ESC) {
+            editor_set_status_msg("");
+            return;
+        } else if (c == ENTER) {
+            if (cmdlen > 0) {
+                /* Execute Lua command */
+                if (luaL_dostring(E.L, cmd) != LUA_OK) {
+                    const char *err = lua_tostring(E.L, -1);
+                    editor_set_status_msg("Lua error: %s", err);
+                    lua_pop(E.L, 1);
+                } else {
+                    editor_set_status_msg("Lua: OK");
+                }
+            }
+            return;
+        } else if (isprint(c)) {
+            if (cmdlen < KILO_QUERY_LEN) {
+                cmd[cmdlen++] = c;
+                cmd[cmdlen] = '\0';
+            }
+        }
+    }
+}
+
 void init_editor(void) {
     E.cx = 0;
     E.cy = 0;
@@ -1378,6 +1538,14 @@ void init_editor(void) {
     E.syntax = NULL;
     update_window_size();
     signal(SIGWINCH, handle_sig_win_ch);
+
+    /* Initialize Lua */
+    E.L = luaL_newstate();
+    if (E.L) {
+        luaL_openlibs(E.L);
+        init_lua_api(E.L);
+        load_lua_init(E.L);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -1394,7 +1562,7 @@ int main(int argc, char **argv) {
     editor_open(argv[1]);
     enable_raw_mode(STDIN_FILENO);
     editor_set_status_msg(
-        "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find");
+        "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-L = lua");
     while(1) {
         handle_windows_resize();
         editor_refresh_screen();

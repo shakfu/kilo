@@ -15,6 +15,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [0.2.0] - 2025-10-02
+
+### Added
+- **Lua 5.4.7 Scripting**: Statically embedded Lua interpreter for extensibility and automation
+  - Interactive Lua console accessible via `Ctrl-L` keybinding
+  - Six API functions exposed via `kilo` global table:
+    - `kilo.status(msg)` - Set status bar message
+    - `kilo.get_lines()` - Get total line count
+    - `kilo.get_line(row)` - Get line content (0-indexed)
+    - `kilo.get_cursor()` - Get cursor position (row, col)
+    - `kilo.insert_text(text)` - Insert text at cursor
+    - `kilo.get_filename()` - Get current filename
+  - Configuration file support with local override:
+    - `.kilo/init.lua` (project-specific, highest priority)
+    - `~/.kilo/init.lua` (global fallback)
+  - Example configuration in `.kilo.example/` directory
+  - Full Lua standard library available (io, os, math, string, table, etc.)
+  - Error handling with user-friendly status bar messages
+- Added Lua amalgamation source (`lua_one.c`) for single-file embedding
+- Added example Lua functions: `count_lines()`, `show_cursor()`, `insert_timestamp()`, `first_line()`
+- Added `.kilo.example/README.md` with complete Lua API documentation
+
+### Changed
+- Updated help message to include `Ctrl-L` Lua command keybinding
+- Modified Makefile to compile Lua with `-lm -ldl` flags and POSIX support
+- Increased binary size to ~386KB (from ~69KB) due to embedded Lua interpreter
+- Extended `editorConfig` structure to include `lua_State *L` field
+- Updated `.gitignore` to exclude Lua source directory, object files, and local `.kilo/` configs
+
+### Documentation
+- Added comprehensive Lua scripting section to CLAUDE.md
+- Updated README.md with Lua features, API reference, and usage examples
+- Created `.kilo.example/` with sample configuration and documentation
+
 ## [0.1.1]
 
 ### Security

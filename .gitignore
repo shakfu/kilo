@@ -1,8 +1,12 @@
 .DS_Store
 
 kilo
+*.o
+
+# lua
+# lua-5.4.7/
+lua-5.4.7.tar.gz
 
 # claude
 .claude
 CLAUDE.md
-
