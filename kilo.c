@@ -68,7 +68,7 @@
 #define HL_HIGHLIGHT_STRINGS (1<<0)
 #define HL_HIGHLIGHT_NUMBERS (1<<1)
 
-struct editorSyntax {
+struct t_ko_editor_syntax {
     char **filematch;
     char **keywords;
     char singleline_comment_start[2];
@@ -79,7 +79,7 @@ struct editorSyntax {
 };
 
 /* This structure represents a single line of the file we are editing. */
-typedef struct erow {
+typedef struct t_ko_erow {
     int idx;            /* Row index in the file, zero-based. */
     int size;           /* Size of the row, excluding the null term. */
     int rsize;          /* Size of the rendered row. */
@@ -88,13 +88,13 @@ typedef struct erow {
     unsigned char *hl;  /* Syntax highlight type for each character in render.*/
     int hl_oc;          /* Row had open comment at end in last syntax highlight
                            check. */
-} erow;
+} t_ko_erow;
 
 typedef struct hlcolor {
     int r,g,b;
 } hlcolor;
 
-struct editorConfig {
+struct t_ko_editor_config {
     int cx,cy;  /* Cursor x and y position in characters */
     int rowoff;     /* Offset of row displayed. */
     int coloff;     /* Offset of column displayed. */
@@ -102,17 +102,17 @@ struct editorConfig {
     int screencols; /* Number of cols that we can show */
     int numrows;    /* Number of rows */
     int rawmode;    /* Is terminal raw mode enabled? */
-    erow *row;      /* Rows */
+    t_ko_erow *row;      /* Rows */
     int dirty;      /* File modified but not saved. */
     char *filename; /* Currently open filename */
     char statusmsg[80];
     time_t statusmsg_time;
-    struct editorSyntax *syntax;    /* Current syntax highlight, or NULL. */
+    struct t_ko_editor_syntax *syntax;    /* Current syntax highlight, or NULL. */
 };
 
 /* Global editor state. Note: This makes the editor non-reentrant and
  * non-thread-safe. Only one editor instance can exist per process. */
-static struct editorConfig E;
+static struct t_ko_editor_config E;
 
 /* Flag to indicate window size change (set by signal handler) */
 static volatile sig_atomic_t winsize_changed = 0;
@@ -144,7 +144,7 @@ enum KEY_ACTION{
         PAGE_DOWN
 };
 
-void editorSetStatusMessage(const char *fmt, ...);
+void ko_editor_set_status_msg(const char *fmt, ...);
 
 /* =========================== Syntax highlights DB =========================
  *
@@ -191,7 +191,7 @@ char *C_HL_keywords[] = {
 
 /* Here we define an array of syntax highlights by extensions, keywords,
  * comments delimiters and flags. */
-struct editorSyntax HLDB[] = {
+struct t_ko_editor_syntax HLDB[] = {
     {
         /* C / C++ */
         C_HL_extensions,
@@ -208,7 +208,7 @@ struct editorSyntax HLDB[] = {
 
 static struct termios orig_termios; /* In order to restore at exit.*/
 
-void disableRawMode(int fd) {
+void ko_disable_raw_mode(int fd) {
     /* Don't even check the return value as it's too late. */
     if (E.rawmode) {
         tcsetattr(fd,TCSAFLUSH,&orig_termios);
@@ -217,12 +217,12 @@ void disableRawMode(int fd) {
 }
 
 /* Called at exit to avoid remaining in raw mode. */
-void editorAtExit(void) {
-    disableRawMode(STDIN_FILENO);
+void ko_editor_atexit(void) {
+    ko_disable_raw_mode(STDIN_FILENO);
 }
 
 /* Raw mode: 1960 magic shit. */
-int enableRawMode(int fd) {
+int ko_enable_raw_mode(int fd) {
     struct termios raw;
 
     if (E.rawmode) return 0; /* Already enabled. */
@@ -256,7 +256,7 @@ fatal:
 
 /* Read a key from the terminal put in raw mode, trying to handle
  * escape sequences. */
-int editorReadKey(int fd) {
+int ko_editor_read_key(int fd) {
     int nread;
     char c, seq[3];
     int retries = 0;
@@ -319,7 +319,7 @@ int editorReadKey(int fd) {
 /* Use the ESC [6n escape sequence to query the horizontal cursor position
  * and return it. On error -1 is returned, on success the position of the
  * cursor is stored at *rows and *cols and 0 is returned. */
-int getCursorPosition(int ifd, int ofd, int *rows, int *cols) {
+int ko_get_cursor_position(int ifd, int ofd, int *rows, int *cols) {
     char buf[32];
     unsigned int i = 0;
 
@@ -343,7 +343,7 @@ int getCursorPosition(int ifd, int ofd, int *rows, int *cols) {
 /* Try to get the number of columns in the current terminal. If the ioctl()
  * call fails the function will try to query the terminal itself.
  * Returns 0 on success, -1 on error. */
-int getWindowSize(int ifd, int ofd, int *rows, int *cols) {
+int ko_get_window_size(int ifd, int ofd, int *rows, int *cols) {
     struct winsize ws;
 
     if (ioctl(1, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
@@ -351,12 +351,12 @@ int getWindowSize(int ifd, int ofd, int *rows, int *cols) {
         int orig_row, orig_col, retval;
 
         /* Get the initial position so we can restore it later. */
-        retval = getCursorPosition(ifd,ofd,&orig_row,&orig_col);
+        retval = ko_get_cursor_position(ifd,ofd,&orig_row,&orig_col);
         if (retval == -1) goto failed;
 
         /* Go to right/bottom margin and get position. */
         if (write(ofd,"\x1b[999C\x1b[999B",12) != 12) goto failed;
-        retval = getCursorPosition(ifd,ofd,rows,cols);
+        retval = ko_get_cursor_position(ifd,ofd,rows,cols);
         if (retval == -1) goto failed;
 
         /* Restore position. */
@@ -385,7 +385,7 @@ int is_separator(int c, char *separators) {
 /* Return true if the specified row last char is part of a multi line comment
  * that starts at this row or at one before, and does not end at the end
  * of the row but spawns to the next row. */
-int editorRowHasOpenComment(erow *row) {
+int ko_editor_row_has_open_comment(t_ko_erow *row) {
     if (row->hl && row->rsize && row->hl[row->rsize-1] == HL_MLCOMMENT &&
         (row->rsize < 2 || (row->render[row->rsize-2] != '*' ||
                             row->render[row->rsize-1] != '/'))) return 1;
@@ -394,7 +394,7 @@ int editorRowHasOpenComment(erow *row) {
 
 /* Set every byte of row->hl (that corresponds to every character in the line)
  * to the right syntax highlight type (HL_* defines). */
-void editorUpdateSyntax(erow *row) {
+void ko_editor_update_syntax(t_ko_erow *row) {
     unsigned char *new_hl = realloc(row->hl,row->rsize);
     if (new_hl == NULL) return; /* Out of memory, keep old highlighting */
     row->hl = new_hl;
@@ -423,7 +423,7 @@ void editorUpdateSyntax(erow *row) {
 
     /* If the previous line has an open comment, this line starts
      * with an open comment state. */
-    if (row->idx > 0 && editorRowHasOpenComment(&E.row[row->idx-1]))
+    if (row->idx > 0 && ko_editor_row_has_open_comment(&E.row[row->idx-1]))
         in_comment = 1;
 
     while(*p) {
@@ -530,14 +530,14 @@ void editorUpdateSyntax(erow *row) {
     /* Propagate syntax change to the next row if the open comment
      * state changed. This may recursively affect all the following rows
      * in the file. */
-    int oc = editorRowHasOpenComment(row);
+    int oc = ko_editor_row_has_open_comment(row);
     if (row->hl_oc != oc && row->idx+1 < E.numrows)
-        editorUpdateSyntax(&E.row[row->idx+1]);
+        ko_editor_update_syntax(&E.row[row->idx+1]);
     row->hl_oc = oc;
 }
 
 /* Maps syntax highlight token types to terminal colors. */
-int editorSyntaxToColor(int hl) {
+int ko_editor_syntax_to_color(int hl) {
     switch(hl) {
     case HL_COMMENT:
     case HL_MLCOMMENT: return 36;     /* cyan */
@@ -552,9 +552,9 @@ int editorSyntaxToColor(int hl) {
 
 /* Select the syntax highlight scheme depending on the filename,
  * setting it in the global state E.syntax. */
-void editorSelectSyntaxHighlight(char *filename) {
+void ko_editor_select_syntax_highlight(char *filename) {
     for (unsigned int j = 0; j < HLDB_ENTRIES; j++) {
-        struct editorSyntax *s = HLDB+j;
+        struct t_ko_editor_syntax *s = HLDB+j;
         unsigned int i = 0;
         while(s->filematch[i]) {
             char *p;
@@ -573,7 +573,7 @@ void editorSelectSyntaxHighlight(char *filename) {
 /* ======================= Editor rows implementation ======================= */
 
 /* Update the rendered version and the syntax highlight of a row. */
-void editorUpdateRow(erow *row) {
+void ko_editor_update_row(t_ko_erow *row) {
     unsigned int tabs = 0;
     int j, idx;
 
@@ -608,19 +608,19 @@ void editorUpdateRow(erow *row) {
     row->render[idx] = '\0';
 
     /* Update the syntax highlighting attributes of the row. */
-    editorUpdateSyntax(row);
+    ko_editor_update_syntax(row);
 }
 
 /* Insert a row at the specified position, shifting the other rows on the bottom
  * if required. */
-void editorInsertRow(int at, char *s, size_t len) {
+void ko_editor_insert_row(int at, char *s, size_t len) {
     if (at > E.numrows) return;
     /* Check for integer overflow in allocation size calculation */
-    if ((size_t)E.numrows >= SIZE_MAX / sizeof(erow)) {
+    if ((size_t)E.numrows >= SIZE_MAX / sizeof(t_ko_erow)) {
         fprintf(stderr, "Too many rows, cannot allocate more memory\n");
         exit(1);
     }
-    erow *new_row = realloc(E.row,sizeof(erow)*(E.numrows+1));
+    t_ko_erow *new_row = realloc(E.row,sizeof(t_ko_erow)*(E.numrows+1));
     if (new_row == NULL) {
         perror("Out of memory");
         exit(1);
@@ -642,13 +642,13 @@ void editorInsertRow(int at, char *s, size_t len) {
     E.row[at].render = NULL;
     E.row[at].rsize = 0;
     E.row[at].idx = at;
-    editorUpdateRow(E.row+at);
+    ko_editor_update_row(E.row+at);
     E.numrows++;
     E.dirty++;
 }
 
 /* Free row's heap allocated stuff. */
-void editorFreeRow(erow *row) {
+void ko_editor_free_row(t_ko_erow *row) {
     free(row->render);
     free(row->chars);
     free(row->hl);
@@ -656,12 +656,12 @@ void editorFreeRow(erow *row) {
 
 /* Remove the row at the specified position, shifting the remaining on the
  * top. */
-void editorDelRow(int at) {
-    erow *row;
+void ko_editor_del_row(int at) {
+    t_ko_erow *row;
 
     if (at >= E.numrows) return;
     row = E.row+at;
-    editorFreeRow(row);
+    ko_editor_free_row(row);
     memmove(E.row+at,E.row+at+1,sizeof(E.row[0])*(E.numrows-at-1));
     for (int j = at; j < E.numrows-1; j++) E.row[j].idx++;
     E.numrows--;
@@ -672,7 +672,7 @@ void editorDelRow(int at) {
  * Returns the pointer to the heap-allocated string and populate the
  * integer pointed by 'buflen' with the size of the string, excluding
  * the final nulterm. */
-char *editorRowsToString(int *buflen) {
+char *ko_editor_rows_to_string(int *buflen) {
     char *buf = NULL, *p;
     int totlen = 0;
     int j;
@@ -697,7 +697,7 @@ char *editorRowsToString(int *buflen) {
 
 /* Insert a character at the specified position in a row, moving the remaining
  * chars on the right if needed. */
-void editorRowInsertChar(erow *row, int at, int c) {
+void ko_editor_row_insert_char(t_ko_erow *row, int at, int c) {
     char *new_chars;
     if (at > row->size) {
         /* Pad the string with spaces if the insert location is outside the
@@ -726,12 +726,12 @@ void editorRowInsertChar(erow *row, int at, int c) {
         row->size++;
     }
     row->chars[at] = c;
-    editorUpdateRow(row);
+    ko_editor_update_row(row);
     E.dirty++;
 }
 
 /* Append the string 's' at the end of a row */
-void editorRowAppendString(erow *row, char *s, size_t len) {
+void ko_editor_row_append_string(t_ko_erow *row, char *s, size_t len) {
     char *new_chars = realloc(row->chars,row->size+len+1);
     if (new_chars == NULL) {
         perror("Out of memory");
@@ -741,34 +741,34 @@ void editorRowAppendString(erow *row, char *s, size_t len) {
     memcpy(row->chars+row->size,s,len);
     row->size += len;
     row->chars[row->size] = '\0';
-    editorUpdateRow(row);
+    ko_editor_update_row(row);
     E.dirty++;
 }
 
 /* Delete the character at offset 'at' from the specified row. */
-void editorRowDelChar(erow *row, int at) {
+void ko_editor_row_del_char(t_ko_erow *row, int at) {
     if (row->size <= at) return;
     /* Include null terminator in move (+1 for the null byte) */
     memmove(row->chars+at,row->chars+at+1,row->size-at+1);
     row->size--;
-    editorUpdateRow(row);
+    ko_editor_update_row(row);
     E.dirty++;
 }
 
 /* Insert the specified char at the current prompt position. */
-void editorInsertChar(int c) {
+void ko_editor_insert_char(int c) {
     int filerow = E.rowoff+E.cy;
     int filecol = E.coloff+E.cx;
-    erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
+    t_ko_erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
 
     /* If the row where the cursor is currently located does not exist in our
      * logical representaion of the file, add enough empty rows as needed. */
     if (!row) {
         while(E.numrows <= filerow)
-            editorInsertRow(E.numrows,"",0);
+            ko_editor_insert_row(E.numrows,"",0);
     }
     row = &E.row[filerow];
-    editorRowInsertChar(row,filecol,c);
+    ko_editor_row_insert_char(row,filecol,c);
     if (E.cx == E.screencols-1)
         E.coloff++;
     else
@@ -778,14 +778,14 @@ void editorInsertChar(int c) {
 
 /* Inserting a newline is slightly complex as we have to handle inserting a
  * newline in the middle of a line, splitting the line as needed. */
-void editorInsertNewline(void) {
+void ko_editor_insert_newline(void) {
     int filerow = E.rowoff+E.cy;
     int filecol = E.coloff+E.cx;
-    erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
+    t_ko_erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
 
     if (!row) {
         if (filerow == E.numrows) {
-            editorInsertRow(filerow,"",0);
+            ko_editor_insert_row(filerow,"",0);
             goto fixcursor;
         }
         return;
@@ -794,14 +794,14 @@ void editorInsertNewline(void) {
      * think it's just over the last character. */
     if (filecol >= row->size) filecol = row->size;
     if (filecol == 0) {
-        editorInsertRow(filerow,"",0);
+        ko_editor_insert_row(filerow,"",0);
     } else {
         /* We are in the middle of a line. Split it between two rows. */
-        editorInsertRow(filerow+1,row->chars+filecol,row->size-filecol);
+        ko_editor_insert_row(filerow+1,row->chars+filecol,row->size-filecol);
         row = &E.row[filerow];
         row->chars[filecol] = '\0';
         row->size = filecol;
-        editorUpdateRow(row);
+        ko_editor_update_row(row);
     }
 fixcursor:
     if (E.cy == E.screenrows-1) {
@@ -817,15 +817,15 @@ fixcursor:
 void editorDelChar(void) {
     int filerow = E.rowoff+E.cy;
     int filecol = E.coloff+E.cx;
-    erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
+    t_ko_erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
 
     if (!row || (filecol == 0 && filerow == 0)) return;
     if (filecol == 0) {
         /* Handle the case of column 0, we need to move the current line
          * on the right of the previous one. */
         filecol = E.row[filerow-1].size;
-        editorRowAppendString(&E.row[filerow-1],row->chars,row->size);
-        editorDelRow(filerow);
+        ko_editor_row_append_string(&E.row[filerow-1],row->chars,row->size);
+        ko_editor_del_row(filerow);
         row = NULL;
         if (E.cy == 0)
             E.rowoff--;
@@ -838,19 +838,19 @@ void editorDelChar(void) {
             E.coloff += shift;
         }
     } else {
-        editorRowDelChar(row,filecol-1);
+        ko_editor_row_del_char(row,filecol-1);
         if (E.cx == 0 && E.coloff)
             E.coloff--;
         else
             E.cx--;
     }
-    if (row) editorUpdateRow(row);
+    if (row) ko_editor_update_row(row);
     E.dirty++;
 }
 
 /* Load the specified program in the editor memory and returns 0 on success
  * or 1 on error. */
-int editorOpen(char *filename) {
+int ko_editor_open(char *filename) {
     FILE *fp;
 
     E.dirty = 0;
@@ -878,7 +878,7 @@ int editorOpen(char *filename) {
     for (size_t i = 0; i < probe_len; i++) {
         if (probe[i] == '\0') {
             fclose(fp);
-            editorSetStatusMessage("Cannot open binary file");
+            ko_editor_set_status_msg("Cannot open binary file");
             return 1;
         }
     }
@@ -890,7 +890,7 @@ int editorOpen(char *filename) {
     while((linelen = getline(&line,&linecap,fp)) != -1) {
         while (linelen > 0 && (line[linelen-1] == '\n' || line[linelen-1] == '\r'))
             line[--linelen] = '\0';
-        editorInsertRow(E.numrows,line,linelen);
+        ko_editor_insert_row(E.numrows,line,linelen);
     }
     free(line);
     fclose(fp);
@@ -901,9 +901,9 @@ int editorOpen(char *filename) {
 /* Save the current file on disk. Return 0 on success, 1 on error. */
 int editorSave(void) {
     int len;
-    char *buf = editorRowsToString(&len);
+    char *buf = ko_editor_rows_to_string(&len);
     if (buf == NULL) {
-        editorSetStatusMessage("Can't save! Out of memory");
+        ko_editor_set_status_msg("Can't save! Out of memory");
         return 1;
     }
     int fd = open(E.filename,O_RDWR|O_CREAT,0644);
@@ -917,13 +917,13 @@ int editorSave(void) {
     close(fd);
     free(buf);
     E.dirty = 0;
-    editorSetStatusMessage("%d bytes written on disk", len);
+    ko_editor_set_status_msg("%d bytes written on disk", len);
     return 0;
 
 writeerr:
     free(buf);
     if (fd != -1) close(fd);
-    editorSetStatusMessage("Can't save! I/O error: %s",strerror(errno));
+    ko_editor_set_status_msg("Can't save! I/O error: %s",strerror(errno));
     return 1;
 }
 
@@ -940,7 +940,7 @@ struct abuf {
 
 #define ABUF_INIT {NULL,0}
 
-void abAppend(struct abuf *ab, const char *s, int len) {
+void ko_ab_append(struct abuf *ab, const char *s, int len) {
     char *new = realloc(ab->b,ab->len+len);
 
     if (new == NULL) {
@@ -955,20 +955,20 @@ void abAppend(struct abuf *ab, const char *s, int len) {
     ab->len += len;
 }
 
-void abFree(struct abuf *ab) {
+void ko_ab_free(struct abuf *ab) {
     free(ab->b);
 }
 
 /* This function writes the whole screen using VT100 escape characters
  * starting from the logical state of the editor in the global state 'E'. */
-void editorRefreshScreen(void) {
+void ko_editor_refresh_screen(void) {
     int y;
-    erow *r;
+    t_ko_erow *r;
     char buf[32];
     struct abuf ab = ABUF_INIT;
 
-    abAppend(&ab,"\x1b[?25l",6); /* Hide cursor. */
-    abAppend(&ab,"\x1b[H",3); /* Go home. */
+    ko_ab_append(&ab,"\x1b[?25l",6); /* Hide cursor. */
+    ko_ab_append(&ab,"\x1b[H",3); /* Go home. */
     for (y = 0; y < E.screenrows; y++) {
         int filerow = E.rowoff+y;
 
@@ -979,13 +979,13 @@ void editorRefreshScreen(void) {
                     "Kilo editor -- version %s\x1b[0K\r\n", KILO_VERSION);
                 int padding = (E.screencols-welcomelen)/2;
                 if (padding) {
-                    abAppend(&ab,"~",1);
+                    ko_ab_append(&ab,"~",1);
                     padding--;
                 }
-                while(padding--) abAppend(&ab," ",1);
-                abAppend(&ab,welcome,welcomelen);
+                while(padding--) ko_ab_append(&ab," ",1);
+                ko_ab_append(&ab,welcome,welcomelen);
             } else {
-                abAppend(&ab,"~\x1b[0K\r\n",7);
+                ko_ab_append(&ab,"~\x1b[0K\r\n",7);
             }
             continue;
         }
@@ -1002,62 +1002,62 @@ void editorRefreshScreen(void) {
             for (j = 0; j < len; j++) {
                 if (hl[j] == HL_NONPRINT) {
                     char sym;
-                    abAppend(&ab,"\x1b[7m",4);
+                    ko_ab_append(&ab,"\x1b[7m",4);
                     if (c[j] <= 26)
                         sym = '@'+c[j];
                     else
                         sym = '?';
-                    abAppend(&ab,&sym,1);
-                    abAppend(&ab,"\x1b[0m",4);
+                    ko_ab_append(&ab,&sym,1);
+                    ko_ab_append(&ab,"\x1b[0m",4);
                 } else if (hl[j] == HL_NORMAL) {
                     if (current_color != -1) {
-                        abAppend(&ab,"\x1b[39m",5);
+                        ko_ab_append(&ab,"\x1b[39m",5);
                         current_color = -1;
                     }
-                    abAppend(&ab,c+j,1);
+                    ko_ab_append(&ab,c+j,1);
                 } else {
-                    int color = editorSyntaxToColor(hl[j]);
+                    int color = ko_editor_syntax_to_color(hl[j]);
                     if (color != current_color) {
                         char buf[16];
                         int clen = snprintf(buf,sizeof(buf),"\x1b[%dm",color);
                         current_color = color;
-                        abAppend(&ab,buf,clen);
+                        ko_ab_append(&ab,buf,clen);
                     }
-                    abAppend(&ab,c+j,1);
+                    ko_ab_append(&ab,c+j,1);
                 }
             }
         }
-        abAppend(&ab,"\x1b[39m",5);
-        abAppend(&ab,"\x1b[0K",4);
-        abAppend(&ab,"\r\n",2);
+        ko_ab_append(&ab,"\x1b[39m",5);
+        ko_ab_append(&ab,"\x1b[0K",4);
+        ko_ab_append(&ab,"\r\n",2);
     }
 
     /* Create a two rows status. First row: */
-    abAppend(&ab,"\x1b[0K",4);
-    abAppend(&ab,"\x1b[7m",4);
+    ko_ab_append(&ab,"\x1b[0K",4);
+    ko_ab_append(&ab,"\x1b[7m",4);
     char status[80], rstatus[80];
     int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
         E.filename, E.numrows, E.dirty ? "(modified)" : "");
     int rlen = snprintf(rstatus, sizeof(rstatus),
         "%d/%d",E.rowoff+E.cy+1,E.numrows);
     if (len > E.screencols) len = E.screencols;
-    abAppend(&ab,status,len);
+    ko_ab_append(&ab,status,len);
     while(len < E.screencols) {
         if (E.screencols - len == rlen) {
-            abAppend(&ab,rstatus,rlen);
+            ko_ab_append(&ab,rstatus,rlen);
             break;
         } else {
-            abAppend(&ab," ",1);
+            ko_ab_append(&ab," ",1);
             len++;
         }
     }
-    abAppend(&ab,"\x1b[0m\r\n",6);
+    ko_ab_append(&ab,"\x1b[0m\r\n",6);
 
     /* Second row depends on E.statusmsg and the status message update time. */
-    abAppend(&ab,"\x1b[0K",4);
+    ko_ab_append(&ab,"\x1b[0K",4);
     int msglen = strlen(E.statusmsg);
     if (msglen && time(NULL)-E.statusmsg_time < 5)
-        abAppend(&ab,E.statusmsg,msglen <= E.screencols ? msglen : E.screencols);
+        ko_ab_append(&ab,E.statusmsg,msglen <= E.screencols ? msglen : E.screencols);
 
     /* Put cursor at its current position. Note that the horizontal position
      * at which the cursor is displayed may be different compared to 'E.cx'
@@ -1065,7 +1065,7 @@ void editorRefreshScreen(void) {
     int j;
     int cx = 1;
     int filerow = E.rowoff+E.cy;
-    erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
+    t_ko_erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
     if (row) {
         for (j = E.coloff; j < (E.cx+E.coloff); j++) {
             if (j < row->size && row->chars[j] == TAB) cx += 7-((cx)%8);
@@ -1073,15 +1073,15 @@ void editorRefreshScreen(void) {
         }
     }
     snprintf(buf,sizeof(buf),"\x1b[%d;%dH",E.cy+1,cx);
-    abAppend(&ab,buf,strlen(buf));
-    abAppend(&ab,"\x1b[?25h",6); /* Show cursor. */
+    ko_ab_append(&ab,buf,strlen(buf));
+    ko_ab_append(&ab,"\x1b[?25h",6); /* Show cursor. */
     write(STDOUT_FILENO,ab.b,ab.len);
-    abFree(&ab);
+    ko_ab_free(&ab);
 }
 
 /* Set an editor status message for the second line of the status, at the
  * end of the screen. */
-void editorSetStatusMessage(const char *fmt, ...) {
+void ko_editor_set_status_msg(const char *fmt, ...) {
     va_list ap;
     va_start(ap,fmt);
     vsnprintf(E.statusmsg,sizeof(E.statusmsg),fmt,ap);
@@ -1114,11 +1114,11 @@ void editorFind(int fd) {
     int saved_coloff = E.coloff, saved_rowoff = E.rowoff;
 
     while(1) {
-        editorSetStatusMessage(
+        ko_editor_set_status_msg(
             "Search: %s (Use ESC/Arrows/Enter)", query);
-        editorRefreshScreen();
+        ko_editor_refresh_screen();
 
-        int c = editorReadKey(fd);
+        int c = ko_editor_read_key(fd);
         if (c == DEL_KEY || c == CTRL_H || c == BACKSPACE) {
             if (qlen != 0) query[--qlen] = '\0';
             last_match = -1;
@@ -1128,7 +1128,7 @@ void editorFind(int fd) {
                 E.coloff = saved_coloff; E.rowoff = saved_rowoff;
             }
             FIND_RESTORE_HL;
-            editorSetStatusMessage("");
+            ko_editor_set_status_msg("");
             return;
         } else if (c == ARROW_RIGHT || c == ARROW_DOWN) {
             find_next = 1;
@@ -1165,7 +1165,7 @@ void editorFind(int fd) {
             FIND_RESTORE_HL;
 
             if (match) {
-                erow *row = &E.row[current];
+                t_ko_erow *row = &E.row[current];
                 last_match = current;
                 if (row->hl) {
                     saved_hl_line = current;
@@ -1197,7 +1197,7 @@ void editorMoveCursor(int key) {
     int filerow = E.rowoff+E.cy;
     int filecol = E.coloff+E.cx;
     int rowlen;
-    erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
+    t_ko_erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
 
     switch(key) {
     case ARROW_LEFT:
@@ -1269,15 +1269,15 @@ void editorMoveCursor(int key) {
 /* Process events arriving from the standard input, which is, the user
  * is typing stuff on the terminal. */
 #define KILO_QUIT_TIMES 3
-void editorProcessKeypress(int fd) {
+void ko_editor_process_keypress(int fd) {
     /* When the file is modified, requires Ctrl-q to be pressed N times
      * before actually quitting. */
     static int quit_times = KILO_QUIT_TIMES;
 
-    int c = editorReadKey(fd);
+    int c = ko_editor_read_key(fd);
     switch(c) {
     case ENTER:         /* Enter */
-        editorInsertNewline();
+        ko_editor_insert_newline();
         break;
     case CTRL_C:        /* Ctrl-c */
         /* We ignore ctrl-c, it can't be so simple to lose the changes
@@ -1286,7 +1286,7 @@ void editorProcessKeypress(int fd) {
     case CTRL_Q:        /* Ctrl-q */
         /* Quit if the file was already saved. */
         if (E.dirty && quit_times) {
-            editorSetStatusMessage("WARNING!!! File has unsaved changes. "
+            ko_editor_set_status_msg("WARNING!!! File has unsaved changes. "
                 "Press Ctrl-Q %d more times to quit.", quit_times);
             quit_times--;
             return;
@@ -1331,19 +1331,19 @@ void editorProcessKeypress(int fd) {
         /* Nothing to do for ESC in this mode. */
         break;
     default:
-        editorInsertChar(c);
+        ko_editor_insert_char(c);
         break;
     }
 
     quit_times = KILO_QUIT_TIMES; /* Reset it to the original value. */
 }
 
-int editorFileWasModified(void) {
+int ko_editor_file_was_modified(void) {
     return E.dirty;
 }
 
-void updateWindowSize(void) {
-    if (getWindowSize(STDIN_FILENO,STDOUT_FILENO,
+void ko_update_window_size(void) {
+    if (ko_get_window_size(STDIN_FILENO,STDOUT_FILENO,
                       &E.screenrows,&E.screencols) == -1) {
         perror("Unable to query the screen for size (columns / rows)");
         exit(1);
@@ -1351,22 +1351,22 @@ void updateWindowSize(void) {
     E.screenrows -= 2; /* Get room for status bar. */
 }
 
-void handleSigWinCh(int unused __attribute__((unused))) {
+void ko_handle_sig_win_ch(int unused __attribute__((unused))) {
     /* Signal handler must be async-signal-safe.
      * Just set a flag and handle resize in main loop. */
     winsize_changed = 1;
 }
 
-void handleWindowResize(void) {
+void ko_handle_windows_resize(void) {
     if (winsize_changed) {
         winsize_changed = 0;
-        updateWindowSize();
+        ko_update_window_size();
         if (E.cy > E.screenrows) E.cy = E.screenrows - 1;
         if (E.cx > E.screencols) E.cx = E.screencols - 1;
     }
 }
 
-void initEditor(void) {
+void ko_init_editor(void) {
     E.cx = 0;
     E.cy = 0;
     E.rowoff = 0;
@@ -1376,29 +1376,29 @@ void initEditor(void) {
     E.dirty = 0;
     E.filename = NULL;
     E.syntax = NULL;
-    updateWindowSize();
-    signal(SIGWINCH, handleSigWinCh);
+    ko_update_window_size();
+    signal(SIGWINCH, ko_handle_sig_win_ch);
 }
 
 int main(int argc, char **argv) {
     /* Register cleanup handler early to ensure terminal is always restored */
-    atexit(editorAtExit);
+    atexit(ko_editor_atexit);
 
     if (argc != 2) {
         fprintf(stderr,"Usage: kilo <filename>\n");
         exit(1);
     }
 
-    initEditor();
-    editorSelectSyntaxHighlight(argv[1]);
-    editorOpen(argv[1]);
-    enableRawMode(STDIN_FILENO);
-    editorSetStatusMessage(
+    ko_init_editor();
+    ko_editor_select_syntax_highlight(argv[1]);
+    ko_editor_open(argv[1]);
+    ko_enable_raw_mode(STDIN_FILENO);
+    ko_editor_set_status_msg(
         "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find");
     while(1) {
-        handleWindowResize();
-        editorRefreshScreen();
-        editorProcessKeypress(STDIN_FILENO);
+        ko_handle_windows_resize();
+        ko_editor_refresh_screen();
+        ko_editor_process_keypress(STDIN_FILENO);
     }
     return 0;
 }
