@@ -1,38 +1,15 @@
-/* Kilo -- A very simple editor in less than 1-kilo lines of code (as counted
- *         by "cloc"). Does not depend on libcurses, directly emits VT100
- *         escapes on the terminal.
- *
- * -----------------------------------------------------------------------
- *
- * Copyright (C) 2016 Salvatore Sanfilippo <antirez at gmail dot com>
- *
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *  *  Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *
- *  *  Redistributions in binary form must reproduce the above copyright
- *     notice, this list of conditions and the following disclaimer in the
- *     documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+#define LOKI_VERSION "0.4.1"
 
-#define KILO_VERSION "0.4.1"
+/* 
+loki is based on loki -- A very simple editor in less than 1-loki 
+lines of code (as counted by "cloc"). Does not depend on libcurses,
+directly emits VT100 escapes on the terminal.
+
+Copyright (c) 2016, Salvatore Sanfilippo <antirez at gmail dot com>
+
+see LICENSE.
+*/
+
 
 #ifdef __linux__
 #define _POSIX_C_SOURCE 200809L
@@ -1111,7 +1088,7 @@ void editor_update_row(t_erow *row) {
     unsigned long long allocsize =
         (unsigned long long) row->size + tabs*8 + 1;
     if (allocsize > UINT32_MAX) {
-        printf("Some line of the edited file is too long for kilo\n");
+        printf("Some line of the edited file is too long for loki\n");
         exit(1);
     }
 
@@ -1502,7 +1479,7 @@ void editor_refresh_screen(void) {
             if (E.numrows == 0 && y == E.screenrows/3) {
                 char welcome[80];
                 int welcomelen = snprintf(welcome,sizeof(welcome),
-                    "Kilo editor -- version %s\x1b[0K\r\n", KILO_VERSION);
+                    "Kilo editor -- version %s\x1b[0K\r\n", LOKI_VERSION);
                 int padding = (E.screencols-welcomelen)/2;
                 if (padding) {
                     ab_append(&ab,"~",1);
@@ -2201,14 +2178,14 @@ static void check_async_requests(void) {
 
 /* ======================= Lua API bindings ================================ */
 
-/* Lua API: kilo.status(message) - Set status message */
+/* Lua API: loki.status(message) - Set status message */
 static int lua_kilo_status(lua_State *L) {
     const char *msg = luaL_checkstring(L, 1);
     editor_set_status_msg("%s", msg);
     return 0;
 }
 
-/* Lua API: kilo.get_line(row) - Get line content at row (0-indexed) */
+/* Lua API: loki.get_line(row) - Get line content at row (0-indexed) */
 static int lua_kilo_get_line(lua_State *L) {
     int row = luaL_checkinteger(L, 1);
     if (row < 0 || row >= E.numrows) {
@@ -2219,20 +2196,20 @@ static int lua_kilo_get_line(lua_State *L) {
     return 1;
 }
 
-/* Lua API: kilo.get_lines() - Get total number of lines */
+/* Lua API: loki.get_lines() - Get total number of lines */
 static int lua_kilo_get_lines(lua_State *L) {
     lua_pushinteger(L, E.numrows);
     return 1;
 }
 
-/* Lua API: kilo.get_cursor() - Get cursor position (returns row, col) */
+/* Lua API: loki.get_cursor() - Get cursor position (returns row, col) */
 static int lua_kilo_get_cursor(lua_State *L) {
     lua_pushinteger(L, E.cy);
     lua_pushinteger(L, E.cx);
     return 2;
 }
 
-/* Lua API: kilo.insert_text(text) - Insert text at cursor */
+/* Lua API: loki.insert_text(text) - Insert text at cursor */
 static int lua_kilo_insert_text(lua_State *L) {
     const char *text = luaL_checkstring(L, 1);
     for (const char *p = text; *p; p++) {
@@ -2241,7 +2218,7 @@ static int lua_kilo_insert_text(lua_State *L) {
     return 0;
 }
 
-/* Lua API: kilo.stream_text(text) - Append text and scroll to bottom */
+/* Lua API: loki.stream_text(text) - Append text and scroll to bottom */
 static int lua_kilo_stream_text(lua_State *L) {
     const char *text = luaL_checkstring(L, 1);
 
@@ -2268,7 +2245,7 @@ static int lua_kilo_stream_text(lua_State *L) {
     return 0;
 }
 
-/* Lua API: kilo.get_filename() - Get current filename */
+/* Lua API: loki.get_filename() - Get current filename */
 static int lua_kilo_get_filename(lua_State *L) {
     if (E.filename) {
         lua_pushstring(L, E.filename);
@@ -2278,7 +2255,7 @@ static int lua_kilo_get_filename(lua_State *L) {
     return 1;
 }
 
-/* Lua API: kilo.async_http(url, method, body, headers, callback) - Async HTTP request */
+/* Lua API: loki.async_http(url, method, body, headers, callback) - Async HTTP request */
 static int lua_kilo_async_http(lua_State *L) {
     const char *url = luaL_checkstring(L, 1);
     const char *method = luaL_optstring(L, 2, "GET");
@@ -2333,7 +2310,7 @@ static int lua_kilo_async_http(lua_State *L) {
 
 /* Initialize Lua API */
 static void init_lua_api(lua_State *L) {
-    /* Create kilo table */
+    /* Create loki table */
     lua_newtable(L);
 
     /* Register functions */
@@ -2361,34 +2338,34 @@ static void init_lua_api(lua_State *L) {
     lua_pushcfunction(L, lua_kilo_async_http);
     lua_setfield(L, -2, "async_http");
 
-    /* Set as global 'kilo' */
-    lua_setglobal(L, "kilo");
+    /* Set as global 'loki' */
+    lua_setglobal(L, "loki");
 }
 
-/* Load init.lua: try .kilo/init.lua (local) first, then ~/.kilo/init.lua (global) */
+/* Load init.lua: try .loki/init.lua (local) first, then ~/.loki/init.lua (global) */
 static void load_lua_init(lua_State *L) {
     char init_path[1024];
 
-    /* Try local .kilo/init.lua first (project-specific) */
-    snprintf(init_path, sizeof(init_path), ".kilo/init.lua");
+    /* Try local .loki/init.lua first (project-specific) */
+    snprintf(init_path, sizeof(init_path), ".loki/init.lua");
     if (access(init_path, R_OK) == 0) {
         if (luaL_dofile(L, init_path) != LUA_OK) {
             const char *err = lua_tostring(L, -1);
-            editor_set_status_msg("Lua init error (.kilo): %s", err);
+            editor_set_status_msg("Lua init error (.loki): %s", err);
             lua_pop(L, 1);
         }
         return; /* Local config loaded, don't load global */
     }
 
-    /* Fall back to global ~/.kilo/init.lua */
+    /* Fall back to global ~/.loki/init.lua */
     char *home = getenv("HOME");
     if (!home) return;
 
-    snprintf(init_path, sizeof(init_path), "%s/.kilo/init.lua", home);
+    snprintf(init_path, sizeof(init_path), "%s/.loki/init.lua", home);
     if (access(init_path, R_OK) == 0) {
         if (luaL_dofile(L, init_path) != LUA_OK) {
             const char *err = lua_tostring(L, -1);
-            editor_set_status_msg("Lua init error (~/.kilo): %s", err);
+            editor_set_status_msg("Lua init error (~/.loki): %s", err);
             lua_pop(L, 1);
         }
     }
@@ -2484,7 +2461,7 @@ static int run_ai_command(char *filename, const char *command) {
     lua_getglobal(E.L, command);
     if (!lua_isfunction(E.L, -1)) {
         fprintf(stderr, "Error: Lua function '%s' not found\n", command);
-        fprintf(stderr, "Make sure .kilo/init.lua or ~/.kilo/init.lua defines this function\n");
+        fprintf(stderr, "Make sure .loki/init.lua or ~/.loki/init.lua defines this function\n");
         return 1;
     }
 
@@ -2518,7 +2495,7 @@ static int run_ai_command(char *filename, const char *command) {
         fprintf(stderr, "Warning: No content was inserted. Possible issues:\n");
         fprintf(stderr, "  - API request failed (check API key)\n");
         fprintf(stderr, "  - Response parsing failed (check model name)\n");
-        fprintf(stderr, "  - Lua callback error (check .kilo/init.lua)\n");
+        fprintf(stderr, "  - Lua callback error (check .loki/init.lua)\n");
         fprintf(stderr, "Status: %s\n", E.statusmsg);
         return 1;
     }
@@ -2543,20 +2520,20 @@ static int run_ai_command(char *filename, const char *command) {
 }
 
 static void print_usage(void) {
-    printf("Usage: kilo [options] <filename>\n");
+    printf("Usage: loki [options] <filename>\n");
     printf("\nOptions:\n");
     printf("  --help              Show this help message\n");
     printf("  --complete <file>   Run AI completion on file and save result\n");
     printf("  --explain <file>    Run AI explanation on file and print to stdout\n");
     printf("\nInteractive mode (default):\n");
-    printf("  kilo <filename>     Open file in interactive editor\n");
+    printf("  loki <filename>     Open file in interactive editor\n");
     printf("\nKeybindings in interactive mode:\n");
     printf("  Ctrl-S    Save file\n");
     printf("  Ctrl-Q    Quit\n");
     printf("  Ctrl-F    Find\n");
     printf("  Ctrl-L    Execute Lua command\n");
     printf("\nAI commands require OPENAI_API_KEY environment variable\n");
-    printf("and .kilo/init.lua or ~/.kilo/init.lua configuration.\n");
+    printf("and .loki/init.lua or ~/.loki/init.lua configuration.\n");
 }
 
 int main(int argc, char **argv) {

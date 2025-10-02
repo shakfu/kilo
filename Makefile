@@ -45,19 +45,19 @@ LDFLAGS = -L$(LUA_LIBDIR) -L$(CURL_LIBDIR) \
           -lcurl \
           -lm -ldl -lpthread
 
-all: kilo
+all: loki
 
-kilo: kilo.c
-	@echo "Building kilo with $(LUA_VARIANT) and LibCURL..."
-	@$(CC) -o kilo kilo.c $(CFLAGS) $(LDFLAGS)
+loki: loki.c
+	@echo "Building loki with $(LUA_VARIANT) and LibCURL..."
+	@$(CC) -o loki loki.c $(CFLAGS) $(LDFLAGS)
 	@echo "Build complete!"
 
 clean:
-	@rm -f kilo
+	@rm -f loki
 
 test:
-	@echo "Running kilo tests..."
-	@./kilo --version 2>&1 || true
+	@echo "Running loki tests..."
+	@./loki --version 2>&1 || true
 	@echo "Tests complete."
 
 # Show configuration

@@ -1,7 +1,7 @@
 # Syntax Highlighting and LSP Integration Research
 
 **Date:** 2025-10-02
-**For:** Kilo Text Editor v0.4.0
+**For:** Loki Text Editor v0.4.0
 **Current State:** Basic regex-based syntax highlighting for C/C++ only
 
 ## Executive Summary
@@ -10,7 +10,7 @@ This document evaluates high-performance syntax highlighting solutions and LSP i
 
 ### Current Implementation
 
-Kilo uses a basic hand-coded syntax highlighter (~150 lines):
+loki uses a basic hand-coded syntax highlighter (~150 lines):
 - **Method**: Manual character-by-character parsing with regex-like patterns
 - **Features**: Keywords, strings, numbers, single/multi-line comments
 - **Languages**: C/C++ only (hardcoded)
@@ -424,7 +424,7 @@ end
 
 ## Recommendations
 
-### For Maintaining Kilo's Minimalism
+### For Maintaining loki's Minimalism
 
 **1. Enhanced Manual Syntax Highlighting (Option 4)**
 - Add data-driven language definitions
@@ -446,7 +446,7 @@ end
 
 ---
 
-### For a "Kilo Plus" Fork
+### For a "loki Plus" Fork
 
 If forking kilo for a more feature-rich editor:
 
@@ -503,7 +503,7 @@ If forking kilo for a more feature-rich editor:
 
 ---
 
-## Appendix: Current Kilo Syntax Highlighting Code
+## Appendix: Current loki Syntax Highlighting Code
 
 Current implementation (~150 lines in `kilo.c`):
 
@@ -543,7 +543,7 @@ typedef struct t_erow {
 
 ## Conclusion
 
-Kilo's current syntax highlighting is elegant but limited to C/C++. The recommended path forward:
+loki's current syntax highlighting is elegant but limited to C/C++. The recommended path forward:
 
 1. **Short term:** Enhance current approach with data-driven language definitions (low complexity, high value)
 2. **Medium term:** Experimental Lua-based LSP client (leverages existing infrastructure)

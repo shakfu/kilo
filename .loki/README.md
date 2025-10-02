@@ -1,28 +1,28 @@
-# Kilo Lua Configuration Example
+# Loki Lua Configuration Example
 
-This directory contains example Lua configuration for the kilo editor with async HTTP support.
+This directory contains example Lua configuration for the loki editor with async HTTP support.
 
 ## Setup
 
 To use this configuration:
 
 ```bash
-# Copy to .kilo directory (project-specific)
-cp -r .kilo.example .kilo
+# Copy to .loki directory (project-specific)
+cp -r .loki.example .loki
 
 # Or copy to home directory (global)
-mkdir -p ~/.kilo
-cp .kilo.example/init.lua ~/.kilo/
+mkdir -p ~/.loki
+cp .loki.example/init.lua ~/.loki/
 ```
 
 ## Configuration Priority
 
-Kilo loads Lua configuration in this order:
+Loki loads Lua configuration in this order:
 
-1. `.kilo/init.lua` - Local, project-specific (current working directory)
-2. `~/.kilo/init.lua` - Global, home directory
+1. `.loki/init.lua` - Local, project-specific (current working directory)
+2. `~/.loki/init.lua` - Global, home directory
 
-**Note:** If a local `.kilo/init.lua` exists, the global config is **NOT** loaded.
+**Note:** If a local `.loki/init.lua` exists, the global config is **NOT** loaded.
 
 ## Available Functions
 
@@ -49,12 +49,12 @@ Set your OpenAI API key as an environment variable:
 
 ```bash
 export OPENAI_API_KEY="sk-..."
-./kilo myfile.txt
+./loki myfile.txt
 ```
 
 ### Usage
 
-1. Open a file with kilo
+1. Open a file with loki
 2. Press `Ctrl-L` to open Lua command prompt
 3. Type `ai_complete()` and press Enter
 4. Continue editing - the response will appear automatically when ready
@@ -63,11 +63,11 @@ export OPENAI_API_KEY="sk-..."
 ### Example Workflow
 
 ```bash
-# Write some text or code in kilo
+# Write some text or code in loki
 echo "Explain how async HTTP works" > question.txt
-./kilo question.txt
+./loki question.txt
 
-# In kilo, press Ctrl-L and type:
+# In loki, press Ctrl-L and type:
 ai_complete()
 
 # Continue editing while AI processes
@@ -76,21 +76,21 @@ ai_complete()
 
 ## Lua API
 
-Access editor functionality via the `kilo` global table:
+Access editor functionality via the `loki` global table:
 
 ### Synchronous Functions
 
-- `kilo.status(msg)` - Set status bar message
-- `kilo.get_lines()` - Get total line count
-- `kilo.get_line(row)` - Get line content (0-indexed)
-- `kilo.get_cursor()` - Get cursor position (row, col)
-- `kilo.insert_text(text)` - Insert text at cursor
-- `kilo.get_filename()` - Get current filename
+- `loki.status(msg)` - Set status bar message
+- `loki.get_lines()` - Get total line count
+- `loki.get_line(row)` - Get line content (0-indexed)
+- `loki.get_cursor()` - Get cursor position (row, col)
+- `loki.insert_text(text)` - Insert text at cursor
+- `loki.get_filename()` - Get current filename
 
 ### Async HTTP Function
 
 ```lua
-kilo.async_http(url, method, body, headers, callback)
+loki.async_http(url, method, body, headers, callback)
 ```
 
 **Parameters:**
@@ -103,14 +103,14 @@ kilo.async_http(url, method, body, headers, callback)
 **Example:**
 ```lua
 function my_callback(response)
-    kilo.status("Got: " .. response)
+    loki.status("Got: " .. response)
 end
 
-kilo.async_http(
+loki.async_http(
     "https://api.example.com/data",
     "GET",
     nil,
-    {"User-Agent: kilo"},
+    {"User-Agent: loki"},
     "my_callback"
 )
 ```
@@ -120,7 +120,7 @@ kilo.async_http(
 - **Non-blocking**: Uses libcurl multi interface for async I/O
 - **Event loop**: Checks for completed requests every iteration
 - **Callback-based**: Lua functions called when responses arrive
-- **Max requests**: 10 concurrent requests (configurable in kilo.c)
+- **Max requests**: 10 concurrent requests (configurable in loki.c)
 - **Timeout**: 30 seconds per request
 
 ## Customization

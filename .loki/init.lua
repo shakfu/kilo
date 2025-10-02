@@ -1,43 +1,43 @@
--- Kilo Editor Lua Configuration Example
+-- Loki Editor Lua Configuration Example
 --
--- Copy this directory to .kilo/ to customize your editor:
---   cp -r .kilo.example .kilo
+-- Copy this directory to .loki/ to customize your editor:
+--   cp -r .loki.example .loki
 --
 -- Loading priority:
---   1. .kilo/init.lua (local, project-specific)
---   2. ~/.kilo/init.lua (global, home directory)
+--   1. .loki/init.lua (local, project-specific)
+--   2. ~/.loki/init.lua (global, home directory)
 --
--- If .kilo/init.lua exists, global config is NOT loaded.
+-- If .loki/init.lua exists, global config is NOT loaded.
 
 -- Set a welcome message
-kilo.status("Lua scripting enabled! Press Ctrl-L to run commands.")
+loki.status("Lua scripting enabled! Press Ctrl-L to run commands.")
 
 -- Example function: count lines
 function count_lines()
-    local n = kilo.get_lines()
-    kilo.status(string.format("File has %d lines", n))
+    local n = loki.get_lines()
+    loki.status(string.format("File has %d lines", n))
 end
 
 -- Example function: show cursor position
 function show_cursor()
-    local row, col = kilo.get_cursor()
-    kilo.status(string.format("Cursor at row %d, col %d", row, col))
+    local row, col = loki.get_cursor()
+    loki.status(string.format("Cursor at row %d, col %d", row, col))
 end
 
 -- Example function: insert current timestamp
 function insert_timestamp()
     local timestamp = os.date("%Y-%m-%d %H:%M:%S")
-    kilo.insert_text(timestamp)
-    kilo.status("Inserted timestamp")
+    loki.insert_text(timestamp)
+    loki.status("Inserted timestamp")
 end
 
 -- Example function: print first line
 function first_line()
-    local line = kilo.get_line(0)
+    local line = loki.get_line(0)
     if line then
-        kilo.status("First line: " .. line)
+        loki.status("First line: " .. line)
     else
-        kilo.status("No lines in file")
+        loki.status("No lines in file")
     end
 end
 
@@ -50,15 +50,15 @@ end
 function ai_complete()
     -- Get all buffer content
     local lines = {}
-    for i = 0, kilo.get_lines() - 1 do
-        table.insert(lines, kilo.get_line(i))
+    for i = 0, loki.get_lines() - 1 do
+        table.insert(lines, loki.get_line(i))
     end
     local prompt = table.concat(lines, "\n")
 
     -- Get API key from environment
     local api_key = os.getenv("OPENAI_API_KEY")
     if not api_key or api_key == "" then
-        kilo.status("Error: OPENAI_API_KEY environment variable not set")
+        loki.status("Error: OPENAI_API_KEY environment variable not set")
         return
     end
 
@@ -77,7 +77,7 @@ function ai_complete()
     }
 
     -- Make async HTTP request (non-blocking)
-    kilo.async_http(
+    loki.async_http(
         "https://api.openai.com/v1/chat/completions",
         "POST",
         json_body,
@@ -85,20 +85,20 @@ function ai_complete()
         "ai_response_handler"  -- Callback function
     )
 
-    kilo.status("AI request sent... (will appear when ready)")
+    loki.status("AI request sent... (will appear when ready)")
 end
 
 -- Callback function called when AI response arrives
 function ai_response_handler(response)
     if not response then
-        kilo.status("Error: No response from AI")
+        loki.status("Error: No response from AI")
         return
     end
 
     -- Check for API errors first
     local error_msg = response:match('"error"%s*:%s*{.-"message"%s*:%s*"(.-)"')
     if error_msg then
-        kilo.status("API Error: " .. error_msg)
+        loki.status("API Error: " .. error_msg)
         return
     end
 
@@ -119,26 +119,26 @@ function ai_response_handler(response)
         content = content:gsub('\\\\', '\\')
 
         -- Insert response into buffer at cursor position
-        kilo.insert_text("\n\n--- AI Response ---\n" .. content .. "\n---\n")
-        kilo.status("AI response inserted!")
+        loki.insert_text("\n\n--- AI Response ---\n" .. content .. "\n---\n")
+        loki.status("AI response inserted!")
     else
         -- Show first 100 chars of response for debugging
         local preview = response:sub(1, math.min(100, #response))
-        kilo.status("Error parsing response: " .. preview)
+        loki.status("Error parsing response: " .. preview)
     end
 end
 
 -- Example: AI completion for specific task
 function ai_explain()
     local lines = {}
-    for i = 0, kilo.get_lines() - 1 do
-        table.insert(lines, kilo.get_line(i))
+    for i = 0, loki.get_lines() - 1 do
+        table.insert(lines, loki.get_line(i))
     end
     local code = table.concat(lines, "\n")
 
     local api_key = os.getenv("OPENAI_API_KEY")
     if not api_key or api_key == "" then
-        kilo.status("Error: OPENAI_API_KEY not set")
+        loki.status("Error: OPENAI_API_KEY not set")
         return
     end
 
@@ -155,7 +155,7 @@ function ai_explain()
         "Authorization: Bearer " .. api_key
     }
 
-    kilo.async_http(
+    loki.async_http(
         "https://api.openai.com/v1/chat/completions",
         "POST",
         json_body,
@@ -163,31 +163,31 @@ function ai_explain()
         "ai_response_handler"
     )
 
-    kilo.status("Requesting code explanation...")
+    loki.status("Requesting code explanation...")
 end
 
 -- Example: Test the async HTTP with a simple GET request
 function test_http()
-    kilo.async_http(
+    loki.async_http(
         "https://api.github.com/zen",
         "GET",
         nil,
-        {"User-Agent: kilo-editor"},
+        {"User-Agent: loki-editor"},
         "test_http_handler"
     )
-    kilo.status("Testing HTTP...")
+    loki.status("Testing HTTP...")
 end
 
 function test_http_handler(response)
     if response then
-        kilo.insert_text("\n\nGitHub Zen: " .. response .. "\n")
-        kilo.status("HTTP test successful!")
+        loki.insert_text("\n\nGitHub Zen: " .. response .. "\n")
+        loki.status("HTTP test successful!")
     else
-        kilo.status("HTTP test failed")
+        loki.status("HTTP test failed")
     end
 end
 
-print("Kilo Lua init.lua loaded successfully")
+print("Loki Lua init.lua loaded successfully")
 print("Available commands:")
 print("  count_lines()      - Show line count")
 print("  show_cursor()      - Show cursor position")

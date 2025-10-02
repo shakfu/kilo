@@ -1,6 +1,6 @@
-# kilo -- a minimal lua-powered text editor with builtin async http
+# loki -- a minimal lua-powered text editor with builtin async http
 
-A lightweight, Lua-powered text editor built on antirez's [kilo](https://github.com/antirez/kilo) (~1K lines). Features async HTTP for AI completions, dynamic scripting, and zero configuration needed - just compile and run.
+A lightweight, Lua-powered text editor built on antirez's [loki](https://github.com/antirez/loki) (~1K lines). Features async HTTP for AI completions, dynamic scripting, and zero configuration needed - just compile and run.
 
 ## Features
 
@@ -13,7 +13,7 @@ A lightweight, Lua-powered text editor built on antirez's [kilo](https://github.
 
 ### Lua Scripting Engine
 - **Lua/LuaJIT**: Full Lua environment for extensibility
-- **Project-local config**: `.kilo/init.lua` overrides `~/.kilo/init.lua`
+- **Project-local config**: `.loki/init.lua` overrides `~/.loki/init.lua`
 - **Interactive console**: Press `Ctrl-L` to execute Lua commands
 - **Full standard library**: io, os, math, string, table, etc.
 
@@ -26,7 +26,7 @@ A lightweight, Lua-powered text editor built on antirez's [kilo](https://github.
 
 ### Smart Configuration
 - **Auto-detection**: Finds Homebrew Lua/LuaJIT and libcurl automatically
-- **Local override**: Project-specific `.kilo/` config takes precedence
+- **Local override**: Project-specific `.loki/` config takes precedence
 - **Zero-config**: Works out of the box with sensible defaults
 - **Example configs**: Complete AI integration examples included
 
@@ -53,7 +53,7 @@ Requires: C99 compiler, POSIX system (Linux, macOS, BSD)
 ### Interactive Mode
 
 ```bash
-./kilo <filename>
+./loki <filename>
 ```
 
 Opens the file in the interactive editor.
@@ -62,18 +62,18 @@ Opens the file in the interactive editor.
 
 ```bash
 # Run AI completion on a file and save the result
-./kilo --complete <filename>
+./loki --complete <filename>
 
 # Run AI explanation on a file and print to stdout
-./kilo --explain <filename>
+./loki --explain <filename>
 
 # Show help
-./kilo --help
+./loki --help
 ```
 
 **Requirements for AI commands:**
 - Set `OPENAI_API_KEY` environment variable
-- Configure `.kilo/init.lua` or `~/.kilo/init.lua` with AI functions (see `.kilo.example/`)
+- Configure `.loki/init.lua` or `~/.loki/init.lua` with AI functions (see `.loki.example/`)
 
 ### Keybindings (Interactive Mode)
 
@@ -84,24 +84,24 @@ Opens the file in the interactive editor.
 
 ## Lua Scripting
 
-Kilo includes an embedded Lua interpreter for customization and automation.
+Loki includes an embedded Lua interpreter for customization and automation.
 
 ### Configuration
 
-Kilo loads Lua configuration with local override support:
+Loki loads Lua configuration with local override support:
 
-1. `.kilo/init.lua` - Project-specific config (current directory)
-2. `~/.kilo/init.lua` - Global config (home directory)
+1. `.loki/init.lua` - Project-specific config (current directory)
+2. `~/.loki/init.lua` - Global config (home directory)
 
-If a local `.kilo/init.lua` exists, the global config is **not** loaded.
+If a local `.loki/init.lua` exists, the global config is **not** loaded.
 
 **Quick start:**
 ```bash
 # Copy example configuration
-cp -r .kilo.example .kilo
+cp -r .loki.example .loki
 
 # Edit to customize
-vim .kilo/init.lua
+vim .loki/init.lua
 ```
 
 ### Interactive Lua Console
@@ -111,23 +111,23 @@ Press `Ctrl-L` to open the Lua command prompt. Type any Lua expression:
 ```lua
 count_lines()              -- Show line count
 insert_timestamp()         -- Insert current date/time
-kilo.status("Hello!")      -- Set status message
+loki.status("Hello!")      -- Set status message
 ```
 
 ### Lua API
 
-The `kilo` global table provides these functions:
+The `loki` global table provides these functions:
 
 **Synchronous Functions:**
-- `kilo.status(msg)` - Set status bar message
-- `kilo.get_lines()` - Get total number of lines
-- `kilo.get_line(row)` - Get line content (0-indexed)
-- `kilo.get_cursor()` - Get cursor position (row, col)
-- `kilo.insert_text(text)` - Insert text at cursor
-- `kilo.get_filename()` - Get current filename
+- `loki.status(msg)` - Set status bar message
+- `loki.get_lines()` - Get total number of lines
+- `loki.get_line(row)` - Get line content (0-indexed)
+- `loki.get_cursor()` - Get cursor position (row, col)
+- `loki.insert_text(text)` - Insert text at cursor
+- `loki.get_filename()` - Get current filename
 
 **Async HTTP:**
-- `kilo.async_http(url, method, body, headers, callback)` - Non-blocking HTTP requests
+- `loki.async_http(url, method, body, headers, callback)` - Non-blocking HTTP requests
 
 The async HTTP function enables powerful integrations:
 - AI completions (OpenAI, Claude, local models)
@@ -140,7 +140,7 @@ Example usage:
 ```lua
 function ai_complete()
     local text = get_buffer_text()
-    kilo.async_http(
+    loki.async_http(
         "https://api.openai.com/v1/chat/completions",
         "POST",
         json_body,
@@ -151,11 +151,11 @@ end
 
 function ai_response_handler(response)
     -- Called automatically when response arrives
-    kilo.insert_text(parse_response(response))
+    loki.insert_text(parse_response(response))
 end
 ```
 
-See `.kilo.example/init.lua` for complete examples including AI integration.
+See `.loki.example/init.lua` for complete examples including AI integration.
 
 ## Project Status
 
@@ -164,7 +164,7 @@ This is a fork with enhancements:
 - [x] Lua/LuaJIT scripting (via Homebrew, dynamically linked)
 - [x] Async HTTP support (non-blocking, libcurl-based)
 - [x] AI integration examples (OpenAI, compatible APIs)
-- [x] Project-local configuration (`.kilo/` override)
+- [x] Project-local configuration (`.loki/` override)
 - [x] Binary file protection
 - [x] Improved error handling
 
@@ -177,7 +177,7 @@ This is a fork with enhancements:
 
 ## Credits
 
-Original kilo editor by Salvatore Sanfilippo (antirez).
+Original loki editor by Salvatore Sanfilippo (antirez).
 Lua integration and enhancements added 2025.
 
 Released under the BSD 2 clause license.
