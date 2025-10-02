@@ -130,6 +130,10 @@ struct t_editor_config {
     time_t statusmsg_time;
     struct t_editor_syntax *syntax;    /* Current syntax highlight, or NULL. */
     lua_State *L;   /* Lua interpreter state */
+    int word_wrap;  /* Word wrap enabled flag */
+    int sel_active; /* Selection active flag */
+    int sel_start_x, sel_start_y; /* Selection start position */
+    int sel_end_x, sel_end_y;     /* Selection end position */
 };
 
 /* Global editor state. Note: This makes the editor non-reentrant and
@@ -177,6 +181,7 @@ enum KEY_ACTION{
         CTRL_Q = 17,        /* Ctrl-q */
         CTRL_S = 19,        /* Ctrl-s */
         CTRL_U = 21,        /* Ctrl-u */
+        CTRL_W = 23,        /* Ctrl-w */
         ESC = 27,           /* Escape */
         BACKSPACE =  127,   /* Backspace */
         /* The following are just soft codes, not really reported by the
@@ -185,6 +190,10 @@ enum KEY_ACTION{
         ARROW_RIGHT,
         ARROW_UP,
         ARROW_DOWN,
+        SHIFT_ARROW_LEFT,
+        SHIFT_ARROW_RIGHT,
+        SHIFT_ARROW_UP,
+        SHIFT_ARROW_DOWN,
         DEL_KEY,
         HOME_KEY,
         END_KEY,
@@ -194,6 +203,133 @@ enum KEY_ACTION{
 
 void editor_set_status_msg(const char *fmt, ...);
 static void exec_lua_command(int fd);
+
+/* Check if position is within selection */
+int is_selected(int row, int col) {
+    if (!E.sel_active) return 0;
+
+    int start_y = E.sel_start_y;
+    int start_x = E.sel_start_x;
+    int end_y = E.sel_end_y;
+    int end_x = E.sel_end_x;
+
+    /* Ensure start comes before end */
+    if (start_y > end_y || (start_y == end_y && start_x > end_x)) {
+        int tmp;
+        tmp = start_y; start_y = end_y; end_y = tmp;
+        tmp = start_x; start_x = end_x; end_x = tmp;
+    }
+
+    /* Check if row is in range */
+    if (row < start_y || row > end_y) return 0;
+
+    /* Single line selection */
+    if (start_y == end_y) {
+        return col >= start_x && col < end_x;
+    }
+
+    /* Multi-line selection */
+    if (row == start_y) {
+        return col >= start_x;
+    } else if (row == end_y) {
+        return col < end_x;
+    } else {
+        return 1; /* Entire line selected */
+    }
+}
+
+/* Base64 encoding table */
+static const char base64_table[] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/* Base64 encode a string for OSC 52 clipboard */
+char *base64_encode(const char *input, size_t len) {
+    size_t output_len = 4 * ((len + 2) / 3);
+    char *output = malloc(output_len + 1);
+    if (!output) return NULL;
+
+    size_t i, j;
+    for (i = 0, j = 0; i < len;) {
+        uint32_t octet_a = i < len ? (unsigned char)input[i++] : 0;
+        uint32_t octet_b = i < len ? (unsigned char)input[i++] : 0;
+        uint32_t octet_c = i < len ? (unsigned char)input[i++] : 0;
+        uint32_t triple = (octet_a << 16) + (octet_b << 8) + octet_c;
+
+        output[j++] = base64_table[(triple >> 18) & 0x3F];
+        output[j++] = base64_table[(triple >> 12) & 0x3F];
+        output[j++] = base64_table[(triple >> 6) & 0x3F];
+        output[j++] = base64_table[triple & 0x3F];
+    }
+
+    /* Add padding */
+    for (i = 0; i < (3 - len % 3) % 3; i++)
+        output[output_len - 1 - i] = '=';
+
+    output[output_len] = '\0';
+    return output;
+}
+
+/* Copy selected text to clipboard using OSC 52 */
+void copy_selection_to_clipboard(void) {
+    if (!E.sel_active) {
+        editor_set_status_msg("No selection");
+        return;
+    }
+
+    /* Ensure start comes before end */
+    int start_y = E.sel_start_y;
+    int start_x = E.sel_start_x;
+    int end_y = E.sel_end_y;
+    int end_x = E.sel_end_x;
+
+    if (start_y > end_y || (start_y == end_y && start_x > end_x)) {
+        int tmp;
+        tmp = start_y; start_y = end_y; end_y = tmp;
+        tmp = start_x; start_x = end_x; end_x = tmp;
+    }
+
+    /* Build selected text */
+    char *text = NULL;
+    size_t text_len = 0;
+    size_t text_capacity = 1024;
+    text = malloc(text_capacity);
+    if (!text) return;
+
+    for (int y = start_y; y <= end_y && y < E.numrows; y++) {
+        int x_start = (y == start_y) ? start_x : 0;
+        int x_end = (y == end_y) ? end_x : E.row[y].size;
+        if (x_end > E.row[y].size) x_end = E.row[y].size;
+
+        int len = x_end - x_start;
+        if (len > 0) {
+            while (text_len + len + 2 > text_capacity) {
+                text_capacity *= 2;
+                char *new_text = realloc(text, text_capacity);
+                if (!new_text) { free(text); return; }
+                text = new_text;
+            }
+            memcpy(text + text_len, E.row[y].chars + x_start, len);
+            text_len += len;
+        }
+        if (y < end_y) {
+            text[text_len++] = '\n';
+        }
+    }
+    text[text_len] = '\0';
+
+    /* Base64 encode */
+    char *encoded = base64_encode(text, text_len);
+    free(text);
+    if (!encoded) return;
+
+    /* Send OSC 52 sequence: ESC]52;c;<base64>BEL */
+    printf("\033]52;c;%s\007", encoded);
+    fflush(stdout);
+    free(encoded);
+
+    editor_set_status_msg("Copied %d bytes to clipboard", (int)text_len);
+    E.sel_active = 0;  /* Clear selection after copy */
+}
 static void cleanup_curl(void);
 static void check_async_requests(void);
 
@@ -374,7 +510,7 @@ fatal:
  * escape sequences. */
 int editor_read_key(int fd) {
     int nread;
-    char c, seq[3];
+    char c, seq[6];
     int retries = 0;
     /* Wait for input with timeout. If we get too many consecutive
      * zero-byte reads, stdin may be closed. */
@@ -404,6 +540,18 @@ int editor_read_key(int fd) {
                         case '3': return DEL_KEY;
                         case '5': return PAGE_UP;
                         case '6': return PAGE_DOWN;
+                        }
+                    } else if (seq[2] == ';') {
+                        /* ESC[1;2X for Shift+Arrow */
+                        if (read(fd,seq+3,1) == 0) return ESC;
+                        if (read(fd,seq+4,1) == 0) return ESC;
+                        if (seq[1] == '1' && seq[3] == '2') {
+                            switch(seq[4]) {
+                            case 'A': return SHIFT_ARROW_UP;
+                            case 'B': return SHIFT_ARROW_DOWN;
+                            case 'C': return SHIFT_ARROW_RIGHT;
+                            case 'D': return SHIFT_ARROW_LEFT;
+                            }
                         }
                     }
                 } else {
@@ -919,8 +1067,8 @@ int editor_syntax_to_color(int hl) {
     case HL_COMMENT:
     case HL_MLCOMMENT:  return 90;  /* gray (bright black) */
     case HL_KEYWORD1:   return 95;  /* bright magenta (pink) */
-    case HL_KEYWORD2:   return 36;  /* bright cyan (classes/types) */
-    case HL_STRING:     return 33;  /* bright yellow */
+    case HL_KEYWORD2:   return 96;  /* bright cyan (classes/types) */
+    case HL_STRING:     return 93;  /* bright yellow */
     case HL_NUMBER:     return 35;  /* magenta (purple-ish) */
     case HL_MATCH:      return 34;  /* blue (keep as-is) */
     default:            return 37;  /* white */
@@ -1372,27 +1520,58 @@ void editor_refresh_screen(void) {
 
         int len = r->rsize - E.coloff;
         int current_color = -1;
+
+        /* Word wrap: clamp to screen width and find word boundary */
+        if (E.word_wrap && len > E.screencols && r->cb_lang == CB_LANG_NONE) {
+            len = E.screencols;
+            /* Find last space/separator to break at word boundary */
+            int last_space = -1;
+            for (int k = 0; k < len; k++) {
+                if (isspace(r->render[E.coloff + k])) {
+                    last_space = k;
+                }
+            }
+            if (last_space > 0 && last_space > len / 2) {
+                len = last_space + 1; /* Include the space */
+            }
+        }
+
         if (len > 0) {
             if (len > E.screencols) len = E.screencols;
             char *c = r->render+E.coloff;
             unsigned char *hl = r->hl+E.coloff;
             int j;
             for (j = 0; j < len; j++) {
+                int selected = is_selected(filerow, E.coloff + j);
+
+                /* Apply selection background */
+                if (selected) {
+                    ab_append(&ab,"\x1b[7m",4); /* Reverse video */
+                }
+
                 if (hl[j] == HL_NONPRINT) {
                     char sym;
-                    ab_append(&ab,"\x1b[7m",4);
+                    if (!selected) ab_append(&ab,"\x1b[7m",4);
                     if (c[j] <= 26)
                         sym = '@'+c[j];
                     else
                         sym = '?';
                     ab_append(&ab,&sym,1);
                     ab_append(&ab,"\x1b[0m",4);
+                    if (current_color != -1) {
+                        char buf[16];
+                        int clen = snprintf(buf,sizeof(buf),"\x1b[%dm",current_color);
+                        ab_append(&ab,buf,clen);
+                    }
                 } else if (hl[j] == HL_NORMAL) {
                     if (current_color != -1) {
                         ab_append(&ab,"\x1b[39m",5);
                         current_color = -1;
                     }
                     ab_append(&ab,c+j,1);
+                    if (selected) {
+                        ab_append(&ab,"\x1b[0m",4); /* Reset */
+                    }
                 } else {
                     int color = editor_syntax_to_color(hl[j]);
                     if (color != current_color) {
@@ -1402,6 +1581,14 @@ void editor_refresh_screen(void) {
                         ab_append(&ab,buf,clen);
                     }
                     ab_append(&ab,c+j,1);
+                    if (selected) {
+                        ab_append(&ab,"\x1b[0m",4); /* Reset */
+                        if (current_color != -1) {
+                            char buf[16];
+                            int clen = snprintf(buf,sizeof(buf),"\x1b[%dm",current_color);
+                            ab_append(&ab,buf,clen);
+                        }
+                    }
                 }
             }
         }
@@ -1658,8 +1845,8 @@ void editor_process_keypress(int fd) {
         editor_insert_newline();
         break;
     case CTRL_C:        /* Ctrl-c */
-        /* We ignore ctrl-c, it can't be so simple to lose the changes
-         * to the edited file. */
+        /* Copy selection to clipboard */
+        copy_selection_to_clipboard();
         break;
     case CTRL_Q:        /* Ctrl-q */
         /* Quit if the file was already saved. */
@@ -1676,6 +1863,10 @@ void editor_process_keypress(int fd) {
         break;
     case CTRL_F:
         editor_find(fd);
+        break;
+    case CTRL_W:        /* Ctrl-w */
+        E.word_wrap = !E.word_wrap;
+        editor_set_status_msg("Word wrap %s", E.word_wrap ? "enabled" : "disabled");
         break;
     case BACKSPACE:     /* Backspace */
     case CTRL_H:        /* Ctrl-h */
@@ -1696,10 +1887,32 @@ void editor_process_keypress(int fd) {
         }
         break;
 
+    case SHIFT_ARROW_UP:
+    case SHIFT_ARROW_DOWN:
+    case SHIFT_ARROW_LEFT:
+    case SHIFT_ARROW_RIGHT:
+        /* Start selection if not active */
+        if (!E.sel_active) {
+            E.sel_active = 1;
+            E.sel_start_x = E.cx;
+            E.sel_start_y = E.cy;
+        }
+        /* Move cursor */
+        if (c == SHIFT_ARROW_UP) editor_move_cursor(ARROW_UP);
+        else if (c == SHIFT_ARROW_DOWN) editor_move_cursor(ARROW_DOWN);
+        else if (c == SHIFT_ARROW_LEFT) editor_move_cursor(ARROW_LEFT);
+        else if (c == SHIFT_ARROW_RIGHT) editor_move_cursor(ARROW_RIGHT);
+        /* Update selection end */
+        E.sel_end_x = E.cx;
+        E.sel_end_y = E.cy;
+        break;
+
     case ARROW_UP:
     case ARROW_DOWN:
     case ARROW_LEFT:
     case ARROW_RIGHT:
+        /* Clear selection on normal arrow movement */
+        E.sel_active = 0;
         editor_move_cursor(c);
         break;
     case CTRL_L: /* ctrl+l, execute Lua command */
@@ -2028,6 +2241,33 @@ static int lua_kilo_insert_text(lua_State *L) {
     return 0;
 }
 
+/* Lua API: kilo.stream_text(text) - Append text and scroll to bottom */
+static int lua_kilo_stream_text(lua_State *L) {
+    const char *text = luaL_checkstring(L, 1);
+
+    /* Move to end of file */
+    if (E.numrows > 0) {
+        E.cy = E.numrows - 1;
+        E.cx = E.row[E.cy].size;
+    }
+
+    /* Insert the text */
+    for (const char *p = text; *p; p++) {
+        editor_insert_char(*p);
+    }
+
+    /* Scroll to bottom */
+    if (E.numrows > E.screenrows) {
+        E.rowoff = E.numrows - E.screenrows;
+    }
+    E.cy = E.numrows - 1;
+
+    /* Refresh screen immediately */
+    editor_refresh_screen();
+
+    return 0;
+}
+
 /* Lua API: kilo.get_filename() - Get current filename */
 static int lua_kilo_get_filename(lua_State *L) {
     if (E.filename) {
@@ -2111,6 +2351,9 @@ static void init_lua_api(lua_State *L) {
 
     lua_pushcfunction(L, lua_kilo_insert_text);
     lua_setfield(L, -2, "insert_text");
+
+    lua_pushcfunction(L, lua_kilo_stream_text);
+    lua_setfield(L, -2, "stream_text");
 
     lua_pushcfunction(L, lua_kilo_get_filename);
     lua_setfield(L, -2, "get_filename");
@@ -2197,6 +2440,10 @@ void init_editor(void) {
     E.dirty = 0;
     E.filename = NULL;
     E.syntax = NULL;
+    E.word_wrap = 1;  /* Word wrap enabled by default */
+    E.sel_active = 0;
+    E.sel_start_x = E.sel_start_y = 0;
+    E.sel_end_x = E.sel_end_y = 0;
     update_window_size();
     signal(SIGWINCH, handle_sig_win_ch);
 
@@ -2362,7 +2609,7 @@ int main(int argc, char **argv) {
     editor_open(argv[1]);
     enable_raw_mode(STDIN_FILENO);
     editor_set_status_msg(
-        "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-L = lua");
+        "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-W = wrap | Ctrl-C = copy");
     while(1) {
         handle_windows_resize();
         check_async_requests();  /* Process any pending async HTTP requests */
