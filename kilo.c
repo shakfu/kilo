@@ -32,7 +32,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define KILO_VERSION "0.3.0"
+#define KILO_VERSION "0.4.1"
 
 #ifdef __linux__
 #define _POSIX_C_SOURCE 200809L
@@ -1392,8 +1392,9 @@ int editor_file_was_modified(void) {
 void update_window_size(void) {
     if (get_window_size(STDIN_FILENO,STDOUT_FILENO,
                       &E.screenrows,&E.screencols) == -1) {
-        perror("Unable to query the screen for size (columns / rows)");
-        exit(1);
+        /* If we can't get terminal size (e.g., non-interactive mode), use defaults */
+        E.screenrows = 24;
+        E.screencols = 80;
     }
     E.screenrows -= 2; /* Get room for status bar. */
 }
@@ -1504,8 +1505,21 @@ static int start_async_http_request(const char *url, const char *method,
     curl_easy_setopt(req->easy_handle, CURLOPT_WRITEFUNCTION, kilo_curl_write_callback);
     curl_easy_setopt(req->easy_handle, CURLOPT_WRITEDATA, &req->response);
     curl_easy_setopt(req->easy_handle, CURLOPT_ERRORBUFFER, req->error_buffer);
-    curl_easy_setopt(req->easy_handle, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(req->easy_handle, CURLOPT_TIMEOUT, 60L);  /* Increase to 60 seconds */
+    curl_easy_setopt(req->easy_handle, CURLOPT_CONNECTTIMEOUT, 10L);  /* Connection timeout */
     curl_easy_setopt(req->easy_handle, CURLOPT_FOLLOWLOCATION, 1L);
+
+    /* SSL/TLS settings - use system CA bundle */
+    curl_easy_setopt(req->easy_handle, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(req->easy_handle, CURLOPT_SSL_VERIFYHOST, 2L);
+
+    /* Try common CA bundle locations */
+    curl_easy_setopt(req->easy_handle, CURLOPT_CAINFO, "/etc/ssl/cert.pem");  /* macOS */
+
+    /* Enable verbose output only if KILO_DEBUG is set */
+    if (getenv("KILO_DEBUG")) {
+        curl_easy_setopt(req->easy_handle, CURLOPT_VERBOSE, 1L);
+    }
 
     /* Set method */
     if (strcmp(method, "POST") == 0) {
@@ -1545,9 +1559,59 @@ static void check_async_requests(void) {
         curl_multi_perform(req->multi_handle, &still_running);
 
         if (still_running == 0) {
-            /* Request completed */
+            /* Request completed - check for messages */
+            int msgs_left = 0;
+            CURLMsg *msg = NULL;
+
+            while ((msg = curl_multi_info_read(req->multi_handle, &msgs_left))) {
+                if (msg->msg == CURLMSG_DONE) {
+                    /* Check if the transfer succeeded */
+                    if (msg->data.result != CURLE_OK) {
+                        req->failed = 1;
+                        /* error_buffer should contain the error message */
+                        if (req->error_buffer[0] == '\0') {
+                            /* If error_buffer is empty, use curl_easy_strerror */
+                            snprintf(req->error_buffer, CURL_ERROR_SIZE, "%s",
+                                    curl_easy_strerror(msg->data.result));
+                        }
+                    }
+                }
+            }
+
+            /* Get response code */
             long response_code = 0;
             curl_easy_getinfo(req->easy_handle, CURLINFO_RESPONSE_CODE, &response_code);
+
+            /* Debug output for non-interactive mode */
+            if (!E.rawmode) {
+                fprintf(stderr, "HTTP request completed: status=%ld, response_size=%zu\n",
+                        response_code, req->response.size);
+
+                /* Check for curl errors */
+                if (req->failed) {
+                    fprintf(stderr, "CURL error: %s\n", req->error_buffer);
+                }
+
+                /* Show response preview if available */
+                if (req->response.data && req->response.size > 0) {
+                    size_t preview_len = req->response.size > 200 ? 200 : req->response.size;
+                    fprintf(stderr, "Response preview: %.*s%s\n",
+                            (int)preview_len, req->response.data,
+                            req->response.size > 200 ? "..." : "");
+                } else {
+                    fprintf(stderr, "No response data received\n");
+                }
+            }
+
+            /* Check for HTTP errors */
+            if (response_code >= 400) {
+                char errmsg[256];
+                snprintf(errmsg, sizeof(errmsg), "HTTP error %ld", response_code);
+                editor_set_status_msg("%s", errmsg);
+                if (!E.rawmode) {
+                    fprintf(stderr, "%s\n", errmsg);
+                }
+            }
 
             /* Call Lua callback with response */
             if (E.L && req->lua_callback) {
@@ -1562,6 +1626,10 @@ static void check_async_requests(void) {
                     if (lua_pcall(E.L, 1, 0, 0) != LUA_OK) {
                         const char *err = lua_tostring(E.L, -1);
                         editor_set_status_msg("Lua callback error: %s", err);
+                        /* Also print to stderr for non-interactive mode */
+                        if (!E.rawmode) {
+                            fprintf(stderr, "Lua callback error: %s\n", err);
+                        }
                         lua_pop(E.L, 1);
                     }
                 } else {
@@ -1806,12 +1874,151 @@ void init_editor(void) {
     }
 }
 
+/* Run AI command in non-interactive mode */
+static int run_ai_command(char *filename, const char *command) {
+    init_editor();
+
+    /* Load the file */
+    editor_select_syntax_highlight(filename);
+    if (editor_open(filename) != 0 && errno != ENOENT) {
+        fprintf(stderr, "Error opening file: %s\n", filename);
+        return 1;
+    }
+
+    /* Check if Lua was initialized */
+    if (!E.L) {
+        fprintf(stderr, "Error: Lua not initialized\n");
+        return 1;
+    }
+
+    /* Record initial dirty state and row count */
+    int initial_dirty = E.dirty;
+    int initial_rows = E.numrows;
+
+    /* Record initial number of pending requests */
+    int initial_pending = num_pending;
+
+    /* Call the Lua command */
+    lua_getglobal(E.L, command);
+    if (!lua_isfunction(E.L, -1)) {
+        fprintf(stderr, "Error: Lua function '%s' not found\n", command);
+        fprintf(stderr, "Make sure .kilo/init.lua or ~/.kilo/init.lua defines this function\n");
+        return 1;
+    }
+
+    if (lua_pcall(E.L, 0, 0, 0) != LUA_OK) {
+        fprintf(stderr, "Error running %s: %s\n", command, lua_tostring(E.L, -1));
+        return 1;
+    }
+
+    /* Check if a request was initiated */
+    if (num_pending <= initial_pending) {
+        fprintf(stderr, "Error: No async request was initiated\n");
+        fprintf(stderr, "Check that OPENAI_API_KEY is set and the function makes an HTTP request\n");
+        return 1;
+    }
+
+    /* Wait for all async requests to complete (max 60 seconds) */
+    fprintf(stderr, "Waiting for AI response...\n");
+    int timeout = 60000; /* 60 seconds in iterations (assuming ~1ms per iteration) */
+    while (num_pending > 0 && timeout-- > 0) {
+        check_async_requests();
+        usleep(1000); /* 1ms */
+    }
+
+    if (num_pending > 0) {
+        fprintf(stderr, "Error: AI command timed out\n");
+        return 1;
+    }
+
+    /* Check if anything was actually inserted */
+    if (E.dirty == initial_dirty && E.numrows == initial_rows) {
+        fprintf(stderr, "Warning: No content was inserted. Possible issues:\n");
+        fprintf(stderr, "  - API request failed (check API key)\n");
+        fprintf(stderr, "  - Response parsing failed (check model name)\n");
+        fprintf(stderr, "  - Lua callback error (check .kilo/init.lua)\n");
+        fprintf(stderr, "Status: %s\n", E.statusmsg);
+        return 1;
+    }
+
+    fprintf(stderr, "Content inserted: %d rows, dirty=%d\n", E.numrows, E.dirty);
+
+    /* For --complete, save the file */
+    if (strcmp(command, "ai_complete") == 0) {
+        if (editor_save() != 0) {
+            fprintf(stderr, "Error: Failed to save file\n");
+            return 1;
+        }
+        fprintf(stderr, "Completion saved to %s\n", filename);
+    } else if (strcmp(command, "ai_explain") == 0) {
+        /* For --explain, print the buffer content (explanation was inserted) */
+        for (int i = 0; i < E.numrows; i++) {
+            printf("%s\n", E.row[i].chars);
+        }
+    }
+
+    return 0;
+}
+
+static void print_usage(void) {
+    printf("Usage: kilo [options] <filename>\n");
+    printf("\nOptions:\n");
+    printf("  --help              Show this help message\n");
+    printf("  --complete <file>   Run AI completion on file and save result\n");
+    printf("  --explain <file>    Run AI explanation on file and print to stdout\n");
+    printf("\nInteractive mode (default):\n");
+    printf("  kilo <filename>     Open file in interactive editor\n");
+    printf("\nKeybindings in interactive mode:\n");
+    printf("  Ctrl-S    Save file\n");
+    printf("  Ctrl-Q    Quit\n");
+    printf("  Ctrl-F    Find\n");
+    printf("  Ctrl-L    Execute Lua command\n");
+    printf("\nAI commands require OPENAI_API_KEY environment variable\n");
+    printf("and .kilo/init.lua or ~/.kilo/init.lua configuration.\n");
+}
+
 int main(int argc, char **argv) {
     /* Register cleanup handler early to ensure terminal is always restored */
     atexit(editor_atexit);
 
+    /* Parse command-line arguments */
+    if (argc < 2) {
+        print_usage();
+        exit(1);
+    }
+
+    /* Check for --help flag */
+    if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
+        print_usage();
+        exit(0);
+    }
+
+    /* Check for --complete flag */
+    if (strcmp(argv[1], "--complete") == 0) {
+        if (argc != 3) {
+            fprintf(stderr, "Error: --complete requires a filename\n");
+            print_usage();
+            exit(1);
+        }
+        int result = run_ai_command(argv[2], "ai_complete");
+        exit(result);
+    }
+
+    /* Check for --explain flag */
+    if (strcmp(argv[1], "--explain") == 0) {
+        if (argc != 3) {
+            fprintf(stderr, "Error: --explain requires a filename\n");
+            print_usage();
+            exit(1);
+        }
+        int result = run_ai_command(argv[2], "ai_explain");
+        exit(result);
+    }
+
+    /* Default: interactive mode */
     if (argc != 2) {
-        fprintf(stderr,"Usage: kilo <filename>\n");
+        fprintf(stderr, "Error: Too many arguments\n");
+        print_usage();
         exit(1);
     }
 

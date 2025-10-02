@@ -15,6 +15,63 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [0.4.1] - 2025-10-02
+
+### Fixed
+- **SSL/TLS Certificate Verification**: Fixed async HTTP requests timing out due to missing SSL configuration
+  - Added proper CA bundle path (`/etc/ssl/cert.pem` for macOS)
+  - Configured SSL peer and host verification
+  - Increased timeout to 60 seconds with 10-second connection timeout
+- **CURL Error Detection**: Properly detect and report CURL errors via `curl_multi_info_read()`
+- **JSON Response Parsing**: Updated `.kilo/init.lua` to handle OpenAI's nested response format
+  - Now parses `{"choices":[{"message":{"content":"..."}}]}`
+  - Falls back to simple `{"content":"..."}` format
+  - Detects and reports API errors from response
+- **Non-Interactive Mode**: Terminal size defaults to 80x24 when screen query fails
+- **Debug Output**: Enhanced error reporting in `--complete` and `--explain` modes
+  - Shows HTTP status codes, response size, CURL errors
+  - Validates content insertion before claiming success
+  - Verbose mode now requires `KILO_DEBUG=1` environment variable (prevents API key leakage)
+
+### Changed
+- Increased HTTP timeout from 30 to 60 seconds
+- Added 10-second connection timeout
+- Verbose CURL output disabled by default (set `KILO_DEBUG=1` to enable)
+
+## [0.4.0] - 2025-10-02
+
+### Added
+- **CLI Interface**: Comprehensive command-line argument parsing
+  - `--help` / `-h` - Display usage information and available options
+  - `--complete <file>` - Run AI completion on file in non-interactive mode and save result
+  - `--explain <file>` - Run AI explanation on file and output to stdout
+  - Support for creating new files (existing behavior now documented)
+- **Non-Interactive Mode**: Execute AI commands from command line
+  - Initializes editor without terminal raw mode
+  - Waits for async HTTP requests to complete
+  - Automatically saves results for --complete
+  - Prints explanations to stdout for --explain
+  - 60-second timeout with progress feedback
+  - Comprehensive error handling and status messages
+
+### Changed
+- **Usage Model**: Now supports both interactive and CLI modes
+  - Interactive: `kilo <filename>` (default, unchanged)
+  - CLI: `kilo --complete <file>` or `kilo --explain <file>`
+- **Help System**: Improved usage messages with detailed examples
+- **Error Messages**: Enhanced feedback for missing API keys, Lua functions, and timeouts
+
+### Documentation
+- Updated README.md with CLI usage examples and requirements
+- Added keybinding reference in help output
+- Documented AI command prerequisites (OPENAI_API_KEY, init.lua)
+
+### Technical Details
+- Non-interactive mode tracks async request completion via `num_pending` counter
+- Validates Lua function availability before execution
+- Detects if async request was initiated to provide helpful error messages
+- Uses `usleep(1000)` polling loop for async completion (1ms intervals)
+
 ## [0.3.0] - 2025-10-02
 
 ### Added

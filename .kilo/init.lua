@@ -64,7 +64,7 @@ function ai_complete()
 
     -- Build JSON request body
     local json_body = string.format([[{
-  "model": "gpt-4",
+  "model": "gpt-5-nano",
   "messages": [
     {"role": "user", "content": %s}
   ]
@@ -95,9 +95,21 @@ function ai_response_handler(response)
         return
     end
 
-    -- Simple JSON parsing to extract content field
-    -- Pattern matches: "content":"..."
-    local content = response:match('"content"%s*:%s*"(.-[^\\])"')
+    -- Check for API errors first
+    local error_msg = response:match('"error"%s*:%s*{.-"message"%s*:%s*"(.-)"')
+    if error_msg then
+        kilo.status("API Error: " .. error_msg)
+        return
+    end
+
+    -- Parse OpenAI response format: {"choices":[{"message":{"content":"..."}}]}
+    -- First try the nested format (OpenAI chat completions)
+    local content = response:match('"message"%s*:%s*{.-"content"%s*:%s*"(.-[^\\])"')
+
+    -- If that fails, try simple format: {"content":"..."}
+    if not content then
+        content = response:match('"content"%s*:%s*"(.-[^\\])"')
+    end
 
     if content then
         -- Unescape JSON string
@@ -132,7 +144,7 @@ function ai_explain()
 
     local prompt = "Explain this code concisely:\n\n" .. code
     local json_body = string.format([[{
-  "model": "gpt-4",
+  "model": "gpt-5-nano",
   "messages": [
     {"role": "user", "content": %s}
   ]

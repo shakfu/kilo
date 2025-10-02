@@ -50,11 +50,32 @@ Requires: C99 compiler, POSIX system (Linux, macOS, BSD)
 
 ## Usage
 
+### Interactive Mode
+
 ```bash
 ./kilo <filename>
 ```
 
-### Keybindings
+Opens the file in the interactive editor.
+
+### CLI Mode (AI Commands)
+
+```bash
+# Run AI completion on a file and save the result
+./kilo --complete <filename>
+
+# Run AI explanation on a file and print to stdout
+./kilo --explain <filename>
+
+# Show help
+./kilo --help
+```
+
+**Requirements for AI commands:**
+- Set `OPENAI_API_KEY` environment variable
+- Configure `.kilo/init.lua` or `~/.kilo/init.lua` with AI functions (see `.kilo.example/`)
+
+### Keybindings (Interactive Mode)
 
 - `CTRL-S`: Save file
 - `CTRL-Q`: Quit (with unsaved changes warning)
