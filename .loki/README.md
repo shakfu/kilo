@@ -115,6 +115,63 @@ loki.async_http(
 )
 ```
 
+## Lua Highlight Hook
+
+Define `loki.highlight_row(row_index, line_text, render_text, syntax_type, default_applied)`
+to extend or replace built-in syntax highlighting from Lua.
+
+- Return `nil`/`false` to leave the C highlighter output unchanged.
+- Return an array of span tables (or `{spans = {...}}`) to colour specific
+  regions. Each span supports `start` (1-based column), optional `stop` or
+  `length`, and `style`/`type` set to a `loki.hl` constant name (e.g. `"match"`).
+- Include `replace = true` alongside `spans` if you want to clear the existing
+  highlight before applying your spans.
+- `syntax_type` mirrors the internal `HL_TYPE_*` identifiers (`0` for C,
+  `1` for Markdown, etc.), while `default_applied` tells you whether the stock
+  highlighter already ran so you can layer additional spans.
+
+The bundled `.loki/init.lua` shows how to colour Markdown headings, inline
+code, checkboxes, and TODO/FIXME tags:
+
+```lua
+local HL_TYPE_MARKDOWN = 1
+local TODO_TAGS = { "TODO", "FIXME" }
+
+local function add_span(spans, start_col, length, style)
+    if start_col and length and length > 0 then
+        table.insert(spans, { start = start_col, length = length, style = style })
+    end
+end
+
+function loki.highlight_row(idx, text, render, syntax_type, default_applied)
+    local spans = {}
+
+    if syntax_type == HL_TYPE_MARKDOWN then
+        local hashes, whitespace = render:match("^(#+)(%s*)")
+        if hashes then
+            add_span(spans, 1, #hashes, "keyword1")
+        end
+        for start_pos, stop_pos in render:gmatch("()%`[^`]+`()") do
+            add_span(spans, start_pos, stop_pos - start_pos, "string")
+        end
+    end
+
+    for _, tag in ipairs(TODO_TAGS) do
+        local search = 1
+        while true do
+            local s = string.find(render, tag, search, true)
+            if not s then break end
+            add_span(spans, s, #tag, "match")
+            search = s + #tag
+        end
+    end
+
+    if #spans > 0 then
+        return { spans = spans }
+    end
+end
+```
+
 ## Implementation Details
 
 - **Non-blocking**: Uses libcurl multi interface for async I/O

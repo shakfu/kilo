@@ -21,6 +21,15 @@ see LICENSE.
 #include <stdint.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
+
+#ifndef LUA_VERSION_NUM
+#define LUA_VERSION_NUM 501
+#endif
+
+#if LUA_VERSION_NUM < 502 && !defined(lua_rawlen)
+#define lua_rawlen(L, idx) lua_objlen(L, (idx))
+#endif
 #include <ctype.h>
 #include <time.h>
 #include <sys/types.h>
@@ -636,6 +645,165 @@ int editor_row_has_open_comment(t_erow *row) {
 /* Forward declaration for markdown highlighter */
 void editor_update_syntax_markdown(t_erow *row);
 
+/* Map human-readable style names to HL_* constants */
+static int hl_name_to_code(const char *name) {
+    if (name == NULL) return -1;
+    if (strcasecmp(name, "normal") == 0) return HL_NORMAL;
+    if (strcasecmp(name, "nonprint") == 0) return HL_NONPRINT;
+    if (strcasecmp(name, "comment") == 0) return HL_COMMENT;
+    if (strcasecmp(name, "mlcomment") == 0) return HL_MLCOMMENT;
+    if (strcasecmp(name, "keyword1") == 0) return HL_KEYWORD1;
+    if (strcasecmp(name, "keyword2") == 0) return HL_KEYWORD2;
+    if (strcasecmp(name, "string") == 0) return HL_STRING;
+    if (strcasecmp(name, "number") == 0) return HL_NUMBER;
+    if (strcasecmp(name, "match") == 0) return HL_MATCH;
+    return -1;
+}
+
+/* Attempt to delegate highlighting of a row to Lua. Returns 1 if handled. */
+static int lua_apply_span_table(t_erow *row, int table_index) {
+    if (!lua_istable(E.L, table_index)) return 0;
+
+    int applied = 0;
+    size_t entries = lua_rawlen(E.L, table_index);
+
+    for (size_t i = 1; i <= entries; i++) {
+        lua_rawgeti(E.L, table_index, (lua_Integer)i);
+        if (lua_type(E.L, -1) == LUA_TTABLE) {
+            int start = 0;
+            int stop = 0;
+            int length = 0;
+            int style = -1;
+
+            lua_getfield(E.L, -1, "start");
+            if (lua_isnumber(E.L, -1)) start = (int)lua_tointeger(E.L, -1);
+            lua_pop(E.L, 1);
+
+            lua_getfield(E.L, -1, "stop");
+            if (lua_isnumber(E.L, -1)) stop = (int)lua_tointeger(E.L, -1);
+            lua_pop(E.L, 1);
+
+            lua_getfield(E.L, -1, "end");
+            if (lua_isnumber(E.L, -1)) stop = (int)lua_tointeger(E.L, -1);
+            lua_pop(E.L, 1);
+
+            lua_getfield(E.L, -1, "length");
+            if (lua_isnumber(E.L, -1)) length = (int)lua_tointeger(E.L, -1);
+            lua_pop(E.L, 1);
+
+            lua_getfield(E.L, -1, "style");
+            if (lua_isstring(E.L, -1)) {
+                style = hl_name_to_code(lua_tostring(E.L, -1));
+            } else if (lua_isnumber(E.L, -1)) {
+                style = (int)lua_tointeger(E.L, -1);
+            }
+            lua_pop(E.L, 1);
+
+            if (style < 0) {
+                lua_getfield(E.L, -1, "type");
+                if (lua_isstring(E.L, -1)) {
+                    style = hl_name_to_code(lua_tostring(E.L, -1));
+                } else if (lua_isnumber(E.L, -1)) {
+                    style = (int)lua_tointeger(E.L, -1);
+                }
+                lua_pop(E.L, 1);
+            }
+
+            if (start <= 0) start = 1;
+            if (length > 0 && stop <= 0) stop = start + length - 1;
+            if (stop <= 0) stop = start;
+
+            if (style >= 0 && row->rsize > 0) {
+                if (start > stop) {
+                    int tmp = start;
+                    start = stop;
+                    stop = tmp;
+                }
+                if (start < 1) start = 1;
+                if (stop > row->rsize) stop = row->rsize;
+                for (int pos = start - 1; pos < stop && pos < row->rsize; pos++) {
+                    row->hl[pos] = style;
+                }
+                applied = 1;
+            } else if (style >= 0 && row->rsize == 0) {
+                applied = 1;
+            }
+        }
+        lua_pop(E.L, 1);
+    }
+
+    return applied;
+}
+
+static void lua_apply_highlight_row(t_erow *row, int default_ran) {
+    if (!E.L || row == NULL || row->render == NULL) return;
+    int top = lua_gettop(E.L);
+
+    lua_getglobal(E.L, "loki");
+    if (!lua_istable(E.L, -1)) {
+        lua_settop(E.L, top);
+        return;
+    }
+
+    lua_getfield(E.L, -1, "highlight_row");
+    if (!lua_isfunction(E.L, -1)) {
+        lua_settop(E.L, top);
+        return;
+    }
+
+    lua_pushinteger(E.L, row->idx);
+    lua_pushlstring(E.L, row->chars ? row->chars : "", (size_t)row->size);
+    lua_pushlstring(E.L, row->render ? row->render : "", (size_t)row->rsize);
+    if (E.syntax) {
+        lua_pushinteger(E.L, E.syntax->type);
+    } else {
+        lua_pushnil(E.L);
+    }
+    lua_pushboolean(E.L, default_ran);
+
+    if (lua_pcall(E.L, 5, 1, 0) != LUA_OK) {
+        const char *err = lua_tostring(E.L, -1);
+        editor_set_status_msg("Lua highlight error: %s", err ? err : "unknown");
+        lua_settop(E.L, top);
+        return;
+    }
+
+    if (!lua_istable(E.L, -1)) {
+        lua_settop(E.L, top);
+        return;
+    }
+
+    int table_index = lua_gettop(E.L);
+    int replace = 0;
+
+    lua_getfield(E.L, table_index, "replace");
+    if (lua_isboolean(E.L, -1)) replace = lua_toboolean(E.L, -1);
+    lua_pop(E.L, 1);
+
+    int spans_index = table_index;
+    int has_spans_field = 0;
+
+    lua_getfield(E.L, table_index, "spans");
+    if (lua_istable(E.L, -1)) {
+        spans_index = lua_gettop(E.L);
+        has_spans_field = 1;
+    } else {
+        lua_pop(E.L, 1);
+    }
+
+    if (replace) {
+        memset(row->hl, HL_NORMAL, row->rsize);
+    }
+
+    lua_apply_span_table(row, spans_index);
+
+    if (has_spans_field) {
+        lua_pop(E.L, 1);
+    }
+
+    lua_settop(E.L, top);
+}
+
 /* Set every byte of row->hl (that corresponds to every character in the line)
  * to the right syntax highlight type (HL_* defines). */
 void editor_update_syntax(t_erow *row) {
@@ -644,138 +812,143 @@ void editor_update_syntax(t_erow *row) {
     row->hl = new_hl;
     memset(row->hl,HL_NORMAL,row->rsize);
 
-    if (E.syntax == NULL) return; /* No syntax, everything is HL_NORMAL. */
+    int default_ran = 0;
 
-    /* Dispatch to markdown highlighter if needed */
-    if (E.syntax->type == HL_TYPE_MARKDOWN) {
-        editor_update_syntax_markdown(row);
-        return;
-    }
-
-    int i, prev_sep, in_string, in_comment;
-    char *p;
-    char **keywords = E.syntax->keywords;
-    char *scs = E.syntax->singleline_comment_start;
-    char *mcs = E.syntax->multiline_comment_start;
-    char *mce = E.syntax->multiline_comment_end;
-    char *separators = E.syntax->separators;
-
-    /* Point to the first non-space char. */
-    p = row->render;
-    i = 0; /* Current char offset */
-    while(*p && isspace(*p)) {
-        p++;
-        i++;
-    }
-    prev_sep = 1; /* Tell the parser if 'i' points to start of word. */
-    in_string = 0; /* Are we inside "" or '' ? */
-    in_comment = 0; /* Are we inside multi-line comment? */
-
-    /* If the previous line has an open comment, this line starts
-     * with an open comment state. */
-    if (row->idx > 0 && editor_row_has_open_comment(&E.row[row->idx-1]))
-        in_comment = 1;
-
-    while(*p) {
-        /* Handle // comments. */
-        if (prev_sep && i < row->rsize - 1 && *p == scs[0] && *(p+1) == scs[1]) {
-            /* From here to end is a comment */
-            memset(row->hl+i,HL_COMMENT,row->rsize-i);
-            return;
-        }
-
-        /* Handle multi line comments. */
-        if (in_comment) {
-            row->hl[i] = HL_MLCOMMENT;
-            if (i < row->rsize - 1 && *p == mce[0] && *(p+1) == mce[1]) {
-                row->hl[i+1] = HL_MLCOMMENT;
-                p += 2; i += 2;
-                in_comment = 0;
-                prev_sep = 1;
-                continue;
-            } else {
-                prev_sep = 0;
-                p++; i++;
-                continue;
-            }
-        } else if (i < row->rsize - 1 && *p == mcs[0] && *(p+1) == mcs[1]) {
-            row->hl[i] = HL_MLCOMMENT;
-            row->hl[i+1] = HL_MLCOMMENT;
-            p += 2; i += 2;
-            in_comment = 1;
-            prev_sep = 0;
-            continue;
-        }
-
-        /* Handle "" and '' */
-        if (in_string) {
-            row->hl[i] = HL_STRING;
-            if (i < row->rsize - 1 && *p == '\\') {
-                row->hl[i+1] = HL_STRING;
-                p += 2; i += 2;
-                prev_sep = 0;
-                continue;
-            }
-            if (*p == in_string) in_string = 0;
-            p++; i++;
-            continue;
+    if (E.syntax != NULL) {
+        if (E.syntax->type == HL_TYPE_MARKDOWN) {
+            editor_update_syntax_markdown(row);
+            default_ran = 1;
         } else {
-            if (*p == '"' || *p == '\'') {
-                in_string = *p;
-                row->hl[i] = HL_STRING;
-                p++; i++;
-                prev_sep = 0;
-                continue;
+            int i, prev_sep, in_string, in_comment;
+            char *p;
+            char **keywords = E.syntax->keywords;
+            char *scs = E.syntax->singleline_comment_start;
+            char *mcs = E.syntax->multiline_comment_start;
+            char *mce = E.syntax->multiline_comment_end;
+            char *separators = E.syntax->separators;
+
+            /* Point to the first non-space char. */
+            p = row->render;
+            i = 0; /* Current char offset */
+            while(*p && isspace(*p)) {
+                p++;
+                i++;
             }
-        }
+            prev_sep = 1; /* Tell the parser if 'i' points to start of word. */
+            in_string = 0; /* Are we inside "" or '' ? */
+            in_comment = 0; /* Are we inside multi-line comment? */
 
-        /* Handle non printable chars. */
-        if (!isprint(*p)) {
-            row->hl[i] = HL_NONPRINT;
-            p++; i++;
-            prev_sep = 0;
-            continue;
-        }
+            /* If the previous line has an open comment, this line starts
+             * with an open comment state. */
+            if (row->idx > 0 && editor_row_has_open_comment(&E.row[row->idx-1]))
+                in_comment = 1;
 
-        /* Handle numbers */
-        if ((isdigit(*p) && (prev_sep || row->hl[i-1] == HL_NUMBER)) ||
-            (*p == '.' && i > 0 && row->hl[i-1] == HL_NUMBER &&
-             i < row->rsize - 1 && isdigit(*(p+1)))) {
-            row->hl[i] = HL_NUMBER;
-            p++; i++;
-            prev_sep = 0;
-            continue;
-        }
-
-        /* Handle keywords and lib calls */
-        if (prev_sep) {
-            int j;
-            for (j = 0; keywords[j]; j++) {
-                int klen = strlen(keywords[j]);
-                int kw2 = keywords[j][klen-1] == '|';
-                if (kw2) klen--;
-
-                if (i + klen <= row->rsize &&
-                    !memcmp(p,keywords[j],klen) &&
-                    is_separator(*(p+klen), separators))
-                {
-                    /* Keyword */
-                    memset(row->hl+i,kw2 ? HL_KEYWORD2 : HL_KEYWORD1,klen);
-                    p += klen;
-                    i += klen;
+            while(*p) {
+                /* Handle // comments. */
+                if (prev_sep && i < row->rsize - 1 && *p == scs[0] && *(p+1) == scs[1]) {
+                    /* From here to end is a comment */
+                    memset(row->hl+i,HL_COMMENT,row->rsize-i);
                     break;
                 }
-            }
-            if (keywords[j] != NULL) {
-                prev_sep = 0;
-                continue; /* We had a keyword match */
-            }
-        }
 
-        /* Not special chars */
-        prev_sep = is_separator(*p, separators);
-        p++; i++;
+                /* Handle multi line comments. */
+                if (in_comment) {
+                    row->hl[i] = HL_MLCOMMENT;
+                    if (i < row->rsize - 1 && *p == mce[0] && *(p+1) == mce[1]) {
+                        row->hl[i+1] = HL_MLCOMMENT;
+                        p += 2; i += 2;
+                        in_comment = 0;
+                        prev_sep = 1;
+                        continue;
+                    } else {
+                        prev_sep = 0;
+                        p++; i++;
+                        continue;
+                    }
+                } else if (i < row->rsize - 1 && *p == mcs[0] && *(p+1) == mcs[1]) {
+                    row->hl[i] = HL_MLCOMMENT;
+                    row->hl[i+1] = HL_MLCOMMENT;
+                    p += 2; i += 2;
+                    in_comment = 1;
+                    prev_sep = 0;
+                    continue;
+                }
+
+                /* Handle "" and '' */
+                if (in_string) {
+                    row->hl[i] = HL_STRING;
+                    if (i < row->rsize - 1 && *p == '\\') {
+                        row->hl[i+1] = HL_STRING;
+                        p += 2; i += 2;
+                        prev_sep = 0;
+                        continue;
+                    }
+                    if (*p == in_string) in_string = 0;
+                    p++; i++;
+                    continue;
+                } else {
+                    if (*p == '"' || *p == '\'') {
+                        in_string = *p;
+                        row->hl[i] = HL_STRING;
+                        p++; i++;
+                        prev_sep = 0;
+                        continue;
+                    }
+                }
+
+                /* Handle non printable chars. */
+                if (!isprint(*p)) {
+                    row->hl[i] = HL_NONPRINT;
+                    p++; i++;
+                    prev_sep = 0;
+                    continue;
+                }
+
+                /* Handle numbers */
+                if ((isdigit(*p) && (prev_sep || row->hl[i-1] == HL_NUMBER)) ||
+                    (*p == '.' && i > 0 && row->hl[i-1] == HL_NUMBER &&
+                     i < row->rsize - 1 && isdigit(*(p+1)))) {
+                    row->hl[i] = HL_NUMBER;
+                    p++; i++;
+                    prev_sep = 0;
+                    continue;
+                }
+
+                /* Handle keywords and lib calls */
+                if (prev_sep) {
+                    int j;
+                    for (j = 0; keywords[j]; j++) {
+                        int klen = strlen(keywords[j]);
+                        int kw2 = keywords[j][klen-1] == '|';
+                        if (kw2) klen--;
+
+                        if (i + klen <= row->rsize &&
+                            !memcmp(p,keywords[j],klen) &&
+                            is_separator(*(p+klen), separators))
+                        {
+                            /* Keyword */
+                            memset(row->hl+i,kw2 ? HL_KEYWORD2 : HL_KEYWORD1,klen);
+                            p += klen;
+                            i += klen;
+                            break;
+                        }
+                    }
+                    if (keywords[j] != NULL) {
+                        prev_sep = 0;
+                        continue; /* We had a keyword match */
+                    }
+                }
+
+                /* Not special chars */
+                prev_sep = is_separator(*p, separators);
+                p++; i++;
+            }
+
+            default_ran = 1;
+        }
     }
+
+    lua_apply_highlight_row(row, default_ran);
 
     /* Propagate syntax change to the next row if the open comment
      * state changed. This may recursively affect all the following rows
@@ -2337,6 +2510,28 @@ static void init_lua_api(lua_State *L) {
 
     lua_pushcfunction(L, lua_kilo_async_http);
     lua_setfield(L, -2, "async_http");
+
+    /* Highlight constants */
+    lua_newtable(L);
+    lua_pushinteger(L, HL_NORMAL);
+    lua_setfield(L, -2, "normal");
+    lua_pushinteger(L, HL_NONPRINT);
+    lua_setfield(L, -2, "nonprint");
+    lua_pushinteger(L, HL_COMMENT);
+    lua_setfield(L, -2, "comment");
+    lua_pushinteger(L, HL_MLCOMMENT);
+    lua_setfield(L, -2, "mlcomment");
+    lua_pushinteger(L, HL_KEYWORD1);
+    lua_setfield(L, -2, "keyword1");
+    lua_pushinteger(L, HL_KEYWORD2);
+    lua_setfield(L, -2, "keyword2");
+    lua_pushinteger(L, HL_STRING);
+    lua_setfield(L, -2, "string");
+    lua_pushinteger(L, HL_NUMBER);
+    lua_setfield(L, -2, "number");
+    lua_pushinteger(L, HL_MATCH);
+    lua_setfield(L, -2, "match");
+    lua_setfield(L, -2, "hl");
 
     /* Set as global 'loki' */
     lua_setglobal(L, "loki");

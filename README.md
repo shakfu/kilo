@@ -157,6 +157,29 @@ end
 
 See `.loki.example/init.lua` for complete examples including AI integration.
 
+### Highlight Hook
+
+Define `loki.highlight_row(row_index, line_text, render_text, syntax_type, default_applied)`
+inside `.loki/init.lua` (or `~/.loki/init.lua`) to extend or replace syntax
+highlighting from Lua. Return `nil` to keep the built-in rules, or return a
+table of span descriptors to colour specific regions:
+
+```lua
+function loki.highlight_row(idx, text, render, syntax_type, default_applied)
+    return {
+        replace = true, -- optional: clear existing highlight first
+        spans = {
+            { start = 1, length = 3, style = "keyword1" },
+            { start = 10, stop = 20, style = "comment" },
+        },
+    }
+end
+```
+
+Style strings map to constants exposed under `loki.hl` (`match`, `string`,
+`keyword1`, etc.). To layer extra cues without discarding the defaults, omit
+`replace` and simply return `{ spans = {...} }`.
+
 ## Project Status
 
 This is a fork with enhancements:
