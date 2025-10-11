@@ -1,6 +1,6 @@
 # loki -- a minimal lua-powered text editor with builtin async http
 
-A lightweight, Lua-powered text editor built on antirez's [loki](https://github.com/antirez/loki) (~1K lines). Features async HTTP for AI completions, dynamic scripting, and zero configuration needed - just compile and run.
+A lightweight, Lua-powered text editor built on antirez's [kilo](https://github.com/antirez/kilo) (~1K lines). Features async HTTP for AI completions, lua scripting, and zero configuration needed - just compile and run.
 
 ## Features
 
