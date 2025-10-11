@@ -212,8 +212,9 @@ void editor_update_repl_layout(editor_ctx_t *ctx);
 /* Editor cleanup */
 void editor_cleanup_resources(editor_ctx_t *ctx);
 
-/* Syntax highlighting helper */
+/* Syntax highlighting helpers */
 int hl_name_to_code(const char *name);
+int is_separator(int c, char *separators);
 
 /* Terminal and input */
 int enable_raw_mode(editor_ctx_t *ctx, int fd);

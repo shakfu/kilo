@@ -17,6 +17,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.4.4]
+
+### Changed
+
+- **Language Module Extraction**: Moved markdown-specific syntax highlighting from core to languages module
+  - **Functions Moved**:
+    - `highlight_code_line()` (~73 lines) - Highlights code blocks within markdown with language-specific rules
+    - `editor_update_syntax_markdown()` (~173 lines) - Complete markdown syntax highlighting (headers, lists, bold, italic, inline code, links, code fences)
+  - **Module Organization**:
+    - Added function declarations to `src/loki_languages.h`
+    - Added required includes to `loki_languages.c`: `<stdlib.h>`, `<string.h>`, `<ctype.h>`
+    - Added `is_separator()` declaration to `src/loki_internal.h` for shared utility access
+    - `loki_languages.c` now contains **all** language-specific code (417 lines total):
+      - Language definitions (C, C++, Python, Lua, Cython, Markdown)
+      - Keyword arrays and file extension mappings
+      - Complete syntax highlighting logic
+  - **Results**:
+    - **252 lines removed from loki_core.c** (from ~2,245 to 1,993 lines)
+    - Core now focuses exclusively on editor functionality (file I/O, cursor movement, rendering, input handling)
+    - All language-specific code properly isolated in dedicated module
+    - All tests passing (2/2), clean compilation
+  - **Architecture Benefits**:
+    - **Core remains minimal and maintainable** - language support doesn't bloat core
+    - **Modular language support** - easy to add new languages without touching core
+    - **Clear separation of concerns** - editor logic vs. language-specific highlighting
+    - Adding new languages only requires changes to `loki_languages.c` and `loki_languages.h`
+
 ## [0.4.3]
 
 ### Changed
