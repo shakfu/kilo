@@ -67,7 +67,7 @@ static int lua_loki_get_cursor(lua_State *L) {
 static int lua_loki_insert_text(lua_State *L) {
     const char *text = luaL_checkstring(L, 1);
     for (const char *p = text; *p; p++) {
-        editor_insert_char(*p);
+        editor_insert_char(&E, *p);
     }
     return 0;
 }
@@ -84,7 +84,7 @@ static int lua_loki_stream_text(lua_State *L) {
 
     /* Insert the text */
     for (const char *p = text; *p; p++) {
-        editor_insert_char(*p);
+        editor_insert_char(&E, *p);
     }
 
     /* Scroll to bottom */
@@ -94,7 +94,7 @@ static int lua_loki_stream_text(lua_State *L) {
     E.cy = E.numrows - 1;
 
     /* Refresh screen immediately */
-    editor_refresh_screen();
+    editor_refresh_screen(&E);
 
     return 0;
 }

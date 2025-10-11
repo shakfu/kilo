@@ -198,7 +198,7 @@ void editor_insert_newline(editor_ctx_t *ctx);
 void editor_del_char(editor_ctx_t *ctx);
 
 /* Screen rendering */
-void editor_refresh_screen(void);
+void editor_refresh_screen(editor_ctx_t *ctx);
 
 /* Async HTTP requests */
 int start_async_http_request(const char *url, const char *method,
@@ -226,7 +226,7 @@ int hl_name_to_code(const char *name);
 
 /* Terminal and input */
 int enable_raw_mode(int fd);
-void handle_windows_resize(void);
-void editor_process_keypress(int fd);
+void handle_windows_resize(editor_ctx_t *ctx);
+void editor_process_keypress(editor_ctx_t *ctx, int fd);
 
 #endif /* LOKI_INTERNAL_H */

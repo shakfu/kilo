@@ -70,7 +70,8 @@ void editor_get_cursor_file_pos(int *row, int *col);
  * Buffer Modification
  * ============================================================================ */
 
-/* Forward declaration for context type */
+/* Forward declaration for context type - full definition in loki_internal.h */
+struct editor_ctx;
 typedef struct editor_ctx editor_ctx_t;
 
 /* Insert a single character at cursor position */
@@ -97,7 +98,7 @@ int editor_open(editor_ctx_t *ctx, char *filename);
  * ============================================================================ */
 
 /* Refresh the screen display */
-void editor_refresh_screen(void);
+void editor_refresh_screen(editor_ctx_t *ctx);
 
 /* ============================================================================
  * Modal Editing
@@ -155,7 +156,7 @@ struct editor_language_config {
 int editor_register_language(const struct editor_language_config *config);
 
 /* Select syntax highlighting for current file */
-void editor_select_syntax_highlight(char *filename);
+void editor_select_syntax_highlight(editor_ctx_t *ctx, char *filename);
 
 /* ============================================================================
  * Selection
@@ -197,7 +198,7 @@ void editor_poll_async_http(lua_State *L);
  * ============================================================================ */
 
 /* Initialize the editor */
-void init_editor(void);
+void init_editor(editor_ctx_t *ctx);
 
 /* Cleanup function (called at exit) */
 void editor_atexit(void);

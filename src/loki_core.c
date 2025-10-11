@@ -204,13 +204,13 @@ void editor_ctx_free(editor_ctx_t *ctx) {
 }
 
 /* Check if position is within selection */
-int is_selected(int row, int col) {
-    if (!E.sel_active) return 0;
+int is_selected(editor_ctx_t *ctx, int row, int col) {
+    if (!ctx->sel_active) return 0;
 
-    int start_y = E.sel_start_y;
-    int start_x = E.sel_start_x;
-    int end_y = E.sel_end_y;
-    int end_x = E.sel_end_x;
+    int start_y = ctx->sel_start_y;
+    int start_x = ctx->sel_start_x;
+    int end_y = ctx->sel_end_y;
+    int end_x = ctx->sel_end_x;
 
     /* Ensure start comes before end */
     if (start_y > end_y || (start_y == end_y && start_x > end_x)) {
@@ -269,17 +269,17 @@ char *base64_encode(const char *input, size_t len) {
 }
 
 /* Copy selected text to clipboard using OSC 52 */
-void copy_selection_to_clipboard(void) {
-    if (!E.sel_active) {
+void copy_selection_to_clipboard(editor_ctx_t *ctx) {
+    if (!ctx->sel_active) {
         editor_set_status_msg("No selection");
         return;
     }
 
     /* Ensure start comes before end */
-    int start_y = E.sel_start_y;
-    int start_x = E.sel_start_x;
-    int end_y = E.sel_end_y;
-    int end_x = E.sel_end_x;
+    int start_y = ctx->sel_start_y;
+    int start_x = ctx->sel_start_x;
+    int end_y = ctx->sel_end_y;
+    int end_x = ctx->sel_end_x;
 
     if (start_y > end_y || (start_y == end_y && start_x > end_x)) {
         int tmp;
@@ -294,10 +294,10 @@ void copy_selection_to_clipboard(void) {
     text = malloc(text_capacity);
     if (!text) return;
 
-    for (int y = start_y; y <= end_y && y < E.numrows; y++) {
+    for (int y = start_y; y <= end_y && y < ctx->numrows; y++) {
         int x_start = (y == start_y) ? start_x : 0;
-        int x_end = (y == end_y) ? end_x : E.row[y].size;
-        if (x_end > E.row[y].size) x_end = E.row[y].size;
+        int x_end = (y == end_y) ? end_x : ctx->row[y].size;
+        if (x_end > ctx->row[y].size) x_end = ctx->row[y].size;
 
         int len = x_end - x_start;
         if (len > 0) {
@@ -307,7 +307,7 @@ void copy_selection_to_clipboard(void) {
                 if (!new_text) { free(text); return; }
                 text = new_text;
             }
-            memcpy(text + text_len, E.row[y].chars + x_start, len);
+            memcpy(text + text_len, ctx->row[y].chars + x_start, len);
             text_len += len;
         }
         if (y < end_y) {
@@ -327,7 +327,7 @@ void copy_selection_to_clipboard(void) {
     free(encoded);
 
     editor_set_status_msg("Copied %d bytes to clipboard", (int)text_len);
-    E.sel_active = 0;  /* Clear selection after copy */
+    ctx->sel_active = 0;  /* Clear selection after copy */
 }
 /* Async HTTP and cleanup_curl are in loki_editor.c */
 
@@ -1277,7 +1277,7 @@ int editor_format_color(editor_ctx_t *ctx, int hl, char *buf, size_t bufsize) {
 
 /* Select the syntax highlight scheme depending on the filename,
  * setting it in the global state E.syntax. */
-void editor_select_syntax_highlight(char *filename) {
+void editor_select_syntax_highlight(editor_ctx_t *ctx, char *filename) {
     for (unsigned int j = 0; j < HLDB_ENTRIES; j++) {
         struct t_editor_syntax *s = HLDB+j;
         unsigned int i = 0;
@@ -1286,7 +1286,7 @@ void editor_select_syntax_highlight(char *filename) {
             int patlen = strlen(s->filematch[i]);
             if ((p = strstr(filename,s->filematch[i])) != NULL) {
                 if (s->filematch[i][0] != '.' || p[patlen] == '\0') {
-                    E.syntax = s;
+                    ctx->syntax = s;
                     return;
                 }
             }
@@ -1303,7 +1303,7 @@ void editor_select_syntax_highlight(char *filename) {
             int patlen = strlen(s->filematch[i]);
             if ((p = strstr(filename,s->filematch[i])) != NULL) {
                 if (s->filematch[i][0] != '.' || p[patlen] == '\0') {
-                    E.syntax = s;
+                    ctx->syntax = s;
                     return;
                 }
             }
@@ -1756,7 +1756,7 @@ void ab_free(struct abuf *ab) {
 
 /* This function writes the whole screen using VT100 escape characters
  * starting from the logical state of the editor in the global state 'E'. */
-void editor_refresh_screen(void) {
+void editor_refresh_screen(editor_ctx_t *ctx) {
     int y;
     t_erow *r;
     char buf[32];
@@ -1764,15 +1764,15 @@ void editor_refresh_screen(void) {
 
     ab_append(&ab,"\x1b[?25l",6); /* Hide cursor. */
     ab_append(&ab,"\x1b[H",3); /* Go home. */
-    for (y = 0; y < E.screenrows; y++) {
-        int filerow = E.rowoff+y;
+    for (y = 0; y < ctx->screenrows; y++) {
+        int filerow = ctx->rowoff+y;
 
-        if (filerow >= E.numrows) {
-            if (E.numrows == 0 && y == E.screenrows/3) {
+        if (filerow >= ctx->numrows) {
+            if (ctx->numrows == 0 && y == ctx->screenrows/3) {
                 char welcome[80];
                 int welcomelen = snprintf(welcome,sizeof(welcome),
                     "Kilo editor -- version %s\x1b[0K\r\n", LOKI_VERSION);
-                int padding = (E.screencols-welcomelen)/2;
+                int padding = (ctx->screencols-welcomelen)/2;
                 if (padding) {
                     ab_append(&ab,"~",1);
                     padding--;
@@ -1785,18 +1785,18 @@ void editor_refresh_screen(void) {
             continue;
         }
 
-        r = &E.row[filerow];
+        r = &ctx->row[filerow];
 
-        int len = r->rsize - E.coloff;
+        int len = r->rsize - ctx->coloff;
         int current_color = -1;
 
         /* Word wrap: clamp to screen width and find word boundary */
-        if (E.word_wrap && len > E.screencols && r->cb_lang == CB_LANG_NONE) {
-            len = E.screencols;
+        if (ctx->word_wrap && len > ctx->screencols && r->cb_lang == CB_LANG_NONE) {
+            len = ctx->screencols;
             /* Find last space/separator to break at word boundary */
             int last_space = -1;
             for (int k = 0; k < len; k++) {
-                if (isspace(r->render[E.coloff + k])) {
+                if (isspace(r->render[ctx->coloff + k])) {
                     last_space = k;
                 }
             }
@@ -1806,12 +1806,12 @@ void editor_refresh_screen(void) {
         }
 
         if (len > 0) {
-            if (len > E.screencols) len = E.screencols;
-            char *c = r->render+E.coloff;
-            unsigned char *hl = r->hl+E.coloff;
+            if (len > ctx->screencols) len = ctx->screencols;
+            char *c = r->render+ctx->coloff;
+            unsigned char *hl = r->hl+ctx->coloff;
             int j;
             for (j = 0; j < len; j++) {
-                int selected = is_selected(filerow, E.coloff + j);
+                int selected = is_selected(ctx, filerow, ctx->coloff + j);
 
                 /* Apply selection background */
                 if (selected) {
@@ -1829,7 +1829,7 @@ void editor_refresh_screen(void) {
                     ab_append(&ab,"\x1b[0m",4);
                     if (current_color != -1) {
                         char buf[32];
-                        int clen = editor_format_color(&E, current_color, buf, sizeof(buf));
+                        int clen = editor_format_color(ctx, current_color, buf, sizeof(buf));
                         ab_append(&ab,buf,clen);
                     }
                 } else if (hl[j] == HL_NORMAL) {
@@ -1845,7 +1845,7 @@ void editor_refresh_screen(void) {
                     int color = hl[j];
                     if (color != current_color) {
                         char buf[32];
-                        int clen = editor_format_color(&E, color, buf, sizeof(buf));
+                        int clen = editor_format_color(ctx, color, buf, sizeof(buf));
                         current_color = color;
                         ab_append(&ab,buf,clen);
                     }
@@ -1854,7 +1854,7 @@ void editor_refresh_screen(void) {
                         ab_append(&ab,"\x1b[0m",4); /* Reset */
                         if (current_color != -1) {
                             char buf[32];
-                            int clen = editor_format_color(&E, current_color, buf, sizeof(buf));
+                            int clen = editor_format_color(ctx, current_color, buf, sizeof(buf));
                             ab_append(&ab,buf,clen);
                         }
                     }
@@ -1873,7 +1873,7 @@ void editor_refresh_screen(void) {
 
     /* Get mode indicator */
     const char *mode_str = "";
-    switch(E.mode) {
+    switch(ctx->mode) {
         case MODE_NORMAL: mode_str = "NORMAL"; break;
         case MODE_INSERT: mode_str = "INSERT"; break;
         case MODE_VISUAL: mode_str = "VISUAL"; break;
@@ -1881,13 +1881,13 @@ void editor_refresh_screen(void) {
     }
 
     int len = snprintf(status, sizeof(status), " %s  %.20s - %d lines %s",
-        mode_str, E.filename, E.numrows, E.dirty ? "(modified)" : "");
+        mode_str, ctx->filename, ctx->numrows, ctx->dirty ? "(modified)" : "");
     int rlen = snprintf(rstatus, sizeof(rstatus),
-        "%d/%d",E.rowoff+E.cy+1,E.numrows);
-    if (len > E.screencols) len = E.screencols;
+        "%d/%d",ctx->rowoff+ctx->cy+1,ctx->numrows);
+    if (len > ctx->screencols) len = ctx->screencols;
     ab_append(&ab,status,len);
-    while(len < E.screencols) {
-        if (E.screencols - len == rlen) {
+    while(len < ctx->screencols) {
+        if (ctx->screencols - len == rlen) {
             ab_append(&ab,rstatus,rlen);
             break;
         } else {
@@ -1897,48 +1897,48 @@ void editor_refresh_screen(void) {
     }
     ab_append(&ab,"\x1b[0m\r\n",6);
 
-    /* Second row depends on E.statusmsg and the status message update time. */
+    /* Second row depends on ctx->statusmsg and the status message update time. */
     ab_append(&ab,"\x1b[0K",4);
-    int msglen = strlen(E.statusmsg);
-    if (msglen && time(NULL)-E.statusmsg_time < 5)
-        ab_append(&ab,E.statusmsg,msglen <= E.screencols ? msglen : E.screencols);
+    int msglen = strlen(ctx->statusmsg);
+    if (msglen && time(NULL)-ctx->statusmsg_time < 5)
+        ab_append(&ab,ctx->statusmsg,msglen <= ctx->screencols ? msglen : ctx->screencols);
 
     /* Render REPL if active */
-    if (E.repl.active) lua_repl_render(&ab);
+    if (ctx->repl.active) lua_repl_render(&ab);
 
     /* Put cursor at its current position. Note that the horizontal position
-     * at which the cursor is displayed may be different compared to 'E.cx'
+     * at which the cursor is displayed may be different compared to 'ctx->cx'
      * because of TABs. */
     int cursor_row = 1;
     int cursor_col = 1;
 
     /* Calculate cursor position - different for REPL vs editor mode */
-    if (E.repl.active) {
+    if (ctx->repl.active) {
         /* REPL mode: cursor is on the REPL prompt line */
         int prompt_len = (int)strlen(LUA_REPL_PROMPT);
-        int visible = E.repl.input_len;
-        if (prompt_len + visible >= E.screencols) {
-            visible = E.screencols > prompt_len ? E.screencols - prompt_len : 0;
+        int visible = ctx->repl.input_len;
+        if (prompt_len + visible >= ctx->screencols) {
+            visible = ctx->screencols > prompt_len ? ctx->screencols - prompt_len : 0;
         }
-        cursor_row = E.screenrows + STATUS_ROWS + LUA_REPL_OUTPUT_ROWS + 1;
+        cursor_row = ctx->screenrows + STATUS_ROWS + LUA_REPL_OUTPUT_ROWS + 1;
         cursor_col = prompt_len + visible + 1;
         if (cursor_col < 1) cursor_col = 1;
-        if (cursor_col > E.screencols) cursor_col = E.screencols;
+        if (cursor_col > ctx->screencols) cursor_col = ctx->screencols;
     } else {
         /* Editor mode: cursor is in the text area */
         int cx = 1;
-        int filerow = E.rowoff+E.cy;
-        t_erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
+        int filerow = ctx->rowoff+ctx->cy;
+        t_erow *row = (filerow >= ctx->numrows) ? NULL : &ctx->row[filerow];
         if (row) {
-            for (int j = E.coloff; j < (E.cx+E.coloff); j++) {
+            for (int j = ctx->coloff; j < (ctx->cx+ctx->coloff); j++) {
                 if (j < row->size && row->chars[j] == TAB)
                     cx += 7-((cx)%8);
                 cx++;
             }
         }
-        cursor_row = E.cy + 1;
+        cursor_row = ctx->cy + 1;
         cursor_col = cx;
-        if (cursor_col > E.screencols) cursor_col = E.screencols;
+        if (cursor_col > ctx->screencols) cursor_col = ctx->screencols;
     }
 
     snprintf(buf,sizeof(buf),"\x1b[%d;%dH",cursor_row,cursor_col);
@@ -1953,29 +1953,29 @@ void editor_refresh_screen(void) {
 /* Initialize default syntax highlighting colors.
  * Colors are stored as RGB values and rendered using true color escape codes.
  * These defaults match the visual appearance of the original ANSI color scheme. */
-void init_default_colors(void) {
+void init_default_colors(editor_ctx_t *ctx) {
     /* HL_NORMAL */
-    E.colors[0].r = 200; E.colors[0].g = 200; E.colors[0].b = 200;
+    ctx->colors[0].r = 200; ctx->colors[0].g = 200; ctx->colors[0].b = 200;
     /* HL_NONPRINT */
-    E.colors[1].r = 100; E.colors[1].g = 100; E.colors[1].b = 100;
+    ctx->colors[1].r = 100; ctx->colors[1].g = 100; ctx->colors[1].b = 100;
     /* HL_COMMENT */
-    E.colors[2].r = 100; E.colors[2].g = 100; E.colors[2].b = 100;
+    ctx->colors[2].r = 100; ctx->colors[2].g = 100; ctx->colors[2].b = 100;
     /* HL_MLCOMMENT */
-    E.colors[3].r = 100; E.colors[3].g = 100; E.colors[3].b = 100;
+    ctx->colors[3].r = 100; ctx->colors[3].g = 100; ctx->colors[3].b = 100;
     /* HL_KEYWORD1 */
-    E.colors[4].r = 220; E.colors[4].g = 100; E.colors[4].b = 220;
+    ctx->colors[4].r = 220; ctx->colors[4].g = 100; ctx->colors[4].b = 220;
     /* HL_KEYWORD2 */
-    E.colors[5].r = 100; E.colors[5].g = 220; E.colors[5].b = 220;
+    ctx->colors[5].r = 100; ctx->colors[5].g = 220; ctx->colors[5].b = 220;
     /* HL_STRING */
-    E.colors[6].r = 220; E.colors[6].g = 220; E.colors[6].b = 100;
+    ctx->colors[6].r = 220; ctx->colors[6].g = 220; ctx->colors[6].b = 100;
     /* HL_NUMBER */
-    E.colors[7].r = 200; E.colors[7].g = 100; E.colors[7].b = 200;
+    ctx->colors[7].r = 200; ctx->colors[7].g = 100; ctx->colors[7].b = 200;
     /* HL_MATCH */
-    E.colors[8].r = 100; E.colors[8].g = 150; E.colors[8].b = 220;
+    ctx->colors[8].r = 100; ctx->colors[8].g = 150; ctx->colors[8].b = 220;
 }
 
 /* Update window size and adjust screen layout */
-void update_window_size(void) {
+void update_window_size(editor_ctx_t *ctx) {
     int rows, cols;
     if (get_window_size(STDIN_FILENO,STDOUT_FILENO,
                       &rows,&cols) == -1) {
@@ -1983,12 +1983,12 @@ void update_window_size(void) {
         rows = 24;
         cols = 80;
     }
-    E.screencols = cols;
+    ctx->screencols = cols;
     rows -= STATUS_ROWS;
     if (rows < 1) rows = 1;
-    E.screenrows_total = rows;
+    ctx->screenrows_total = rows;
     /* REPL layout update (editor_update_repl_layout) is in loki_editor.c */
-    E.screenrows = E.screenrows_total; /* Without REPL, use all available rows */
+    ctx->screenrows = ctx->screenrows_total; /* Without REPL, use all available rows */
 }
 
 /* Signal handler for window size changes */
@@ -1999,12 +1999,12 @@ void handle_sig_win_ch(int unused __attribute__((unused))) {
 }
 
 /* Check and handle window resize */
-void handle_windows_resize(void) {
+void handle_windows_resize(editor_ctx_t *ctx) {
     if (winsize_changed) {
         winsize_changed = 0;
-        update_window_size();
-        if (E.cy > E.screenrows) E.cy = E.screenrows - 1;
-        if (E.cx > E.screencols) E.cx = E.screencols - 1;
+        update_window_size(ctx);
+        if (ctx->cy > ctx->screenrows) ctx->cy = ctx->screenrows - 1;
+        if (ctx->cx > ctx->screencols) ctx->cx = ctx->screencols - 1;
     }
 }
 
@@ -2017,9 +2017,9 @@ void handle_windows_resize(void) {
 /* ========================= Modal Editing ================================= */
 
 /* Helper: Check if a line is empty (blank or whitespace only) */
-static int is_empty_line(int row) {
-    if (row < 0 || row >= E.numrows) return 1;
-    t_erow *line = &E.row[row];
+static int is_empty_line(editor_ctx_t *ctx, int row) {
+    if (row < 0 || row >= ctx->numrows) return 1;
+    t_erow *line = &ctx->row[row];
     for (int i = 0; i < line->size; i++) {
         if (line->chars[i] != ' ' && line->chars[i] != '\t') {
             return 0;
@@ -2029,47 +2029,47 @@ static int is_empty_line(int row) {
 }
 
 /* Move to next empty line (paragraph motion: }) */
-static void move_to_next_empty_line(void) {
-    int filerow = E.rowoff + E.cy;
+static void move_to_next_empty_line(editor_ctx_t *ctx) {
+    int filerow = ctx->rowoff + ctx->cy;
 
     /* Skip current paragraph (non-empty lines) */
     int row = filerow + 1;
-    while (row < E.numrows && !is_empty_line(row)) {
+    while (row < ctx->numrows && !is_empty_line(ctx, row)) {
         row++;
     }
 
     /* Skip empty lines to find start of next paragraph or stay at first empty */
-    if (row < E.numrows) {
+    if (row < ctx->numrows) {
         /* Found an empty line - this is where we stop */
         filerow = row;
     } else {
         /* No empty line found, go to end of file */
-        filerow = E.numrows - 1;
+        filerow = ctx->numrows - 1;
     }
 
     /* Update cursor position */
-    if (filerow < E.rowoff) {
-        E.rowoff = filerow;
-        E.cy = 0;
-    } else if (filerow >= E.rowoff + E.screenrows) {
-        E.rowoff = filerow - E.screenrows + 1;
-        E.cy = E.screenrows - 1;
+    if (filerow < ctx->rowoff) {
+        ctx->rowoff = filerow;
+        ctx->cy = 0;
+    } else if (filerow >= ctx->rowoff + ctx->screenrows) {
+        ctx->rowoff = filerow - ctx->screenrows + 1;
+        ctx->cy = ctx->screenrows - 1;
     } else {
-        E.cy = filerow - E.rowoff;
+        ctx->cy = filerow - ctx->rowoff;
     }
 
     /* Move to start of line */
-    E.cx = 0;
-    E.coloff = 0;
+    ctx->cx = 0;
+    ctx->coloff = 0;
 }
 
 /* Move to previous empty line (paragraph motion: {) */
-static void move_to_prev_empty_line(void) {
-    int filerow = E.rowoff + E.cy;
+static void move_to_prev_empty_line(editor_ctx_t *ctx) {
+    int filerow = ctx->rowoff + ctx->cy;
 
     /* Skip current paragraph (non-empty lines) going backward */
     int row = filerow - 1;
-    while (row >= 0 && !is_empty_line(row)) {
+    while (row >= 0 && !is_empty_line(ctx, row)) {
         row--;
     }
 
@@ -2082,99 +2082,99 @@ static void move_to_prev_empty_line(void) {
     }
 
     /* Update cursor position */
-    if (filerow < E.rowoff) {
-        E.rowoff = filerow;
-        E.cy = 0;
-    } else if (filerow >= E.rowoff + E.screenrows) {
-        E.rowoff = filerow - E.screenrows + 1;
-        E.cy = E.screenrows - 1;
+    if (filerow < ctx->rowoff) {
+        ctx->rowoff = filerow;
+        ctx->cy = 0;
+    } else if (filerow >= ctx->rowoff + ctx->screenrows) {
+        ctx->rowoff = filerow - ctx->screenrows + 1;
+        ctx->cy = ctx->screenrows - 1;
     } else {
-        E.cy = filerow - E.rowoff;
+        ctx->cy = filerow - ctx->rowoff;
     }
 
     /* Move to start of line */
-    E.cx = 0;
-    E.coloff = 0;
+    ctx->cx = 0;
+    ctx->coloff = 0;
 }
 
 /* ========================= Editor events handling  ======================== */
 
 /* Handle cursor position change because arrow keys were pressed. */
-void editor_move_cursor(int key) {
-    int filerow = E.rowoff+E.cy;
-    int filecol = E.coloff+E.cx;
+void editor_move_cursor(editor_ctx_t *ctx, int key) {
+    int filerow = ctx->rowoff+ctx->cy;
+    int filecol = ctx->coloff+ctx->cx;
     int rowlen;
-    t_erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
+    t_erow *row = (filerow >= ctx->numrows) ? NULL : &ctx->row[filerow];
 
     switch(key) {
     case ARROW_LEFT:
-        if (E.cx == 0) {
-            if (E.coloff) {
-                E.coloff--;
+        if (ctx->cx == 0) {
+            if (ctx->coloff) {
+                ctx->coloff--;
             } else {
                 if (filerow > 0) {
-                    E.cy--;
-                    E.cx = E.row[filerow-1].size;
-                    if (E.cx > E.screencols-1) {
-                        E.coloff = E.cx-E.screencols+1;
-                        E.cx = E.screencols-1;
+                    ctx->cy--;
+                    ctx->cx = ctx->row[filerow-1].size;
+                    if (ctx->cx > ctx->screencols-1) {
+                        ctx->coloff = ctx->cx-ctx->screencols+1;
+                        ctx->cx = ctx->screencols-1;
                     }
                 }
             }
         } else {
-            E.cx -= 1;
+            ctx->cx -= 1;
         }
         break;
     case ARROW_RIGHT:
         if (row && filecol < row->size) {
-            if (E.cx == E.screencols-1) {
-                E.coloff++;
+            if (ctx->cx == ctx->screencols-1) {
+                ctx->coloff++;
             } else {
-                E.cx += 1;
+                ctx->cx += 1;
             }
         } else if (row && filecol == row->size) {
-            E.cx = 0;
-            E.coloff = 0;
-            if (E.cy == E.screenrows-1) {
-                E.rowoff++;
+            ctx->cx = 0;
+            ctx->coloff = 0;
+            if (ctx->cy == ctx->screenrows-1) {
+                ctx->rowoff++;
             } else {
-                E.cy += 1;
+                ctx->cy += 1;
             }
         }
         break;
     case ARROW_UP:
-        if (E.cy == 0) {
-            if (E.rowoff) E.rowoff--;
+        if (ctx->cy == 0) {
+            if (ctx->rowoff) ctx->rowoff--;
         } else {
-            E.cy -= 1;
+            ctx->cy -= 1;
         }
         break;
     case ARROW_DOWN:
-        if (filerow < E.numrows) {
-            if (E.cy == E.screenrows-1) {
-                E.rowoff++;
+        if (filerow < ctx->numrows) {
+            if (ctx->cy == ctx->screenrows-1) {
+                ctx->rowoff++;
             } else {
-                E.cy += 1;
+                ctx->cy += 1;
             }
         }
         break;
     }
     /* Fix cx if the current line has not enough chars. */
-    filerow = E.rowoff+E.cy;
-    filecol = E.coloff+E.cx;
-    row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
+    filerow = ctx->rowoff+ctx->cy;
+    filecol = ctx->coloff+ctx->cx;
+    row = (filerow >= ctx->numrows) ? NULL : &ctx->row[filerow];
     rowlen = row ? row->size : 0;
     if (filecol > rowlen) {
-        E.cx -= filecol-rowlen;
-        if (E.cx < 0) {
-            E.coloff += E.cx;
-            E.cx = 0;
+        ctx->cx -= filecol-rowlen;
+        if (ctx->cx < 0) {
+            ctx->coloff += ctx->cx;
+            ctx->cx = 0;
         }
     }
 }
 
 /* Find and highlight text in the buffer */
-void editor_find(int fd) {
+void editor_find(editor_ctx_t *ctx, int fd) {
     char query[KILO_QUERY_LEN+1] = {0};
     int qlen = 0;
     int last_match = -1; /* Last line where a match was found. -1 for none. */
@@ -2184,20 +2184,20 @@ void editor_find(int fd) {
 
 #define FIND_RESTORE_HL do { \
     if (saved_hl) { \
-        memcpy(E.row[saved_hl_line].hl,saved_hl, E.row[saved_hl_line].rsize); \
+        memcpy(ctx->row[saved_hl_line].hl,saved_hl, ctx->row[saved_hl_line].rsize); \
         free(saved_hl); \
         saved_hl = NULL; \
     } \
 } while (0)
 
     /* Save the cursor position in order to restore it later. */
-    int saved_cx = E.cx, saved_cy = E.cy;
-    int saved_coloff = E.coloff, saved_rowoff = E.rowoff;
+    int saved_cx = ctx->cx, saved_cy = ctx->cy;
+    int saved_coloff = ctx->coloff, saved_rowoff = ctx->rowoff;
 
     while(1) {
         editor_set_status_msg(
             "Search: %s (Use ESC/Arrows/Enter)", query);
-        editor_refresh_screen();
+        editor_refresh_screen(ctx);
 
         int c = editor_read_key(fd);
         if (c == DEL_KEY || c == CTRL_H || c == BACKSPACE) {
@@ -2205,8 +2205,8 @@ void editor_find(int fd) {
             last_match = -1;
         } else if (c == ESC || c == ENTER) {
             if (c == ESC) {
-                E.cx = saved_cx; E.cy = saved_cy;
-                E.coloff = saved_coloff; E.rowoff = saved_rowoff;
+                ctx->cx = saved_cx; ctx->cy = saved_cy;
+                ctx->coloff = saved_coloff; ctx->rowoff = saved_rowoff;
             }
             FIND_RESTORE_HL;
             editor_set_status_msg("");
@@ -2230,13 +2230,13 @@ void editor_find(int fd) {
             int match_offset = 0;
             int i, current = last_match;
 
-            for (i = 0; i < E.numrows; i++) {
+            for (i = 0; i < ctx->numrows; i++) {
                 current += find_next;
-                if (current == -1) current = E.numrows-1;
-                else if (current == E.numrows) current = 0;
-                match = strstr(E.row[current].render,query);
+                if (current == -1) current = ctx->numrows-1;
+                else if (current == ctx->numrows) current = 0;
+                match = strstr(ctx->row[current].render,query);
                 if (match) {
-                    match_offset = match-E.row[current].render;
+                    match_offset = match-ctx->row[current].render;
                     break;
                 }
             }
@@ -2246,7 +2246,7 @@ void editor_find(int fd) {
             FIND_RESTORE_HL;
 
             if (match) {
-                t_erow *row = &E.row[current];
+                t_erow *row = &ctx->row[current];
                 last_match = current;
                 if (row->hl) {
                     saved_hl_line = current;
@@ -2256,15 +2256,15 @@ void editor_find(int fd) {
                     }
                     memset(row->hl+match_offset,HL_MATCH,qlen);
                 }
-                E.cy = 0;
-                E.cx = match_offset;
-                E.rowoff = current;
-                E.coloff = 0;
+                ctx->cy = 0;
+                ctx->cx = match_offset;
+                ctx->rowoff = current;
+                ctx->coloff = 0;
                 /* Scroll horizontally as needed. */
-                if (E.cx > E.screencols) {
-                    int diff = E.cx - E.screencols;
-                    E.cx -= diff;
-                    E.coloff += diff;
+                if (ctx->cx > ctx->screencols) {
+                    int diff = ctx->cx - ctx->screencols;
+                    ctx->cx -= diff;
+                    ctx->coloff += diff;
                 }
             }
         }
@@ -2274,69 +2274,69 @@ void editor_find(int fd) {
 /* ========================= Modal Key Processing ============================ */
 
 /* Process normal mode keypresses */
-static void process_normal_mode(int fd, int c) {
+static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
     switch(c) {
-        case 'h': editor_move_cursor(ARROW_LEFT); break;
-        case 'j': editor_move_cursor(ARROW_DOWN); break;
-        case 'k': editor_move_cursor(ARROW_UP); break;
-        case 'l': editor_move_cursor(ARROW_RIGHT); break;
+        case 'h': editor_move_cursor(ctx, ARROW_LEFT); break;
+        case 'j': editor_move_cursor(ctx, ARROW_DOWN); break;
+        case 'k': editor_move_cursor(ctx, ARROW_UP); break;
+        case 'l': editor_move_cursor(ctx, ARROW_RIGHT); break;
 
         /* Paragraph motion */
         case '{':
-            move_to_prev_empty_line();
+            move_to_prev_empty_line(ctx);
             break;
         case '}':
-            move_to_next_empty_line();
+            move_to_next_empty_line(ctx);
             break;
 
         /* Enter insert mode */
-        case 'i': E.mode = MODE_INSERT; break;
+        case 'i': ctx->mode = MODE_INSERT; break;
         case 'a':
-            editor_move_cursor(ARROW_RIGHT);
-            E.mode = MODE_INSERT;
+            editor_move_cursor(ctx, ARROW_RIGHT);
+            ctx->mode = MODE_INSERT;
             break;
         case 'o':
             /* Insert line below and enter insert mode */
-            if (E.numrows > 0) {
-                int filerow = E.rowoff + E.cy;
-                if (filerow < E.numrows) {
-                    E.cx = E.row[filerow].size; /* Move to end of line */
+            if (ctx->numrows > 0) {
+                int filerow = ctx->rowoff + ctx->cy;
+                if (filerow < ctx->numrows) {
+                    ctx->cx = ctx->row[filerow].size; /* Move to end of line */
                 }
             }
-            editor_insert_newline();
-            E.mode = MODE_INSERT;
+            editor_insert_newline(ctx);
+            ctx->mode = MODE_INSERT;
             break;
         case 'O':
             /* Insert line above and enter insert mode */
-            E.cx = 0; /* Move to start of line */
-            editor_insert_newline();
-            editor_move_cursor(ARROW_UP);
-            E.mode = MODE_INSERT;
+            ctx->cx = 0; /* Move to start of line */
+            editor_insert_newline(ctx);
+            editor_move_cursor(ctx, ARROW_UP);
+            ctx->mode = MODE_INSERT;
             break;
 
         /* Enter visual mode */
         case 'v':
-            E.mode = MODE_VISUAL;
-            E.sel_active = 1;
-            E.sel_start_x = E.cx;
-            E.sel_start_y = E.cy;
-            E.sel_end_x = E.cx;
-            E.sel_end_y = E.cy;
+            ctx->mode = MODE_VISUAL;
+            ctx->sel_active = 1;
+            ctx->sel_start_x = ctx->cx;
+            ctx->sel_start_y = ctx->cy;
+            ctx->sel_end_x = ctx->cx;
+            ctx->sel_end_y = ctx->cy;
             break;
 
         /* Delete character */
         case 'x':
-            editor_del_char();
+            editor_del_char(ctx);
             break;
 
         /* Global commands (work in all modes) */
-        case CTRL_S: editor_save(); break;
-        case CTRL_F: editor_find(fd); break;
+        case CTRL_S: editor_save(ctx); break;
+        case CTRL_F: editor_find(ctx, fd); break;
         case CTRL_L:
             /* Toggle REPL */
-            E.repl.active = !E.repl.active;
+            ctx->repl.active = !ctx->repl.active;
             editor_update_repl_layout();
-            if (E.repl.active) {
+            if (ctx->repl.active) {
                 editor_set_status_msg("Lua REPL active (Ctrl-L or ESC to close)");
             }
             break;
@@ -2349,7 +2349,7 @@ static void process_normal_mode(int fd, int c) {
         case ARROW_DOWN:
         case ARROW_LEFT:
         case ARROW_RIGHT:
-            editor_move_cursor(c);
+            editor_move_cursor(ctx, c);
             break;
 
         default:
@@ -2360,62 +2360,62 @@ static void process_normal_mode(int fd, int c) {
 }
 
 /* Process insert mode keypresses */
-static void process_insert_mode(int fd, int c) {
+static void process_insert_mode(editor_ctx_t *ctx, int fd, int c) {
     switch(c) {
         case ESC:
-            E.mode = MODE_NORMAL;
+            ctx->mode = MODE_NORMAL;
             /* Move cursor left if not at start of line */
-            if (E.cx > 0 || E.coloff > 0) {
-                editor_move_cursor(ARROW_LEFT);
+            if (ctx->cx > 0 || ctx->coloff > 0) {
+                editor_move_cursor(ctx, ARROW_LEFT);
             }
             break;
 
         case ENTER:
-            editor_insert_newline();
+            editor_insert_newline(ctx);
             break;
 
         case BACKSPACE:
         case CTRL_H:
         case DEL_KEY:
-            editor_del_char();
+            editor_del_char(ctx);
             break;
 
         case ARROW_UP:
         case ARROW_DOWN:
         case ARROW_LEFT:
         case ARROW_RIGHT:
-            editor_move_cursor(c);
+            editor_move_cursor(ctx, c);
             break;
 
         /* Global commands */
-        case CTRL_S: editor_save(); break;
-        case CTRL_F: editor_find(fd); break;
+        case CTRL_S: editor_save(ctx); break;
+        case CTRL_F: editor_find(ctx, fd); break;
         case CTRL_W:
-            E.word_wrap = !E.word_wrap;
-            editor_set_status_msg("Word wrap %s", E.word_wrap ? "enabled" : "disabled");
+            ctx->word_wrap = !ctx->word_wrap;
+            editor_set_status_msg("Word wrap %s", ctx->word_wrap ? "enabled" : "disabled");
             break;
         case CTRL_L:
             /* Toggle REPL */
-            E.repl.active = !E.repl.active;
+            ctx->repl.active = !ctx->repl.active;
             editor_update_repl_layout();
-            if (E.repl.active) {
+            if (ctx->repl.active) {
                 editor_set_status_msg("Lua REPL active (Ctrl-L or ESC to close)");
             }
             break;
         case CTRL_C:
-            copy_selection_to_clipboard();
+            copy_selection_to_clipboard(ctx);
             break;
 
         case PAGE_UP:
         case PAGE_DOWN:
-            if (c == PAGE_UP && E.cy != 0)
-                E.cy = 0;
-            else if (c == PAGE_DOWN && E.cy != E.screenrows-1)
-                E.cy = E.screenrows-1;
+            if (c == PAGE_UP && ctx->cy != 0)
+                ctx->cy = 0;
+            else if (c == PAGE_DOWN && ctx->cy != ctx->screenrows-1)
+                ctx->cy = ctx->screenrows-1;
             {
-                int times = E.screenrows;
+                int times = ctx->screenrows;
                 while(times--)
-                    editor_move_cursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
+                    editor_move_cursor(ctx, c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
             }
             break;
 
@@ -2424,86 +2424,86 @@ static void process_insert_mode(int fd, int c) {
         case SHIFT_ARROW_LEFT:
         case SHIFT_ARROW_RIGHT:
             /* Start selection if not active */
-            if (!E.sel_active) {
-                E.sel_active = 1;
-                E.sel_start_x = E.cx;
-                E.sel_start_y = E.cy;
+            if (!ctx->sel_active) {
+                ctx->sel_active = 1;
+                ctx->sel_start_x = ctx->cx;
+                ctx->sel_start_y = ctx->cy;
             }
             /* Move cursor */
-            if (c == SHIFT_ARROW_UP) editor_move_cursor(ARROW_UP);
-            else if (c == SHIFT_ARROW_DOWN) editor_move_cursor(ARROW_DOWN);
-            else if (c == SHIFT_ARROW_LEFT) editor_move_cursor(ARROW_LEFT);
-            else if (c == SHIFT_ARROW_RIGHT) editor_move_cursor(ARROW_RIGHT);
+            if (c == SHIFT_ARROW_UP) editor_move_cursor(ctx, ARROW_UP);
+            else if (c == SHIFT_ARROW_DOWN) editor_move_cursor(ctx, ARROW_DOWN);
+            else if (c == SHIFT_ARROW_LEFT) editor_move_cursor(ctx, ARROW_LEFT);
+            else if (c == SHIFT_ARROW_RIGHT) editor_move_cursor(ctx, ARROW_RIGHT);
             /* Update selection end */
-            E.sel_end_x = E.cx;
-            E.sel_end_y = E.cy;
+            ctx->sel_end_x = ctx->cx;
+            ctx->sel_end_y = ctx->cy;
             break;
 
         default:
             /* Insert the character */
-            editor_insert_char(c);
+            editor_insert_char(ctx, c);
             break;
     }
 }
 
 /* Process visual mode keypresses */
-static void process_visual_mode(int fd, int c) {
+static void process_visual_mode(editor_ctx_t *ctx, int fd, int c) {
     switch(c) {
         case ESC:
-            E.mode = MODE_NORMAL;
-            E.sel_active = 0;
+            ctx->mode = MODE_NORMAL;
+            ctx->sel_active = 0;
             break;
 
         /* Movement extends selection */
         case 'h':
         case ARROW_LEFT:
-            editor_move_cursor(ARROW_LEFT);
-            E.sel_end_x = E.cx;
-            E.sel_end_y = E.cy;
+            editor_move_cursor(ctx, ARROW_LEFT);
+            ctx->sel_end_x = ctx->cx;
+            ctx->sel_end_y = ctx->cy;
             break;
 
         case 'j':
         case ARROW_DOWN:
-            editor_move_cursor(ARROW_DOWN);
-            E.sel_end_x = E.cx;
-            E.sel_end_y = E.cy;
+            editor_move_cursor(ctx, ARROW_DOWN);
+            ctx->sel_end_x = ctx->cx;
+            ctx->sel_end_y = ctx->cy;
             break;
 
         case 'k':
         case ARROW_UP:
-            editor_move_cursor(ARROW_UP);
-            E.sel_end_x = E.cx;
-            E.sel_end_y = E.cy;
+            editor_move_cursor(ctx, ARROW_UP);
+            ctx->sel_end_x = ctx->cx;
+            ctx->sel_end_y = ctx->cy;
             break;
 
         case 'l':
         case ARROW_RIGHT:
-            editor_move_cursor(ARROW_RIGHT);
-            E.sel_end_x = E.cx;
-            E.sel_end_y = E.cy;
+            editor_move_cursor(ctx, ARROW_RIGHT);
+            ctx->sel_end_x = ctx->cx;
+            ctx->sel_end_y = ctx->cy;
             break;
 
         /* Copy selection */
         case 'y':
-            copy_selection_to_clipboard();
-            E.mode = MODE_NORMAL;
-            E.sel_active = 0;
+            copy_selection_to_clipboard(ctx);
+            ctx->mode = MODE_NORMAL;
+            ctx->sel_active = 0;
             editor_set_status_msg("Yanked selection");
             break;
 
         /* Delete selection (without undo for now) */
         case 'd':
         case 'x':
-            copy_selection_to_clipboard(); /* Save to clipboard first */
+            copy_selection_to_clipboard(ctx); /* Save to clipboard first */
             /* TODO: delete selection - need to implement this */
             editor_set_status_msg("Delete not implemented yet");
-            E.mode = MODE_NORMAL;
-            E.sel_active = 0;
+            ctx->mode = MODE_NORMAL;
+            ctx->sel_active = 0;
             break;
 
         /* Global commands */
         case CTRL_C:
-            copy_selection_to_clipboard();
+            copy_selection_to_clipboard(ctx);
             break;
 
         default:
@@ -2515,7 +2515,7 @@ static void process_visual_mode(int fd, int c) {
 }
 
 /* Process a single keypress */
-void editor_process_keypress(int fd) {
+void editor_process_keypress(editor_ctx_t *ctx, int fd) {
     /* When the file is modified, requires Ctrl-q to be pressed N times
      * before actually quitting. */
     static int quit_times = KILO_QUIT_TIMES;
@@ -2523,14 +2523,14 @@ void editor_process_keypress(int fd) {
     int c = editor_read_key(fd);
 
     /* REPL keypress handling */
-    if (E.repl.active) {
+    if (ctx->repl.active) {
         lua_repl_handle_keypress(c);
         return;
     }
 
     /* Handle quit globally (works in all modes) */
     if (c == CTRL_Q) {
-        if (E.dirty && quit_times) {
+        if (ctx->dirty && quit_times) {
             editor_set_status_msg("WARNING!!! File has unsaved changes. "
                 "Press Ctrl-Q %d more times to quit.", quit_times);
             quit_times--;
@@ -2540,15 +2540,15 @@ void editor_process_keypress(int fd) {
     }
 
     /* Dispatch to mode-specific handler */
-    switch(E.mode) {
+    switch(ctx->mode) {
         case MODE_NORMAL:
-            process_normal_mode(fd, c);
+            process_normal_mode(ctx, fd, c);
             break;
         case MODE_INSERT:
-            process_insert_mode(fd, c);
+            process_insert_mode(ctx, fd, c);
             break;
         case MODE_VISUAL:
-            process_visual_mode(fd, c);
+            process_visual_mode(ctx, fd, c);
             break;
         case MODE_COMMAND:
             /* TODO: implement command mode */
@@ -2558,24 +2558,24 @@ void editor_process_keypress(int fd) {
     quit_times = KILO_QUIT_TIMES; /* Reset it to the original value. */
 }
 
-void init_editor(void) {
-    E.cx = 0;
-    E.cy = 0;
-    E.rowoff = 0;
-    E.coloff = 0;
-    E.numrows = 0;
-    E.row = NULL;
-    E.dirty = 0;
-    E.filename = NULL;
-    E.syntax = NULL;
-    E.mode = MODE_NORMAL;  /* Start in normal mode (vim-like) */
-    E.word_wrap = 1;  /* Word wrap enabled by default */
-    E.sel_active = 0;
-    E.sel_start_x = E.sel_start_y = 0;
-    E.sel_end_x = E.sel_end_y = 0;
-    init_default_colors();
+void init_editor(editor_ctx_t *ctx) {
+    ctx->cx = 0;
+    ctx->cy = 0;
+    ctx->rowoff = 0;
+    ctx->coloff = 0;
+    ctx->numrows = 0;
+    ctx->row = NULL;
+    ctx->dirty = 0;
+    ctx->filename = NULL;
+    ctx->syntax = NULL;
+    ctx->mode = MODE_NORMAL;  /* Start in normal mode (vim-like) */
+    ctx->word_wrap = 1;  /* Word wrap enabled by default */
+    ctx->sel_active = 0;
+    ctx->sel_start_x = ctx->sel_start_y = 0;
+    ctx->sel_end_x = ctx->sel_end_y = 0;
+    init_default_colors(ctx);
     /* Lua REPL init and Lua initialization are in loki_editor.c */
-    update_window_size();
+    update_window_size(ctx);
     signal(SIGWINCH, handle_sig_win_ch);
 }
 

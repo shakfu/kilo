@@ -417,7 +417,7 @@ static void exec_lua_command(int fd) {
 
 /* Run AI command in non-interactive mode */
 static int run_ai_command(char *filename, const char *command) {
-    init_editor();
+    init_editor(&E);
 
     /* Initialize Lua for AI commands */
     struct loki_lua_opts opts = {
@@ -683,9 +683,9 @@ int loki_editor_main(int argc, char **argv) {
     }
 
     /* Initialize editor core */
-    init_editor();
-    editor_select_syntax_highlight(argv[1]);
-    editor_open(argv[1]);
+    init_editor(&E);
+    editor_select_syntax_highlight(&E, argv[1]);
+    editor_open(&E, argv[1]);
 
     /* Initialize Lua */
     struct loki_lua_opts opts = {
@@ -713,15 +713,15 @@ int loki_editor_main(int argc, char **argv) {
         "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-W = wrap | Ctrl-L = repl | Ctrl-C = copy");
 
     while(1) {
-        handle_windows_resize();
+        handle_windows_resize(&E);
 
         /* Process any pending async HTTP requests */
         if (E.L) {
             loki_poll_async_http(E.L);
         }
 
-        editor_refresh_screen();
-        editor_process_keypress(STDIN_FILENO);
+        editor_refresh_screen(&E);
+        editor_process_keypress(&E, STDIN_FILENO);
     }
 
     return 0;
