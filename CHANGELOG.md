@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.4.2]
+
 ### Added
 - **Lua REPL Panel**: `Ctrl-L` toggles a console that hides when idle and uses a `>>` prompt
 - **Lua REPL Helpers**: Built-in commands (help/history/clear) and the `loki.repl.register` hook
@@ -78,6 +80,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - Only harmless typedef redefinition warnings (C11 feature)
   - **Compatibility**: Architecture fully compatible with future opaque pointer conversion
   - **Backward Compatibility**: No breaking changes to Lua scripts (API unchanged from Lua perspective)
+- **Context Passing Migration (Phase 4)**: Migrated loki_editor.c and async HTTP to explicit context passing
+  - **Core Updates**:
+    - Updated `check_async_requests(ctx, L)` to accept context for rawmode checking
+    - Updated `loki_poll_async_http(ctx, L)` to accept context parameter
+    - Updated `editor_cleanup_resources(ctx)` to accept context
+    - Updated internal helpers: `exec_lua_command(ctx, fd)`, `lua_apply_span_table(ctx, row, table_index)`, `lua_apply_highlight_row(ctx, row, default_ran)`
+  - **Public API Changes** in `include/loki/lua.h`:
+    - `loki_poll_async_http(editor_ctx_t *ctx, lua_State *L)` - breaking change
+  - **Standalone REPL Support**:
+    - Updated `main_repl.c` to pass NULL context (standalone tools don't need editor context)
+    - Added NULL-safe context checking pattern: `if (!ctx || !ctx->field)`
+  - **Results**:
+    - Reduced E. references in loki_editor.c from 78 to 5 (93% reduction)
+    - Total E. references reduced from 198 to 125 across codebase
+    - 6 files modified: +95/-91 lines
+    - All tests passing (2/2), compilation successful
+- **Context Passing Migration (Phase 5)**: Final cleanup - removed dead code and migrated remaining functions
+  - **Code Cleanup**:
+    - Deleted 146 lines of commented-out dead code (old `lua_apply_span_table` and `lua_apply_highlight_row` implementations)
+    - Removed unused bridge functions: `editor_ctx_from_global()` and `editor_ctx_to_global()` (never called)
+  - **Terminal Raw Mode**:
+    - Updated `enable_raw_mode(ctx, fd)` to accept context parameter, uses `ctx->rawmode`
+    - Updated `disable_raw_mode(ctx, fd)` to accept context parameter, uses `ctx->rawmode`
+    - Updated call sites in loki_editor.c and loki_core.c
+  - **Syntax Highlighting**:
+    - Updated `editor_update_syntax_markdown(ctx, row)` to accept context parameter
+    - Replaced `E.row` with `ctx->row` for accessing previous row's code block language
+  - **Lua REPL**:
+    - Updated `lua_repl_history_apply(ctx, repl)` to accept context parameter
+    - Replaced `E.screencols` with `ctx->screencols` for input width calculations
+  - **Documentation**:
+    - Updated loki_internal.h to remove bridge function declarations
+    - Enhanced global E comment to document current architecture and remaining use cases
+  - **Results**:
+    - Reduced E. references from 125 to 9 (93% reduction from Phase 4)
+    - Total reduction: 412 references eliminated (97.8% reduction from start)
+    - Only 9 E. references remain (all intentional: main(), atexit(), status messages)
+    - 4 files modified: -204 lines in loki_core.c, +19/-7 lines across other files
+    - All tests passing (2/2), compilation successful
+  - **Architecture Achievement**:
+    - Global singleton pattern effectively eliminated from active code paths
+    - All core functions now use explicit context passing (`editor_ctx_t *ctx`)
+    - Foundation complete for future split windows and multi-buffer support
 
 ## [0.4.1] - 2025-10-02
 

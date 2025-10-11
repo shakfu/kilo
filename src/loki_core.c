@@ -122,66 +122,6 @@ void editor_ctx_init(editor_ctx_t *ctx) {
     memset(ctx->colors, 0, sizeof(ctx->colors));
 }
 
-/* Copy state from global E to context.
- * This is a helper for gradual migration from global singleton to context passing. */
-void editor_ctx_from_global(editor_ctx_t *ctx) {
-    ctx->cx = E.cx;
-    ctx->cy = E.cy;
-    ctx->rowoff = E.rowoff;
-    ctx->coloff = E.coloff;
-    ctx->screenrows = E.screenrows;
-    ctx->screencols = E.screencols;
-    ctx->screenrows_total = E.screenrows_total;
-    ctx->numrows = E.numrows;
-    ctx->rawmode = E.rawmode;
-    ctx->row = E.row;
-    ctx->dirty = E.dirty;
-    ctx->filename = E.filename;
-    memcpy(ctx->statusmsg, E.statusmsg, sizeof(ctx->statusmsg));
-    ctx->statusmsg_time = E.statusmsg_time;
-    ctx->syntax = E.syntax;
-    ctx->L = E.L;
-    ctx->repl = E.repl;
-    ctx->mode = E.mode;
-    ctx->word_wrap = E.word_wrap;
-    ctx->sel_active = E.sel_active;
-    ctx->sel_start_x = E.sel_start_x;
-    ctx->sel_start_y = E.sel_start_y;
-    ctx->sel_end_x = E.sel_end_x;
-    ctx->sel_end_y = E.sel_end_y;
-    memcpy(ctx->colors, E.colors, sizeof(ctx->colors));
-}
-
-/* Copy state from context back to global E.
- * This is a helper for gradual migration from global singleton to context passing. */
-void editor_ctx_to_global(const editor_ctx_t *ctx) {
-    E.cx = ctx->cx;
-    E.cy = ctx->cy;
-    E.rowoff = ctx->rowoff;
-    E.coloff = ctx->coloff;
-    E.screenrows = ctx->screenrows;
-    E.screencols = ctx->screencols;
-    E.screenrows_total = ctx->screenrows_total;
-    E.numrows = ctx->numrows;
-    E.rawmode = ctx->rawmode;
-    E.row = ctx->row;
-    E.dirty = ctx->dirty;
-    E.filename = ctx->filename;
-    memcpy(E.statusmsg, ctx->statusmsg, sizeof(E.statusmsg));
-    E.statusmsg_time = ctx->statusmsg_time;
-    E.syntax = ctx->syntax;
-    E.L = ctx->L;
-    E.repl = ctx->repl;
-    E.mode = ctx->mode;
-    E.word_wrap = ctx->word_wrap;
-    E.sel_active = ctx->sel_active;
-    E.sel_start_x = ctx->sel_start_x;
-    E.sel_start_y = ctx->sel_start_y;
-    E.sel_end_x = ctx->sel_end_x;
-    E.sel_end_y = ctx->sel_end_y;
-    memcpy(E.colors, ctx->colors, sizeof(E.colors));
-}
-
 /* Free all dynamically allocated memory in a context.
  * This should be called when a context is no longer needed. */
 void editor_ctx_free(editor_ctx_t *ctx) {
@@ -493,26 +433,27 @@ static int HLDB_dynamic_count = 0;
 
 static struct termios orig_termios; /* In order to restore at exit.*/
 
-void disable_raw_mode(int fd) {
+void disable_raw_mode(editor_ctx_t *ctx, int fd) {
     /* Don't even check the return value as it's too late. */
-    if (E.rawmode) {
+    if (ctx && ctx->rawmode) {
         tcsetattr(fd,TCSAFLUSH,&orig_termios);
-        E.rawmode = 0;
+        ctx->rawmode = 0;
     }
 }
 
 /* Called at exit to avoid remaining in raw mode. */
 void editor_atexit(void) {
-    disable_raw_mode(STDIN_FILENO);
+    disable_raw_mode(&E, STDIN_FILENO);
     cleanup_dynamic_languages();
     editor_cleanup_resources(&E); /* Clean up Lua, REPL, and CURL (in loki_editor.c) */
 }
 
 /* Raw mode: 1960 magic shit. */
-int enable_raw_mode(int fd) {
+int enable_raw_mode(editor_ctx_t *ctx, int fd) {
     struct termios raw;
 
-    if (E.rawmode) return 0; /* Already enabled. */
+    if (!ctx) return -1; /* Need valid context */
+    if (ctx->rawmode) return 0; /* Already enabled. */
     if (!isatty(STDIN_FILENO)) goto fatal;
     if (tcgetattr(fd,&orig_termios) == -1) goto fatal;
 
@@ -533,7 +474,7 @@ int enable_raw_mode(int fd) {
 
     /* put terminal in raw mode after flushing */
     if (tcsetattr(fd,TCSAFLUSH,&raw) < 0) goto fatal;
-    E.rawmode = 1;
+    ctx->rawmode = 1;
     return 0;
 
 fatal:
@@ -692,7 +633,7 @@ int editor_row_has_open_comment(t_erow *row) {
 }
 
 /* Forward declaration for markdown highlighter */
-void editor_update_syntax_markdown(t_erow *row);
+void editor_update_syntax_markdown(editor_ctx_t *ctx, t_erow *row);
 
 /* Map human-readable style names to HL_* constants */
 int hl_name_to_code(const char *name) {
@@ -709,154 +650,6 @@ int hl_name_to_code(const char *name) {
     return -1;
 }
 
-/* Lua custom highlighting (lua_apply_highlight_row) is in loki_editor.c */
-/*
-static int lua_apply_span_table(t_erow *row, int table_index) {
-    if (!lua_istable(E.L, table_index)) return 0;
-
-    int applied = 0;
-    size_t entries = lua_rawlen(E.L, table_index);
-
-    for (size_t i = 1; i <= entries; i++) {
-        lua_rawgeti(E.L, table_index, (lua_Integer)i);
-        if (lua_type(E.L, -1) == LUA_TTABLE) {
-            int start = 0;
-            int stop = 0;
-            int length = 0;
-            int style = -1;
-
-            lua_getfield(E.L, -1, "start");
-            if (lua_isnumber(E.L, -1)) start = (int)lua_tointeger(E.L, -1);
-            lua_pop(E.L, 1);
-
-            lua_getfield(E.L, -1, "stop");
-            if (lua_isnumber(E.L, -1)) stop = (int)lua_tointeger(E.L, -1);
-            lua_pop(E.L, 1);
-
-            lua_getfield(E.L, -1, "end");
-            if (lua_isnumber(E.L, -1)) stop = (int)lua_tointeger(E.L, -1);
-            lua_pop(E.L, 1);
-
-            lua_getfield(E.L, -1, "length");
-            if (lua_isnumber(E.L, -1)) length = (int)lua_tointeger(E.L, -1);
-            lua_pop(E.L, 1);
-
-            lua_getfield(E.L, -1, "style");
-            if (lua_isstring(E.L, -1)) {
-                style = hl_name_to_code(lua_tostring(E.L, -1));
-            } else if (lua_isnumber(E.L, -1)) {
-                style = (int)lua_tointeger(E.L, -1);
-            }
-            lua_pop(E.L, 1);
-
-            if (style < 0) {
-                lua_getfield(E.L, -1, "type");
-                if (lua_isstring(E.L, -1)) {
-                    style = hl_name_to_code(lua_tostring(E.L, -1));
-                } else if (lua_isnumber(E.L, -1)) {
-                    style = (int)lua_tointeger(E.L, -1);
-                }
-                lua_pop(E.L, 1);
-            }
-
-            if (start <= 0) start = 1;
-            if (length > 0 && stop <= 0) stop = start + length - 1;
-            if (stop <= 0) stop = start;
-
-            if (style >= 0 && row->rsize > 0) {
-                if (start > stop) {
-                    int tmp = start;
-                    start = stop;
-                    stop = tmp;
-                }
-                if (start < 1) start = 1;
-                if (stop > row->rsize) stop = row->rsize;
-                for (int pos = start - 1; pos < stop && pos < row->rsize; pos++) {
-                    row->hl[pos] = style;
-                }
-                applied = 1;
-            } else if (style >= 0 && row->rsize == 0) {
-                applied = 1;
-            }
-        }
-        lua_pop(E.L, 1);
-    }
-
-    return applied;
-}
-*/
-
-/*
-static void lua_apply_highlight_row(t_erow *row, int default_ran) {
-    if (!E.L || row == NULL || row->render == NULL) return;
-    int top = lua_gettop(E.L);
-
-    lua_getglobal(E.L, "loki");
-    if (!lua_istable(E.L, -1)) {
-        lua_settop(E.L, top);
-        return;
-    }
-
-    lua_getfield(E.L, -1, "highlight_row");
-    if (!lua_isfunction(E.L, -1)) {
-        lua_settop(E.L, top);
-        return;
-    }
-
-    lua_pushinteger(E.L, row->idx);
-    lua_pushlstring(E.L, row->chars ? row->chars : "", (size_t)row->size);
-    lua_pushlstring(E.L, row->render ? row->render : "", (size_t)row->rsize);
-    if (E.syntax) {
-        lua_pushinteger(E.L, E.syntax->type);
-    } else {
-        lua_pushnil(E.L);
-    }
-    lua_pushboolean(E.L, default_ran);
-
-    if (lua_pcall(E.L, 5, 1, 0) != LUA_OK) {
-        const char *err = lua_tostring(E.L, -1);
-        editor_set_status_msg("Lua highlight error: %s", err ? err : "unknown");
-        lua_settop(E.L, top);
-        return;
-    }
-
-    if (!lua_istable(E.L, -1)) {
-        lua_settop(E.L, top);
-        return;
-    }
-
-    int table_index = lua_gettop(E.L);
-    int replace = 0;
-
-    lua_getfield(E.L, table_index, "replace");
-    if (lua_isboolean(E.L, -1)) replace = lua_toboolean(E.L, -1);
-    lua_pop(E.L, 1);
-
-    int spans_index = table_index;
-    int has_spans_field = 0;
-
-    lua_getfield(E.L, table_index, "spans");
-    if (lua_istable(E.L, -1)) {
-        spans_index = lua_gettop(E.L);
-        has_spans_field = 1;
-    } else {
-        lua_pop(E.L, 1);
-    }
-
-    if (replace) {
-        memset(row->hl, HL_NORMAL, row->rsize);
-    }
-
-    lua_apply_span_table(row, spans_index);
-
-    if (has_spans_field) {
-        lua_pop(E.L, 1);
-    }
-
-    lua_settop(E.L, top);
-}
-*/
-
 /* Set every byte of row->hl (that corresponds to every character in the line)
  * to the right syntax highlight type (HL_* defines). */
 void editor_update_syntax(editor_ctx_t *ctx, t_erow *row) {
@@ -869,7 +662,7 @@ void editor_update_syntax(editor_ctx_t *ctx, t_erow *row) {
 
     if (ctx->syntax != NULL) {
         if (ctx->syntax->type == HL_TYPE_MARKDOWN) {
-            editor_update_syntax_markdown(row);
+            editor_update_syntax_markdown(ctx, row);
             default_ran = 1;
         } else {
             int i, prev_sep, in_string, in_comment;
@@ -1090,7 +883,7 @@ void highlight_code_line(t_erow *row, char **keywords, char *scs, char *separato
 }
 
 /* Markdown syntax highlighting. */
-void editor_update_syntax_markdown(t_erow *row) {
+void editor_update_syntax_markdown(editor_ctx_t *ctx, t_erow *row) {
     unsigned char *new_hl = realloc(row->hl, row->rsize);
     if (new_hl == NULL) return;
     row->hl = new_hl;
@@ -1098,7 +891,7 @@ void editor_update_syntax_markdown(t_erow *row) {
 
     char *p = row->render;
     int i = 0;
-    int prev_cb_lang = (row->idx > 0) ? E.row[row->idx - 1].cb_lang : CB_LANG_NONE;
+    int prev_cb_lang = (row->idx > 0 && ctx && ctx->row) ? ctx->row[row->idx - 1].cb_lang : CB_LANG_NONE;
 
     /* Code blocks: lines starting with ``` */
     if (row->rsize >= 3 && p[0] == '`' && p[1] == '`' && p[2] == '`') {

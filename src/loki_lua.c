@@ -1252,7 +1252,7 @@ static void lua_repl_push_history(editor_ctx_t *ctx, const char *cmd) {
     ctx->repl.history_index = -1;
 }
 
-static void lua_repl_history_apply(t_lua_repl *repl) {
+static void lua_repl_history_apply(editor_ctx_t *ctx, t_lua_repl *repl) {
     if (repl->history_index < 0 || repl->history_index >= repl->history_len)
         return;
     const char *src = repl->history[repl->history_index];
@@ -1263,8 +1263,8 @@ static void lua_repl_history_apply(t_lua_repl *repl) {
     size_t copy_len = strlen(src);
     if (copy_len > KILO_QUERY_LEN) copy_len = KILO_QUERY_LEN;
     int prompt_len = (int)strlen(LUA_REPL_PROMPT);
-    if (E.screencols > prompt_len) {
-        int max_cols = E.screencols - prompt_len;
+    if (ctx && ctx->screencols > prompt_len) {
+        int max_cols = ctx->screencols - prompt_len;
         if ((int)copy_len > max_cols) copy_len = max_cols;
     }
     memcpy(repl->input, src, copy_len);
@@ -1525,7 +1525,7 @@ void lua_repl_handle_keypress(editor_ctx_t *ctx, int key) {
                 repl->history_index = repl->history_len - 1;
             else if (repl->history_index > 0)
                 repl->history_index--;
-            lua_repl_history_apply(repl);
+            lua_repl_history_apply(ctx, repl);
         }
         return;
     case ARROW_DOWN:
@@ -1534,7 +1534,7 @@ void lua_repl_handle_keypress(editor_ctx_t *ctx, int key) {
                 return;
             } else if (repl->history_index < repl->history_len - 1) {
                 repl->history_index++;
-                lua_repl_history_apply(repl);
+                lua_repl_history_apply(ctx, repl);
             } else {
                 repl->history_index = -1;
                 lua_repl_clear_input(repl);

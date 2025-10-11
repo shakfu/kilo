@@ -162,10 +162,18 @@ typedef editor_ctx_t loki_editor_instance;
 
 /* ======================= Global State ===================================== */
 
-/* Global editor state. Note: This makes the editor non-reentrant and
- * non-thread-safe. Only one editor instance can exist per process.
- * During migration, this global will gradually be replaced with explicit
- * context passing. */
+/* Global editor state - the main editor instance.
+ *
+ * Most functions now accept explicit editor_ctx_t *ctx parameters for context
+ * passing, enabling future support for split windows and multiple buffers.
+ *
+ * This global E is used by:
+ * - main() in loki_editor.c as the primary editor instance
+ * - editor_atexit() for cleanup
+ * - editor_set_status_msg() for global status messages
+ *
+ * All other functions receive context via explicit parameter passing.
+ */
 extern editor_ctx_t E;
 
 /* ======================= Screen Buffer =================================== */
@@ -185,8 +193,6 @@ void ab_free(struct abuf *ab);
 
 /* Context management (for future split windows and multi-buffer support) */
 void editor_ctx_init(editor_ctx_t *ctx);
-void editor_ctx_from_global(editor_ctx_t *ctx);
-void editor_ctx_to_global(const editor_ctx_t *ctx);
 void editor_ctx_free(editor_ctx_t *ctx);
 
 /* Status message */
@@ -225,7 +231,8 @@ void editor_cleanup_resources(editor_ctx_t *ctx);
 int hl_name_to_code(const char *name);
 
 /* Terminal and input */
-int enable_raw_mode(int fd);
+int enable_raw_mode(editor_ctx_t *ctx, int fd);
+void disable_raw_mode(editor_ctx_t *ctx, int fd);
 void handle_windows_resize(editor_ctx_t *ctx);
 void editor_process_keypress(editor_ctx_t *ctx, int fd);
 

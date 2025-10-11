@@ -711,7 +711,7 @@ int loki_editor_main(int argc, char **argv) {
     lua_repl_init(&E.repl);
 
     /* Enable terminal raw mode and start main loop */
-    enable_raw_mode(STDIN_FILENO);
+    enable_raw_mode(&E, STDIN_FILENO);
     editor_set_status_msg(
         "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-W = wrap | Ctrl-L = repl | Ctrl-C = copy");
 
