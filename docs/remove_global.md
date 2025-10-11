@@ -1,8 +1,13 @@
 # Removing the Global Singleton: Context Passing Architecture
 
-**Status:** Proposed Architecture
+**Status:** Phase 1 Complete (Infrastructure Ready)
 **Created:** 2025-10-11
+**Updated:** 2025-10-11
 **Purpose:** Enable split windows and proper multi-buffer support
+
+**Progress:**
+- ✅ Phase 1: Context structure and helper functions (COMPLETE)
+- ⏸️ Phase 2-6: Migration of existing code (NOT STARTED)
 
 ---
 
@@ -24,27 +29,34 @@ This document outlines the architectural changes required to eliminate the globa
 
 ### Global Singleton Definition
 
-**Location:** `src/loki_internal.h:112-114`
+**Location:** `src/loki_internal.h:132-161`
 
 ```c
-struct editorConfig {
+struct loki_editor_instance {
     int cx, cy;           // Cursor position
     int rowoff, coloff;   // Viewport offset
     int screenrows, screencols;  // Terminal dimensions
+    int screenrows_total; // Rows available after status bars
     int numrows;          // Buffer line count
+    int rawmode;          // Terminal raw mode flag
     t_erow *row;          // Buffer content
     int dirty;            // Modification flag
     char *filename;       // Current file
     char statusmsg[80];   // Status bar message
     time_t statusmsg_time;
-    struct editorSyntax *syntax;
+    struct t_editor_syntax *syntax;  // Current syntax
     lua_State *L;         // Lua state
     t_lua_repl repl;      // REPL state
-    int mode;             // Modal editing mode
-    // ... (50+ fields total)
+    EditorMode mode;      // Modal editing mode
+    int word_wrap;        // Word wrap flag
+    int sel_active;       // Selection active flag
+    int sel_start_x, sel_start_y;  // Selection start
+    int sel_end_x, sel_end_y;      // Selection end
+    t_hlcolor colors[9];  // Syntax colors
 };
 
-struct editorConfig E;  // Global singleton instance
+// Global singleton instance (in src/loki_core.c:44)
+extern struct loki_editor_instance E;
 ```
 
 ### How It's Used Throughout Codebase
@@ -460,32 +472,62 @@ editor_open(&editor2, "file2.c");
 
 ## Migration Strategy
 
-### Phase 1: Create Context Structure (1-2 hours)
+### Phase 1: Create Context Structure (1-2 hours) ✅ COMPLETED
+
+**Status:** Complete (2025-10-11)
 
 **Steps:**
-1. Create `editor_ctx_t` in `src/loki_internal.h`
-2. Copy all fields from `struct editorConfig`
-3. Keep global `E` temporarily for gradual migration
-4. Add initialization function: `void editor_ctx_init(editor_ctx_t *ctx)`
+1. ✅ Created `editor_ctx_t` in `src/loki_internal.h` (lines 161-184)
+2. ✅ Copied all fields from `struct loki_editor_instance`
+3. ✅ Kept global `E` for gradual migration
+4. ✅ Added initialization functions and declarations
 
-**Code:**
+**Implementation:**
 ```c
-// src/loki_internal.h
+// src/loki_internal.h:161-184
 typedef struct editor_ctx {
-    /* Copy all fields from editorConfig */
     int cx, cy;
     int rowoff, coloff;
-    // ... etc
+    int screenrows, screencols;
+    int screenrows_total;
+    int numrows;
+    int rawmode;
+    t_erow *row;
+    int dirty;
+    char *filename;
+    char statusmsg[80];
+    time_t statusmsg_time;
+    struct t_editor_syntax *syntax;
+    lua_State *L;
+    t_lua_repl repl;
+    EditorMode mode;
+    int word_wrap;
+    int sel_active;
+    int sel_start_x, sel_start_y;
+    int sel_end_x, sel_end_y;
+    t_hlcolor colors[9];
 } editor_ctx_t;
 
-/* Keep global E for now */
-struct editorConfig E;
-
-/* Initialization */
+// src/loki_internal.h:207-211 (function declarations)
 void editor_ctx_init(editor_ctx_t *ctx);
-void editor_ctx_from_global(editor_ctx_t *ctx);  // Migrate from E
-void editor_ctx_to_global(editor_ctx_t *ctx);    // Sync back to E
+void editor_ctx_from_global(editor_ctx_t *ctx);
+void editor_ctx_to_global(const editor_ctx_t *ctx);
+void editor_ctx_free(editor_ctx_t *ctx);
+
+// src/loki_core.c:94-202 (implementations)
+// All four functions implemented with full field copying
 ```
+
+**What was implemented:**
+- `editor_ctx_init()`: Initialize empty context with defaults
+- `editor_ctx_from_global()`: Copy state from global E to context
+- `editor_ctx_to_global()`: Copy state from context back to global E
+- `editor_ctx_free()`: Free all allocated memory in context
+
+**Verification:**
+- ✅ Compiles cleanly with `make`
+- ✅ No new warnings or errors
+- ✅ All fields properly copied in both directions
 
 ### Phase 2: Update loki_core.c (~1000 sites, 4-6 hours)
 
@@ -1071,5 +1113,21 @@ If tabs/splits become a real requirement, this document provides the roadmap to 
 
 ---
 
-**Document Status:** Ready for implementation when needed
+## Implementation History
+
+### 2025-10-11: Phase 1 Completed
+- Created `editor_ctx_t` structure in `src/loki_internal.h`
+- Implemented four context management functions in `src/loki_core.c`:
+  - `editor_ctx_init()` - Initialize context with defaults
+  - `editor_ctx_from_global()` - Copy from global E to context
+  - `editor_ctx_to_global()` - Copy from context to global E
+  - `editor_ctx_free()` - Free context resources
+- Updated documentation to reflect actual structure names
+- Verified compilation with no errors
+
+**Next Steps:** Phase 2-6 remain to be implemented when needed
+
+---
+
+**Document Status:** Phase 1 complete; infrastructure ready for migration
 **Last Updated:** 2025-10-11

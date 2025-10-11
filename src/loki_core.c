@@ -86,6 +86,121 @@ void editor_set_status_msg(const char *fmt, ...) {
 
 static void cleanup_dynamic_languages(void);
 
+/* ======================= Context Management =============================== */
+
+/* Initialize an editor context with default values.
+ * This allows creating independent editor contexts for split windows
+ * and multiple buffer support. */
+void editor_ctx_init(editor_ctx_t *ctx) {
+    memset(ctx, 0, sizeof(editor_ctx_t));
+    ctx->cx = 0;
+    ctx->cy = 0;
+    ctx->rowoff = 0;
+    ctx->coloff = 0;
+    ctx->screenrows = 0;
+    ctx->screencols = 0;
+    ctx->screenrows_total = 0;
+    ctx->numrows = 0;
+    ctx->rawmode = 0;
+    ctx->row = NULL;
+    ctx->dirty = 0;
+    ctx->filename = NULL;
+    ctx->statusmsg[0] = '\0';
+    ctx->statusmsg_time = 0;
+    ctx->syntax = NULL;
+    ctx->L = NULL;
+    memset(&ctx->repl, 0, sizeof(t_lua_repl));
+    ctx->mode = MODE_NORMAL;
+    ctx->word_wrap = 0;
+    ctx->sel_active = 0;
+    ctx->sel_start_x = 0;
+    ctx->sel_start_y = 0;
+    ctx->sel_end_x = 0;
+    ctx->sel_end_y = 0;
+    memset(ctx->colors, 0, sizeof(ctx->colors));
+}
+
+/* Copy state from global E to context.
+ * This is a helper for gradual migration from global singleton to context passing. */
+void editor_ctx_from_global(editor_ctx_t *ctx) {
+    ctx->cx = E.cx;
+    ctx->cy = E.cy;
+    ctx->rowoff = E.rowoff;
+    ctx->coloff = E.coloff;
+    ctx->screenrows = E.screenrows;
+    ctx->screencols = E.screencols;
+    ctx->screenrows_total = E.screenrows_total;
+    ctx->numrows = E.numrows;
+    ctx->rawmode = E.rawmode;
+    ctx->row = E.row;
+    ctx->dirty = E.dirty;
+    ctx->filename = E.filename;
+    memcpy(ctx->statusmsg, E.statusmsg, sizeof(ctx->statusmsg));
+    ctx->statusmsg_time = E.statusmsg_time;
+    ctx->syntax = E.syntax;
+    ctx->L = E.L;
+    ctx->repl = E.repl;
+    ctx->mode = E.mode;
+    ctx->word_wrap = E.word_wrap;
+    ctx->sel_active = E.sel_active;
+    ctx->sel_start_x = E.sel_start_x;
+    ctx->sel_start_y = E.sel_start_y;
+    ctx->sel_end_x = E.sel_end_x;
+    ctx->sel_end_y = E.sel_end_y;
+    memcpy(ctx->colors, E.colors, sizeof(ctx->colors));
+}
+
+/* Copy state from context back to global E.
+ * This is a helper for gradual migration from global singleton to context passing. */
+void editor_ctx_to_global(const editor_ctx_t *ctx) {
+    E.cx = ctx->cx;
+    E.cy = ctx->cy;
+    E.rowoff = ctx->rowoff;
+    E.coloff = ctx->coloff;
+    E.screenrows = ctx->screenrows;
+    E.screencols = ctx->screencols;
+    E.screenrows_total = ctx->screenrows_total;
+    E.numrows = ctx->numrows;
+    E.rawmode = ctx->rawmode;
+    E.row = ctx->row;
+    E.dirty = ctx->dirty;
+    E.filename = ctx->filename;
+    memcpy(E.statusmsg, ctx->statusmsg, sizeof(E.statusmsg));
+    E.statusmsg_time = ctx->statusmsg_time;
+    E.syntax = ctx->syntax;
+    E.L = ctx->L;
+    E.repl = ctx->repl;
+    E.mode = ctx->mode;
+    E.word_wrap = ctx->word_wrap;
+    E.sel_active = ctx->sel_active;
+    E.sel_start_x = ctx->sel_start_x;
+    E.sel_start_y = ctx->sel_start_y;
+    E.sel_end_x = ctx->sel_end_x;
+    E.sel_end_y = ctx->sel_end_y;
+    memcpy(E.colors, ctx->colors, sizeof(E.colors));
+}
+
+/* Free all dynamically allocated memory in a context.
+ * This should be called when a context is no longer needed. */
+void editor_ctx_free(editor_ctx_t *ctx) {
+    /* Free all row data */
+    for (int i = 0; i < ctx->numrows; i++) {
+        free(ctx->row[i].chars);
+        free(ctx->row[i].render);
+        free(ctx->row[i].hl);
+    }
+    free(ctx->row);
+
+    /* Free filename */
+    free(ctx->filename);
+
+    /* Note: We don't free ctx->L (Lua state) as it's shared across contexts
+     * and managed separately by the editor instance */
+
+    /* Clear the structure */
+    memset(ctx, 0, sizeof(editor_ctx_t));
+}
+
 /* Check if position is within selection */
 int is_selected(int row, int col) {
     if (!E.sel_active) return 0;

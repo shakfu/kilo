@@ -154,6 +154,35 @@ struct loki_editor_instance {
     t_hlcolor colors[9]; /* Syntax highlight colors: indexed by HL_* constants */
 };
 
+/* Editor context - one instance per editor viewport/buffer.
+ * This structure enables multiple independent editor contexts, which is required
+ * for implementing split windows and multiple buffers. It contains the same fields
+ * as loki_editor_instance, allowing gradual migration from the global singleton. */
+typedef struct editor_ctx {
+    int cx,cy;  /* Cursor x and y position in characters */
+    int rowoff;     /* Offset of row displayed. */
+    int coloff;     /* Offset of column displayed. */
+    int screenrows; /* Number of rows that we can show */
+    int screencols; /* Number of cols that we can show */
+    int screenrows_total; /* Rows available after status bars (before REPL) */
+    int numrows;    /* Number of rows */
+    int rawmode;    /* Is terminal raw mode enabled? */
+    t_erow *row;      /* Rows */
+    int dirty;      /* File modified but not saved. */
+    char *filename; /* Currently open filename */
+    char statusmsg[80];
+    time_t statusmsg_time;
+    struct t_editor_syntax *syntax;    /* Current syntax highlight, or NULL. */
+    lua_State *L;        /* Lua state - managed by loki_editor.c */
+    t_lua_repl repl;     /* Lua REPL state - managed by loki_editor.c */
+    EditorMode mode; /* Current editor mode (normal/insert/visual/command) */
+    int word_wrap;  /* Word wrap enabled flag */
+    int sel_active; /* Selection active flag */
+    int sel_start_x, sel_start_y; /* Selection start position */
+    int sel_end_x, sel_end_y;     /* Selection end position */
+    t_hlcolor colors[9]; /* Syntax highlight colors: indexed by HL_* constants */
+} editor_ctx_t;
+
 /* ======================= Global State ===================================== */
 
 /* Global editor state. Note: This makes the editor non-reentrant and
@@ -174,6 +203,12 @@ void ab_append(struct abuf *ab, const char *s, int len);
 void ab_free(struct abuf *ab);
 
 /* ======================= Function Declarations ============================ */
+
+/* Context management (for future split windows and multi-buffer support) */
+void editor_ctx_init(editor_ctx_t *ctx);
+void editor_ctx_from_global(editor_ctx_t *ctx);
+void editor_ctx_to_global(const editor_ctx_t *ctx);
+void editor_ctx_free(editor_ctx_t *ctx);
 
 /* Status message */
 void editor_set_status_msg(const char *fmt, ...);
