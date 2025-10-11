@@ -74,9 +74,9 @@ typedef struct async_http_request {
 /* REPL layout management is in loki_editor.c */
 
 /* Modal editing functions (implemented below) */
-static void process_normal_mode(int fd, int c);
-static void process_insert_mode(int fd, int c);
-static void process_visual_mode(int fd, int c);
+static void process_normal_mode(editor_ctx_t *ctx, int fd, int c);
+static void process_insert_mode(editor_ctx_t *ctx, int fd, int c);
+static void process_visual_mode(editor_ctx_t *ctx, int fd, int c);
 
 void editor_set_status_msg(const char *fmt, ...) {
     va_list ap;
@@ -1412,39 +1412,39 @@ void editor_update_row(editor_ctx_t *ctx, t_erow *row) {
 
 /* Insert a row at the specified position, shifting the other rows on the bottom
  * if required. */
-void editor_insert_row(int at, char *s, size_t len) {
-    if (at > E.numrows) return;
+void editor_insert_row(editor_ctx_t *ctx, int at, char *s, size_t len) {
+    if (at > ctx->numrows) return;
     /* Check for integer overflow in allocation size calculation */
-    if ((size_t)E.numrows >= SIZE_MAX / sizeof(t_erow)) {
+    if ((size_t)ctx->numrows >= SIZE_MAX / sizeof(t_erow)) {
         fprintf(stderr, "Too many rows, cannot allocate more memory\n");
         exit(1);
     }
-    t_erow *new_row = realloc(E.row,sizeof(t_erow)*(E.numrows+1));
+    t_erow *new_row = realloc(ctx->row,sizeof(t_erow)*(ctx->numrows+1));
     if (new_row == NULL) {
         perror("Out of memory");
         exit(1);
     }
-    E.row = new_row;
-    if (at != E.numrows) {
-        memmove(E.row+at+1,E.row+at,sizeof(E.row[0])*(E.numrows-at));
-        for (int j = at+1; j <= E.numrows; j++) E.row[j].idx++;
+    ctx->row = new_row;
+    if (at != ctx->numrows) {
+        memmove(ctx->row+at+1,ctx->row+at,sizeof(ctx->row[0])*(ctx->numrows-at));
+        for (int j = at+1; j <= ctx->numrows; j++) ctx->row[j].idx++;
     }
-    E.row[at].size = len;
-    E.row[at].chars = malloc(len+1);
-    if (E.row[at].chars == NULL) {
+    ctx->row[at].size = len;
+    ctx->row[at].chars = malloc(len+1);
+    if (ctx->row[at].chars == NULL) {
         perror("Out of memory");
         exit(1);
     }
-    memcpy(E.row[at].chars,s,len+1);
-    E.row[at].hl = NULL;
-    E.row[at].hl_oc = 0;
-    E.row[at].cb_lang = CB_LANG_NONE;
-    E.row[at].render = NULL;
-    E.row[at].rsize = 0;
-    E.row[at].idx = at;
-    editor_update_row(E.row+at);
-    E.numrows++;
-    E.dirty++;
+    memcpy(ctx->row[at].chars,s,len+1);
+    ctx->row[at].hl = NULL;
+    ctx->row[at].hl_oc = 0;
+    ctx->row[at].cb_lang = CB_LANG_NONE;
+    ctx->row[at].render = NULL;
+    ctx->row[at].rsize = 0;
+    ctx->row[at].idx = at;
+    editor_update_row(ctx, ctx->row+at);
+    ctx->numrows++;
+    ctx->dirty++;
 }
 
 /* Free row's heap allocated stuff. */
@@ -1456,38 +1456,38 @@ void editor_free_row(t_erow *row) {
 
 /* Remove the row at the specified position, shifting the remaining on the
  * top. */
-void editor_del_row(int at) {
+void editor_del_row(editor_ctx_t *ctx, int at) {
     t_erow *row;
 
-    if (at >= E.numrows) return;
-    row = E.row+at;
+    if (at >= ctx->numrows) return;
+    row = ctx->row+at;
     editor_free_row(row);
-    memmove(E.row+at,E.row+at+1,sizeof(E.row[0])*(E.numrows-at-1));
-    for (int j = at; j < E.numrows-1; j++) E.row[j].idx++;
-    E.numrows--;
-    E.dirty++;
+    memmove(ctx->row+at,ctx->row+at+1,sizeof(ctx->row[0])*(ctx->numrows-at-1));
+    for (int j = at; j < ctx->numrows-1; j++) ctx->row[j].idx++;
+    ctx->numrows--;
+    ctx->dirty++;
 }
 
 /* Turn the editor rows into a single heap-allocated string.
  * Returns the pointer to the heap-allocated string and populate the
  * integer pointed by 'buflen' with the size of the string, excluding
  * the final nulterm. */
-char *editor_rows_to_string(int *buflen) {
+char *editor_rows_to_string(editor_ctx_t *ctx, int *buflen) {
     char *buf = NULL, *p;
     int totlen = 0;
     int j;
 
     /* Compute count of bytes */
-    for (j = 0; j < E.numrows; j++)
-        totlen += E.row[j].size+1; /* +1 is for "\n" at end of every row */
+    for (j = 0; j < ctx->numrows; j++)
+        totlen += ctx->row[j].size+1; /* +1 is for "\n" at end of every row */
     *buflen = totlen;
     totlen++; /* Also make space for nulterm */
 
     p = buf = malloc(totlen);
     if (buf == NULL) return NULL;
-    for (j = 0; j < E.numrows; j++) {
-        memcpy(p,E.row[j].chars,E.row[j].size);
-        p += E.row[j].size;
+    for (j = 0; j < ctx->numrows; j++) {
+        memcpy(p,ctx->row[j].chars,ctx->row[j].size);
+        p += ctx->row[j].size;
         *p = '\n';
         p++;
     }
@@ -1497,7 +1497,7 @@ char *editor_rows_to_string(int *buflen) {
 
 /* Insert a character at the specified position in a row, moving the remaining
  * chars on the right if needed. */
-void editor_row_insert_char(t_erow *row, int at, int c) {
+void editor_row_insert_char(editor_ctx_t *ctx, t_erow *row, int at, int c) {
     char *new_chars;
     if (at > row->size) {
         /* Pad the string with spaces if the insert location is outside the
@@ -1526,12 +1526,12 @@ void editor_row_insert_char(t_erow *row, int at, int c) {
         row->size++;
     }
     row->chars[at] = c;
-    editor_update_row(row);
-    E.dirty++;
+    editor_update_row(ctx, row);
+    ctx->dirty++;
 }
 
 /* Append the string 's' at the end of a row */
-void editor_row_append_string(t_erow *row, char *s, size_t len) {
+void editor_row_append_string(editor_ctx_t *ctx, t_erow *row, char *s, size_t len) {
     char *new_chars = realloc(row->chars,row->size+len+1);
     if (new_chars == NULL) {
         perror("Out of memory");
@@ -1541,51 +1541,51 @@ void editor_row_append_string(t_erow *row, char *s, size_t len) {
     memcpy(row->chars+row->size,s,len);
     row->size += len;
     row->chars[row->size] = '\0';
-    editor_update_row(row);
-    E.dirty++;
+    editor_update_row(ctx, row);
+    ctx->dirty++;
 }
 
 /* Delete the character at offset 'at' from the specified row. */
-void editor_row_del_char(t_erow *row, int at) {
+void editor_row_del_char(editor_ctx_t *ctx, t_erow *row, int at) {
     if (row->size <= at) return;
     /* Include null terminator in move (+1 for the null byte) */
     memmove(row->chars+at,row->chars+at+1,row->size-at+1);
     row->size--;
-    editor_update_row(row);
-    E.dirty++;
+    editor_update_row(ctx, row);
+    ctx->dirty++;
 }
 
 /* Insert the specified char at the current prompt position. */
-void editor_insert_char(int c) {
-    int filerow = E.rowoff+E.cy;
-    int filecol = E.coloff+E.cx;
-    t_erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
+void editor_insert_char(editor_ctx_t *ctx, int c) {
+    int filerow = ctx->rowoff+ctx->cy;
+    int filecol = ctx->coloff+ctx->cx;
+    t_erow *row = (filerow >= ctx->numrows) ? NULL : &ctx->row[filerow];
 
     /* If the row where the cursor is currently located does not exist in our
      * logical representaion of the file, add enough empty rows as needed. */
     if (!row) {
-        while(E.numrows <= filerow)
-            editor_insert_row(E.numrows,"",0);
+        while(ctx->numrows <= filerow)
+            editor_insert_row(ctx, ctx->numrows,"",0);
     }
-    row = &E.row[filerow];
-    editor_row_insert_char(row,filecol,c);
-    if (E.cx == E.screencols-1)
-        E.coloff++;
+    row = &ctx->row[filerow];
+    editor_row_insert_char(ctx, row,filecol,c);
+    if (ctx->cx == ctx->screencols-1)
+        ctx->coloff++;
     else
-        E.cx++;
-    E.dirty++;
+        ctx->cx++;
+    ctx->dirty++;
 }
 
 /* Inserting a newline is slightly complex as we have to handle inserting a
  * newline in the middle of a line, splitting the line as needed. */
-void editor_insert_newline(void) {
-    int filerow = E.rowoff+E.cy;
-    int filecol = E.coloff+E.cx;
-    t_erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
+void editor_insert_newline(editor_ctx_t *ctx) {
+    int filerow = ctx->rowoff+ctx->cy;
+    int filecol = ctx->coloff+ctx->cx;
+    t_erow *row = (filerow >= ctx->numrows) ? NULL : &ctx->row[filerow];
 
     if (!row) {
-        if (filerow == E.numrows) {
-            editor_insert_row(filerow,"",0);
+        if (filerow == ctx->numrows) {
+            editor_insert_row(ctx, filerow,"",0);
             goto fixcursor;
         }
         return;
@@ -1594,74 +1594,74 @@ void editor_insert_newline(void) {
      * think it's just over the last character. */
     if (filecol >= row->size) filecol = row->size;
     if (filecol == 0) {
-        editor_insert_row(filerow,"",0);
+        editor_insert_row(ctx, filerow,"",0);
     } else {
         /* We are in the middle of a line. Split it between two rows. */
-        editor_insert_row(filerow+1,row->chars+filecol,row->size-filecol);
-        row = &E.row[filerow];
+        editor_insert_row(ctx, filerow+1,row->chars+filecol,row->size-filecol);
+        row = &ctx->row[filerow];
         row->chars[filecol] = '\0';
         row->size = filecol;
-        editor_update_row(row);
+        editor_update_row(ctx, row);
     }
 fixcursor:
-    if (E.cy == E.screenrows-1) {
-        E.rowoff++;
+    if (ctx->cy == ctx->screenrows-1) {
+        ctx->rowoff++;
     } else {
-        E.cy++;
+        ctx->cy++;
     }
-    E.cx = 0;
-    E.coloff = 0;
+    ctx->cx = 0;
+    ctx->coloff = 0;
 }
 
 /* Delete the char at the current prompt position. */
-void editor_del_char(void) {
-    int filerow = E.rowoff+E.cy;
-    int filecol = E.coloff+E.cx;
-    t_erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
+void editor_del_char(editor_ctx_t *ctx) {
+    int filerow = ctx->rowoff+ctx->cy;
+    int filecol = ctx->coloff+ctx->cx;
+    t_erow *row = (filerow >= ctx->numrows) ? NULL : &ctx->row[filerow];
 
     if (!row || (filecol == 0 && filerow == 0)) return;
     if (filecol == 0) {
         /* Handle the case of column 0, we need to move the current line
          * on the right of the previous one. */
-        filecol = E.row[filerow-1].size;
-        editor_row_append_string(&E.row[filerow-1],row->chars,row->size);
-        editor_del_row(filerow);
+        filecol = ctx->row[filerow-1].size;
+        editor_row_append_string(ctx, &ctx->row[filerow-1],row->chars,row->size);
+        editor_del_row(ctx, filerow);
         row = NULL;
-        if (E.cy == 0)
-            E.rowoff--;
+        if (ctx->cy == 0)
+            ctx->rowoff--;
         else
-            E.cy--;
-        E.cx = filecol;
-        if (E.cx >= E.screencols) {
-            int shift = (E.cx-E.screencols)+1;
-            E.cx -= shift;
-            E.coloff += shift;
+            ctx->cy--;
+        ctx->cx = filecol;
+        if (ctx->cx >= ctx->screencols) {
+            int shift = (ctx->cx-ctx->screencols)+1;
+            ctx->cx -= shift;
+            ctx->coloff += shift;
         }
     } else {
-        editor_row_del_char(row,filecol-1);
-        if (E.cx == 0 && E.coloff)
-            E.coloff--;
+        editor_row_del_char(ctx, row,filecol-1);
+        if (ctx->cx == 0 && ctx->coloff)
+            ctx->coloff--;
         else
-            E.cx--;
+            ctx->cx--;
     }
-    if (row) editor_update_row(row);
-    E.dirty++;
+    if (row) editor_update_row(ctx, row);
+    ctx->dirty++;
 }
 
 /* Load the specified program in the editor memory and returns 0 on success
  * or 1 on error. */
-int editor_open(char *filename) {
+int editor_open(editor_ctx_t *ctx, char *filename) {
     FILE *fp;
 
-    E.dirty = 0;
-    free(E.filename);
+    ctx->dirty = 0;
+    free(ctx->filename);
     size_t fnlen = strlen(filename)+1;
-    E.filename = malloc(fnlen);
-    if (E.filename == NULL) {
+    ctx->filename = malloc(fnlen);
+    if (ctx->filename == NULL) {
         perror("Out of memory");
         exit(1);
     }
-    memcpy(E.filename,filename,fnlen);
+    memcpy(ctx->filename,filename,fnlen);
 
     fp = fopen(filename,"r");
     if (!fp) {
@@ -1690,23 +1690,23 @@ int editor_open(char *filename) {
     while((linelen = getline(&line,&linecap,fp)) != -1) {
         while (linelen > 0 && (line[linelen-1] == '\n' || line[linelen-1] == '\r'))
             line[--linelen] = '\0';
-        editor_insert_row(E.numrows,line,linelen);
+        editor_insert_row(ctx, ctx->numrows,line,linelen);
     }
     free(line);
     fclose(fp);
-    E.dirty = 0;
+    ctx->dirty = 0;
     return 0;
 }
 
 /* Save the current file on disk. Return 0 on success, 1 on error. */
-int editor_save(void) {
+int editor_save(editor_ctx_t *ctx) {
     int len;
-    char *buf = editor_rows_to_string(&len);
+    char *buf = editor_rows_to_string(ctx, &len);
     if (buf == NULL) {
         editor_set_status_msg("Can't save! Out of memory");
         return 1;
     }
-    int fd = open(E.filename,O_RDWR|O_CREAT,0644);
+    int fd = open(ctx->filename,O_RDWR|O_CREAT,0644);
     if (fd == -1) goto writeerr;
 
     /* Use truncate + a single write(2) call in order to make saving
@@ -1716,7 +1716,7 @@ int editor_save(void) {
 
     close(fd);
     free(buf);
-    E.dirty = 0;
+    ctx->dirty = 0;
     editor_set_status_msg("%d bytes written on disk", len);
     return 0;
 

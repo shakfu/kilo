@@ -192,8 +192,10 @@ void editor_ctx_free(editor_ctx_t *ctx);
 /* Status message */
 void editor_set_status_msg(const char *fmt, ...);
 
-/* Character insertion */
-void editor_insert_char(int c);
+/* Character insertion (context-aware) */
+void editor_insert_char(editor_ctx_t *ctx, int c);
+void editor_insert_newline(editor_ctx_t *ctx);
+void editor_del_char(editor_ctx_t *ctx);
 
 /* Screen rendering */
 void editor_refresh_screen(void);

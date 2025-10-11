@@ -70,24 +70,27 @@ void editor_get_cursor_file_pos(int *row, int *col);
  * Buffer Modification
  * ============================================================================ */
 
+/* Forward declaration for context type */
+typedef struct editor_ctx editor_ctx_t;
+
 /* Insert a single character at cursor position */
-void editor_insert_char(int c);
+void editor_insert_char(editor_ctx_t *ctx, int c);
 
 /* Delete character at cursor position */
-void editor_del_char(void);
+void editor_del_char(editor_ctx_t *ctx);
 
 /* Insert newline at cursor position */
-void editor_insert_newline(void);
+void editor_insert_newline(editor_ctx_t *ctx);
 
 /* ============================================================================
  * File Operations
  * ============================================================================ */
 
 /* Save current buffer to file (returns 0 on success, 1 on error) */
-int editor_save(void);
+int editor_save(editor_ctx_t *ctx);
 
 /* Open a file */
-int editor_open(char *filename);
+int editor_open(editor_ctx_t *ctx, char *filename);
 
 /* ============================================================================
  * Display and Rendering
