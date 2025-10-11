@@ -22,6 +22,7 @@ struct loki_lua_opts {
 
 lua_State *loki_lua_bootstrap(const struct loki_lua_opts *opts);
 const char *loki_lua_runtime(void);
+void loki_lua_bind_minimal(lua_State *L);
 void loki_lua_bind_editor(lua_State *L);
 void loki_lua_bind_http(lua_State *L);
 int loki_lua_load_config(lua_State *L, const struct loki_lua_opts *opts);

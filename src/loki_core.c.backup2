@@ -592,7 +592,8 @@ int hl_name_to_code(const char *name) {
     return -1;
 }
 
-/* Lua custom highlighting (lua_apply_highlight_row) is in loki_editor.c */
+/* TODO: Move to loki_editor.c - Lua custom highlighting */
+/* Attempt to delegate highlighting of a row to Lua. Returns 1 if handled. */
 /*
 static int lua_apply_span_table(t_erow *row, int table_index) {
     if (!lua_istable(E.L, table_index)) return 0;
@@ -884,7 +885,8 @@ void editor_update_syntax(t_erow *row) {
         }
     }
 
-    /* Lua custom highlighting is in loki_editor.c */
+    /* TODO: Move to loki_editor.c - Lua custom highlighting */
+    /* lua_apply_highlight_row(row, default_ran); */
     (void)default_ran; /* Suppress unused variable warning */
 
     /* Propagate syntax change to the next row if the open comment
@@ -1870,7 +1872,8 @@ void update_window_size(void) {
     rows -= STATUS_ROWS;
     if (rows < 1) rows = 1;
     E.screenrows_total = rows;
-    /* REPL layout update (editor_update_repl_layout) is in loki_editor.c */
+    /* TODO: Move to loki_editor.c - REPL layout update */
+    /* editor_update_repl_layout(); */
     E.screenrows = E.screenrows_total; /* Without REPL, use all available rows */
 }
 
@@ -2457,12 +2460,32 @@ void init_editor(void) {
     E.sel_start_x = E.sel_start_y = 0;
     E.sel_end_x = E.sel_end_y = 0;
     init_default_colors();
-    /* Lua REPL init and Lua initialization are in loki_editor.c */
+    /* TODO: Move to loki_editor.c - Lua REPL initialization */
+    /* lua_repl_init(&E.repl); */
     update_window_size();
     signal(SIGWINCH, handle_sig_win_ch);
+
+    /* TODO: Move to loki_editor.c - Lua initialization */
+    /* Initialize Lua */
+    /*
+    struct loki_lua_opts lua_opts = {
+        .bind_editor = 1,
+        .bind_http = 1,
+        .load_config = 1,
+        .config_override = NULL,
+        .project_root = NULL,
+        .extra_lua_path = NULL,
+        .reporter = loki_lua_status_reporter,
+        .reporter_userdata = NULL,
+    };
+    E.L = loki_lua_bootstrap(&lua_opts);
+    if (!E.L) {
+        editor_set_status_msg("Failed to initialize Lua runtime (%s)", loki_lua_runtime());
+    }
+    */
 }
 
-/* AI command execution is in loki_editor.c */
+/* TODO: Move to loki_editor.c - AI command execution (entirely Lua-based) */
 /* Run AI command in non-interactive mode */
 /*
 static int run_ai_command(char *filename, const char *command) {

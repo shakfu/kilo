@@ -34,14 +34,130 @@ see LICENSE.
 #include <signal.h>
 
 #include "loki/editor.h"
-#include "loki_internal.h"
+#include "loki/lua.h"
+
+/* Lua scripting support (from Homebrew) */
+#include <lua.h>
+#include <lualib.h>
+#include <lauxlib.h>
+
+#if LUA_VERSION_NUM < 502 && !defined(lua_rawlen)
+#define lua_rawlen(L, idx) lua_objlen(L, (idx))
+#endif
 
 /* libcurl for async HTTP */
 #include <curl/curl.h>
 
+/* Syntax highlight types */
+#define HL_NORMAL 0
+#define HL_NONPRINT 1
+#define HL_COMMENT 2   /* Single line comment. */
+#define HL_MLCOMMENT 3 /* Multi-line comment. */
+#define HL_KEYWORD1 4
+#define HL_KEYWORD2 5
+#define HL_STRING 6
+#define HL_NUMBER 7
+#define HL_MATCH 8      /* Search match. */
+
+#define HL_HIGHLIGHT_STRINGS (1<<0)
+#define HL_HIGHLIGHT_NUMBERS (1<<1)
+
+/* Syntax highlighting types */
+#define HL_TYPE_C 0
+#define HL_TYPE_MARKDOWN 1
+
+/* Code block language types for markdown */
+#define CB_LANG_NONE 0
+#define CB_LANG_C 1
+#define CB_LANG_PYTHON 2
+#define CB_LANG_LUA 3
+#define CB_LANG_CYTHON 4
+
+struct t_editor_syntax {
+    char **filematch;
+    char **keywords;
+    char singleline_comment_start[4];   /* Increased to support longer comment syntax */
+    char multiline_comment_start[6];    /* Increased for Lua's --[[ */
+    char multiline_comment_end[6];      /* Increased for potential longer delimiters */
+    char *separators;
+    int flags;
+    int type;  /* HL_TYPE_* */
+};
+
+/* This structure represents a single line of the file we are editing. */
+typedef struct t_erow {
+    int idx;            /* Row index in the file, zero-based. */
+    int size;           /* Size of the row, excluding the null term. */
+    int rsize;          /* Size of the rendered row. */
+    char *chars;        /* Row content. */
+    char *render;       /* Row content "rendered" for screen (for TABs). */
+    unsigned char *hl;  /* Syntax highlight type for each character in render.*/
+    int hl_oc;          /* Row had open comment at end in last syntax highlight
+                           check. */
+    int cb_lang;        /* Code block language (for markdown): CB_LANG_* */
+} t_erow;
+
+typedef struct t_hlcolor {
+    int r,g,b;
+} t_hlcolor;
+
+#define KILO_QUERY_LEN 256
+
+#define STATUS_ROWS 2
+
+#define LUA_REPL_HISTORY_MAX 64
+#define LUA_REPL_LOG_MAX 128
+#define LUA_REPL_OUTPUT_ROWS 2
+#define LUA_REPL_TOTAL_ROWS (LUA_REPL_OUTPUT_ROWS + 1)
+#define LUA_REPL_PROMPT ">> "
+
+typedef struct t_lua_repl {
+    char input[KILO_QUERY_LEN+1];
+    int input_len;
+    int active;
+    int history_len;
+    int history_index;
+    char *history[LUA_REPL_HISTORY_MAX];
+    int log_len;
+    char *log[LUA_REPL_LOG_MAX];
+} t_lua_repl;
+
+/* Editor modes (vim-like modal editing) */
+typedef enum {
+    MODE_NORMAL,
+    MODE_INSERT,
+    MODE_VISUAL,
+    MODE_COMMAND
+} EditorMode;
+
+struct t_editor_config {
+    int cx,cy;  /* Cursor x and y position in characters */
+    int rowoff;     /* Offset of row displayed. */
+    int coloff;     /* Offset of column displayed. */
+    int screenrows; /* Number of rows that we can show */
+    int screencols; /* Number of cols that we can show */
+    int screenrows_total; /* Rows available after status bars (before REPL) */
+    int numrows;    /* Number of rows */
+    int rawmode;    /* Is terminal raw mode enabled? */
+    t_erow *row;      /* Rows */
+    int dirty;      /* File modified but not saved. */
+    char *filename; /* Currently open filename */
+    char statusmsg[80];
+    time_t statusmsg_time;
+    struct t_editor_syntax *syntax;    /* Current syntax highlight, or NULL. */
+    lua_State *L;   /* Lua interpreter state */
+    EditorMode mode; /* Current editor mode (normal/insert/visual/command) */
+    int word_wrap;  /* Word wrap enabled flag */
+    int sel_active; /* Selection active flag */
+    int sel_start_x, sel_start_y; /* Selection start position */
+    int sel_end_x, sel_end_y;     /* Selection end position */
+    t_lua_repl repl; /* Embedded Lua REPL state */
+    t_hlcolor colors[9]; /* Syntax highlight colors: indexed by HL_* constants */
+};
+
 /* Global editor state. Note: This makes the editor non-reentrant and
  * non-thread-safe. Only one editor instance can exist per process. */
-struct loki_editor_instance E;
+struct t_editor_config E;
 
 /* Flag to indicate window size change (set by signal handler) */
 static volatile sig_atomic_t winsize_changed = 0;
@@ -68,22 +184,56 @@ typedef struct async_http_request {
 
 #define MAX_ASYNC_REQUESTS 10
 #define MAX_HTTP_RESPONSE_SIZE (10 * 1024 * 1024)  /* 10MB limit */
-/* Async HTTP state is in loki_editor.c */
-/* REPL layout management is in loki_editor.c */
+static async_http_request *pending_requests[MAX_ASYNC_REQUESTS] = {0};
+static int num_pending = 0;
 
-/* Modal editing functions (implemented below) */
+/* libcurl global initialization flag */
+static int curl_initialized = 0;
+
+struct abuf;
+
+static void editor_update_repl_layout(void);
+static int lua_loki_repl_register(lua_State *L);
+
+/* Modal editing functions */
 static void process_normal_mode(int fd, int c);
 static void process_insert_mode(int fd, int c);
 static void process_visual_mode(int fd, int c);
 
-void editor_set_status_msg(const char *fmt, ...) {
-    va_list ap;
-    va_start(ap,fmt);
-    vsnprintf(E.statusmsg,sizeof(E.statusmsg),fmt,ap);
-    va_end(ap);
-    E.statusmsg_time = time(NULL);
-}
+enum KEY_ACTION{
+        KEY_NULL = 0,       /* NULL */
+        CTRL_C = 3,         /* Ctrl-c */
+        CTRL_D = 4,         /* Ctrl-d */
+        CTRL_F = 6,         /* Ctrl-f */
+        CTRL_H = 8,         /* Ctrl-h */
+        TAB = 9,            /* Tab */
+        CTRL_L = 12,        /* Ctrl+l */
+        ENTER = 13,         /* Enter */
+        CTRL_Q = 17,        /* Ctrl-q */
+        CTRL_S = 19,        /* Ctrl-s */
+        CTRL_U = 21,        /* Ctrl-u */
+        CTRL_W = 23,        /* Ctrl-w */
+        ESC = 27,           /* Escape */
+        BACKSPACE =  127,   /* Backspace */
+        /* The following are just soft codes, not really reported by the
+         * terminal directly. */
+        ARROW_LEFT = 1000,
+        ARROW_RIGHT,
+        ARROW_UP,
+        ARROW_DOWN,
+        SHIFT_ARROW_LEFT,
+        SHIFT_ARROW_RIGHT,
+        SHIFT_ARROW_UP,
+        SHIFT_ARROW_DOWN,
+        DEL_KEY,
+        HOME_KEY,
+        END_KEY,
+        PAGE_UP,
+        PAGE_DOWN
+};
 
+void editor_set_status_msg(const char *fmt, ...);
+static void exec_lua_command(int fd);
 static void cleanup_dynamic_languages(void);
 
 /* Check if position is within selection */
@@ -212,7 +362,8 @@ void copy_selection_to_clipboard(void) {
     editor_set_status_msg("Copied %d bytes to clipboard", (int)text_len);
     E.sel_active = 0;  /* Clear selection after copy */
 }
-/* Async HTTP and cleanup_curl are in loki_editor.c */
+static void cleanup_curl(void);
+void check_async_requests(lua_State *L);
 
 /* =========================== Syntax highlights DB =========================
  *
@@ -387,8 +538,13 @@ void disable_raw_mode(int fd) {
 /* Called at exit to avoid remaining in raw mode. */
 void editor_atexit(void) {
     disable_raw_mode(STDIN_FILENO);
+    lua_repl_free(&E.repl);
+    if (E.L) {
+        lua_close(E.L);
+        E.L = NULL;
+    }
+    cleanup_curl();
     cleanup_dynamic_languages();
-    editor_cleanup_resources(); /* Clean up Lua, REPL, and CURL (in loki_editor.c) */
 }
 
 /* Raw mode: 1960 magic shit. */
@@ -578,7 +734,7 @@ int editor_row_has_open_comment(t_erow *row) {
 void editor_update_syntax_markdown(t_erow *row);
 
 /* Map human-readable style names to HL_* constants */
-int hl_name_to_code(const char *name) {
+static int hl_name_to_code(const char *name) {
     if (name == NULL) return -1;
     if (strcasecmp(name, "normal") == 0) return HL_NORMAL;
     if (strcasecmp(name, "nonprint") == 0) return HL_NONPRINT;
@@ -592,8 +748,7 @@ int hl_name_to_code(const char *name) {
     return -1;
 }
 
-/* Lua custom highlighting (lua_apply_highlight_row) is in loki_editor.c */
-/*
+/* Attempt to delegate highlighting of a row to Lua. Returns 1 if handled. */
 static int lua_apply_span_table(t_erow *row, int table_index) {
     if (!lua_istable(E.L, table_index)) return 0;
 
@@ -667,9 +822,7 @@ static int lua_apply_span_table(t_erow *row, int table_index) {
 
     return applied;
 }
-*/
 
-/*
 static void lua_apply_highlight_row(t_erow *row, int default_ran) {
     if (!E.L || row == NULL || row->render == NULL) return;
     int top = lua_gettop(E.L);
@@ -738,7 +891,6 @@ static void lua_apply_highlight_row(t_erow *row, int default_ran) {
 
     lua_settop(E.L, top);
 }
-*/
 
 /* Set every byte of row->hl (that corresponds to every character in the line)
  * to the right syntax highlight type (HL_* defines). */
@@ -884,8 +1036,7 @@ void editor_update_syntax(t_erow *row) {
         }
     }
 
-    /* Lua custom highlighting is in loki_editor.c */
-    (void)default_ran; /* Suppress unused variable warning */
+    lua_apply_highlight_row(row, default_ran);
 
     /* Propagate syntax change to the next row if the open comment
      * state changed. This may recursively affect all the following rows
@@ -1616,7 +1767,12 @@ writeerr:
  * allocated string where we can append to. This is useful in order to
  * write all the escape sequences in a buffer and flush them to the standard
  * output in a single call, to avoid flickering effects. */
-/* Note: struct abuf is now defined in loki_internal.h */
+struct abuf {
+    char *b;
+    int len;
+};
+
+#define ABUF_INIT {NULL,0}
 
 void ab_append(struct abuf *ab, const char *s, int len) {
     char *new = realloc(ab->b,ab->len+len);
@@ -1786,7 +1942,6 @@ void editor_refresh_screen(void) {
     if (msglen && time(NULL)-E.statusmsg_time < 5)
         ab_append(&ab,E.statusmsg,msglen <= E.screencols ? msglen : E.screencols);
 
-    /* Render REPL if active */
     if (E.repl.active) lua_repl_render(&ab);
 
     /* Put cursor at its current position. Note that the horizontal position
@@ -1795,9 +1950,7 @@ void editor_refresh_screen(void) {
     int cursor_row = 1;
     int cursor_col = 1;
 
-    /* Calculate cursor position - different for REPL vs editor mode */
     if (E.repl.active) {
-        /* REPL mode: cursor is on the REPL prompt line */
         int prompt_len = (int)strlen(LUA_REPL_PROMPT);
         int visible = E.repl.input_len;
         if (prompt_len + visible >= E.screencols) {
@@ -1808,7 +1961,6 @@ void editor_refresh_screen(void) {
         if (cursor_col < 1) cursor_col = 1;
         if (cursor_col > E.screencols) cursor_col = E.screencols;
     } else {
-        /* Editor mode: cursor is in the text area */
         int cx = 1;
         int filerow = E.rowoff+E.cy;
         t_erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
@@ -1831,7 +1983,60 @@ void editor_refresh_screen(void) {
     ab_free(&ab);
 }
 
-/* REPL layout management, toggle function, and status reporter are in loki_editor.c */
+
+static void editor_update_repl_layout(void) {
+    int reserved = E.repl.active ? LUA_REPL_TOTAL_ROWS : 0;
+    int available = E.screenrows_total;
+    if (available > reserved) {
+        E.screenrows = available - reserved;
+    } else {
+        E.screenrows = 1;
+    }
+    if (E.screenrows < 1) E.screenrows = 1;
+
+    if (E.cy >= E.screenrows) {
+        E.cy = E.screenrows - 1;
+        if (E.cy < 0) E.cy = 0;
+    }
+
+    if (E.numrows > E.screenrows && E.rowoff > E.numrows - E.screenrows) {
+        E.rowoff = E.numrows - E.screenrows;
+    }
+    if (E.numrows <= E.screenrows) {
+        E.rowoff = 0;
+    }
+}
+
+/* Toggle the Lua REPL focus */
+static void exec_lua_command(int fd) {
+    (void)fd;
+    if (!E.L) {
+        editor_set_status_msg("Lua not available");
+        return;
+    }
+    int was_active = E.repl.active;
+    E.repl.active = !E.repl.active;
+    editor_update_repl_layout();
+    if (E.repl.active) {
+        E.repl.history_index = -1;
+        editor_set_status_msg(
+            "Lua REPL: Enter runs, ESC exits, Up/Down history, type 'help'");
+        if (E.repl.log_len == 0) {
+            lua_repl_append_log("Type 'help' for built-in commands");
+        }
+    } else {
+        if (was_active) {
+            editor_set_status_msg("Lua REPL closed");
+        }
+    }
+}
+
+static void loki_lua_status_reporter(const char *message, void *userdata) {
+    (void)userdata;
+    if (message && message[0] != '\0') {
+        editor_set_status_msg("%s", message);
+    }
+}
 
 /* Initialize default syntax highlighting colors.
  * Colors are stored as RGB values and rendered using true color escape codes.
@@ -1857,590 +2062,6 @@ void init_default_colors(void) {
     E.colors[8].r = 100; E.colors[8].g = 150; E.colors[8].b = 220;
 }
 
-/* Update window size and adjust screen layout */
-void update_window_size(void) {
-    int rows, cols;
-    if (get_window_size(STDIN_FILENO,STDOUT_FILENO,
-                      &rows,&cols) == -1) {
-        /* If we can't get terminal size (e.g., non-interactive mode), use defaults */
-        rows = 24;
-        cols = 80;
-    }
-    E.screencols = cols;
-    rows -= STATUS_ROWS;
-    if (rows < 1) rows = 1;
-    E.screenrows_total = rows;
-    /* REPL layout update (editor_update_repl_layout) is in loki_editor.c */
-    E.screenrows = E.screenrows_total; /* Without REPL, use all available rows */
-}
-
-/* Signal handler for window size changes */
-void handle_sig_win_ch(int unused __attribute__((unused))) {
-    /* Signal handler must be async-signal-safe.
-     * Just set a flag and handle resize in main loop. */
-    winsize_changed = 1;
-}
-
-/* Check and handle window resize */
-void handle_windows_resize(void) {
-    if (winsize_changed) {
-        winsize_changed = 0;
-        update_window_size();
-        if (E.cy > E.screenrows) E.cy = E.screenrows - 1;
-        if (E.cx > E.screencols) E.cx = E.screencols - 1;
-    }
-}
-
-/* Number of times CTRL-Q must be pressed before actually quitting */
-#define KILO_QUIT_TIMES 3
-
-/* Maximum search query length */
-#define KILO_QUERY_LEN 256
-
-/* ========================= Modal Editing ================================= */
-
-/* Helper: Check if a line is empty (blank or whitespace only) */
-static int is_empty_line(int row) {
-    if (row < 0 || row >= E.numrows) return 1;
-    t_erow *line = &E.row[row];
-    for (int i = 0; i < line->size; i++) {
-        if (line->chars[i] != ' ' && line->chars[i] != '\t') {
-            return 0;
-        }
-    }
-    return 1;
-}
-
-/* Move to next empty line (paragraph motion: }) */
-static void move_to_next_empty_line(void) {
-    int filerow = E.rowoff + E.cy;
-
-    /* Skip current paragraph (non-empty lines) */
-    int row = filerow + 1;
-    while (row < E.numrows && !is_empty_line(row)) {
-        row++;
-    }
-
-    /* Skip empty lines to find start of next paragraph or stay at first empty */
-    if (row < E.numrows) {
-        /* Found an empty line - this is where we stop */
-        filerow = row;
-    } else {
-        /* No empty line found, go to end of file */
-        filerow = E.numrows - 1;
-    }
-
-    /* Update cursor position */
-    if (filerow < E.rowoff) {
-        E.rowoff = filerow;
-        E.cy = 0;
-    } else if (filerow >= E.rowoff + E.screenrows) {
-        E.rowoff = filerow - E.screenrows + 1;
-        E.cy = E.screenrows - 1;
-    } else {
-        E.cy = filerow - E.rowoff;
-    }
-
-    /* Move to start of line */
-    E.cx = 0;
-    E.coloff = 0;
-}
-
-/* Move to previous empty line (paragraph motion: {) */
-static void move_to_prev_empty_line(void) {
-    int filerow = E.rowoff + E.cy;
-
-    /* Skip current paragraph (non-empty lines) going backward */
-    int row = filerow - 1;
-    while (row >= 0 && !is_empty_line(row)) {
-        row--;
-    }
-
-    /* Found an empty line - this is where we stop */
-    if (row >= 0) {
-        filerow = row;
-    } else {
-        /* No empty line found, go to start of file */
-        filerow = 0;
-    }
-
-    /* Update cursor position */
-    if (filerow < E.rowoff) {
-        E.rowoff = filerow;
-        E.cy = 0;
-    } else if (filerow >= E.rowoff + E.screenrows) {
-        E.rowoff = filerow - E.screenrows + 1;
-        E.cy = E.screenrows - 1;
-    } else {
-        E.cy = filerow - E.rowoff;
-    }
-
-    /* Move to start of line */
-    E.cx = 0;
-    E.coloff = 0;
-}
-
-/* ========================= Editor events handling  ======================== */
-
-/* Handle cursor position change because arrow keys were pressed. */
-void editor_move_cursor(int key) {
-    int filerow = E.rowoff+E.cy;
-    int filecol = E.coloff+E.cx;
-    int rowlen;
-    t_erow *row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
-
-    switch(key) {
-    case ARROW_LEFT:
-        if (E.cx == 0) {
-            if (E.coloff) {
-                E.coloff--;
-            } else {
-                if (filerow > 0) {
-                    E.cy--;
-                    E.cx = E.row[filerow-1].size;
-                    if (E.cx > E.screencols-1) {
-                        E.coloff = E.cx-E.screencols+1;
-                        E.cx = E.screencols-1;
-                    }
-                }
-            }
-        } else {
-            E.cx -= 1;
-        }
-        break;
-    case ARROW_RIGHT:
-        if (row && filecol < row->size) {
-            if (E.cx == E.screencols-1) {
-                E.coloff++;
-            } else {
-                E.cx += 1;
-            }
-        } else if (row && filecol == row->size) {
-            E.cx = 0;
-            E.coloff = 0;
-            if (E.cy == E.screenrows-1) {
-                E.rowoff++;
-            } else {
-                E.cy += 1;
-            }
-        }
-        break;
-    case ARROW_UP:
-        if (E.cy == 0) {
-            if (E.rowoff) E.rowoff--;
-        } else {
-            E.cy -= 1;
-        }
-        break;
-    case ARROW_DOWN:
-        if (filerow < E.numrows) {
-            if (E.cy == E.screenrows-1) {
-                E.rowoff++;
-            } else {
-                E.cy += 1;
-            }
-        }
-        break;
-    }
-    /* Fix cx if the current line has not enough chars. */
-    filerow = E.rowoff+E.cy;
-    filecol = E.coloff+E.cx;
-    row = (filerow >= E.numrows) ? NULL : &E.row[filerow];
-    rowlen = row ? row->size : 0;
-    if (filecol > rowlen) {
-        E.cx -= filecol-rowlen;
-        if (E.cx < 0) {
-            E.coloff += E.cx;
-            E.cx = 0;
-        }
-    }
-}
-
-/* Find and highlight text in the buffer */
-void editor_find(int fd) {
-    char query[KILO_QUERY_LEN+1] = {0};
-    int qlen = 0;
-    int last_match = -1; /* Last line where a match was found. -1 for none. */
-    int find_next = 0; /* if 1 search next, if -1 search prev. */
-    int saved_hl_line = -1;  /* No saved HL */
-    char *saved_hl = NULL;
-
-#define FIND_RESTORE_HL do { \
-    if (saved_hl) { \
-        memcpy(E.row[saved_hl_line].hl,saved_hl, E.row[saved_hl_line].rsize); \
-        free(saved_hl); \
-        saved_hl = NULL; \
-    } \
-} while (0)
-
-    /* Save the cursor position in order to restore it later. */
-    int saved_cx = E.cx, saved_cy = E.cy;
-    int saved_coloff = E.coloff, saved_rowoff = E.rowoff;
-
-    while(1) {
-        editor_set_status_msg(
-            "Search: %s (Use ESC/Arrows/Enter)", query);
-        editor_refresh_screen();
-
-        int c = editor_read_key(fd);
-        if (c == DEL_KEY || c == CTRL_H || c == BACKSPACE) {
-            if (qlen != 0) query[--qlen] = '\0';
-            last_match = -1;
-        } else if (c == ESC || c == ENTER) {
-            if (c == ESC) {
-                E.cx = saved_cx; E.cy = saved_cy;
-                E.coloff = saved_coloff; E.rowoff = saved_rowoff;
-            }
-            FIND_RESTORE_HL;
-            editor_set_status_msg("");
-            return;
-        } else if (c == ARROW_RIGHT || c == ARROW_DOWN) {
-            find_next = 1;
-        } else if (c == ARROW_LEFT || c == ARROW_UP) {
-            find_next = -1;
-        } else if (isprint(c)) {
-            if (qlen < KILO_QUERY_LEN) {
-                query[qlen++] = c;
-                query[qlen] = '\0';
-                last_match = -1;
-            }
-        }
-
-        /* Search occurrence. */
-        if (last_match == -1) find_next = 1;
-        if (find_next) {
-            char *match = NULL;
-            int match_offset = 0;
-            int i, current = last_match;
-
-            for (i = 0; i < E.numrows; i++) {
-                current += find_next;
-                if (current == -1) current = E.numrows-1;
-                else if (current == E.numrows) current = 0;
-                match = strstr(E.row[current].render,query);
-                if (match) {
-                    match_offset = match-E.row[current].render;
-                    break;
-                }
-            }
-            find_next = 0;
-
-            /* Highlight */
-            FIND_RESTORE_HL;
-
-            if (match) {
-                t_erow *row = &E.row[current];
-                last_match = current;
-                if (row->hl) {
-                    saved_hl_line = current;
-                    saved_hl = malloc(row->rsize);
-                    if (saved_hl) {
-                        memcpy(saved_hl,row->hl,row->rsize);
-                    }
-                    memset(row->hl+match_offset,HL_MATCH,qlen);
-                }
-                E.cy = 0;
-                E.cx = match_offset;
-                E.rowoff = current;
-                E.coloff = 0;
-                /* Scroll horizontally as needed. */
-                if (E.cx > E.screencols) {
-                    int diff = E.cx - E.screencols;
-                    E.cx -= diff;
-                    E.coloff += diff;
-                }
-            }
-        }
-    }
-}
-
-/* ========================= Modal Key Processing ============================ */
-
-/* Process normal mode keypresses */
-static void process_normal_mode(int fd, int c) {
-    switch(c) {
-        case 'h': editor_move_cursor(ARROW_LEFT); break;
-        case 'j': editor_move_cursor(ARROW_DOWN); break;
-        case 'k': editor_move_cursor(ARROW_UP); break;
-        case 'l': editor_move_cursor(ARROW_RIGHT); break;
-
-        /* Paragraph motion */
-        case '{':
-            move_to_prev_empty_line();
-            break;
-        case '}':
-            move_to_next_empty_line();
-            break;
-
-        /* Enter insert mode */
-        case 'i': E.mode = MODE_INSERT; break;
-        case 'a':
-            editor_move_cursor(ARROW_RIGHT);
-            E.mode = MODE_INSERT;
-            break;
-        case 'o':
-            /* Insert line below and enter insert mode */
-            if (E.numrows > 0) {
-                int filerow = E.rowoff + E.cy;
-                if (filerow < E.numrows) {
-                    E.cx = E.row[filerow].size; /* Move to end of line */
-                }
-            }
-            editor_insert_newline();
-            E.mode = MODE_INSERT;
-            break;
-        case 'O':
-            /* Insert line above and enter insert mode */
-            E.cx = 0; /* Move to start of line */
-            editor_insert_newline();
-            editor_move_cursor(ARROW_UP);
-            E.mode = MODE_INSERT;
-            break;
-
-        /* Enter visual mode */
-        case 'v':
-            E.mode = MODE_VISUAL;
-            E.sel_active = 1;
-            E.sel_start_x = E.cx;
-            E.sel_start_y = E.cy;
-            E.sel_end_x = E.cx;
-            E.sel_end_y = E.cy;
-            break;
-
-        /* Delete character */
-        case 'x':
-            editor_del_char();
-            break;
-
-        /* Global commands (work in all modes) */
-        case CTRL_S: editor_save(); break;
-        case CTRL_F: editor_find(fd); break;
-        case CTRL_L:
-            /* Toggle REPL */
-            E.repl.active = !E.repl.active;
-            editor_update_repl_layout();
-            if (E.repl.active) {
-                editor_set_status_msg("Lua REPL active (Ctrl-L or ESC to close)");
-            }
-            break;
-        case CTRL_Q:
-            /* Handle quit in main function for consistency */
-            break;
-
-        /* Arrow keys */
-        case ARROW_UP:
-        case ARROW_DOWN:
-        case ARROW_LEFT:
-        case ARROW_RIGHT:
-            editor_move_cursor(c);
-            break;
-
-        default:
-            /* Beep or show message for unknown command */
-            editor_set_status_msg("Unknown command");
-            break;
-    }
-}
-
-/* Process insert mode keypresses */
-static void process_insert_mode(int fd, int c) {
-    switch(c) {
-        case ESC:
-            E.mode = MODE_NORMAL;
-            /* Move cursor left if not at start of line */
-            if (E.cx > 0 || E.coloff > 0) {
-                editor_move_cursor(ARROW_LEFT);
-            }
-            break;
-
-        case ENTER:
-            editor_insert_newline();
-            break;
-
-        case BACKSPACE:
-        case CTRL_H:
-        case DEL_KEY:
-            editor_del_char();
-            break;
-
-        case ARROW_UP:
-        case ARROW_DOWN:
-        case ARROW_LEFT:
-        case ARROW_RIGHT:
-            editor_move_cursor(c);
-            break;
-
-        /* Global commands */
-        case CTRL_S: editor_save(); break;
-        case CTRL_F: editor_find(fd); break;
-        case CTRL_W:
-            E.word_wrap = !E.word_wrap;
-            editor_set_status_msg("Word wrap %s", E.word_wrap ? "enabled" : "disabled");
-            break;
-        case CTRL_L:
-            /* Toggle REPL */
-            E.repl.active = !E.repl.active;
-            editor_update_repl_layout();
-            if (E.repl.active) {
-                editor_set_status_msg("Lua REPL active (Ctrl-L or ESC to close)");
-            }
-            break;
-        case CTRL_C:
-            copy_selection_to_clipboard();
-            break;
-
-        case PAGE_UP:
-        case PAGE_DOWN:
-            if (c == PAGE_UP && E.cy != 0)
-                E.cy = 0;
-            else if (c == PAGE_DOWN && E.cy != E.screenrows-1)
-                E.cy = E.screenrows-1;
-            {
-                int times = E.screenrows;
-                while(times--)
-                    editor_move_cursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
-            }
-            break;
-
-        case SHIFT_ARROW_UP:
-        case SHIFT_ARROW_DOWN:
-        case SHIFT_ARROW_LEFT:
-        case SHIFT_ARROW_RIGHT:
-            /* Start selection if not active */
-            if (!E.sel_active) {
-                E.sel_active = 1;
-                E.sel_start_x = E.cx;
-                E.sel_start_y = E.cy;
-            }
-            /* Move cursor */
-            if (c == SHIFT_ARROW_UP) editor_move_cursor(ARROW_UP);
-            else if (c == SHIFT_ARROW_DOWN) editor_move_cursor(ARROW_DOWN);
-            else if (c == SHIFT_ARROW_LEFT) editor_move_cursor(ARROW_LEFT);
-            else if (c == SHIFT_ARROW_RIGHT) editor_move_cursor(ARROW_RIGHT);
-            /* Update selection end */
-            E.sel_end_x = E.cx;
-            E.sel_end_y = E.cy;
-            break;
-
-        default:
-            /* Insert the character */
-            editor_insert_char(c);
-            break;
-    }
-}
-
-/* Process visual mode keypresses */
-static void process_visual_mode(int fd, int c) {
-    switch(c) {
-        case ESC:
-            E.mode = MODE_NORMAL;
-            E.sel_active = 0;
-            break;
-
-        /* Movement extends selection */
-        case 'h':
-        case ARROW_LEFT:
-            editor_move_cursor(ARROW_LEFT);
-            E.sel_end_x = E.cx;
-            E.sel_end_y = E.cy;
-            break;
-
-        case 'j':
-        case ARROW_DOWN:
-            editor_move_cursor(ARROW_DOWN);
-            E.sel_end_x = E.cx;
-            E.sel_end_y = E.cy;
-            break;
-
-        case 'k':
-        case ARROW_UP:
-            editor_move_cursor(ARROW_UP);
-            E.sel_end_x = E.cx;
-            E.sel_end_y = E.cy;
-            break;
-
-        case 'l':
-        case ARROW_RIGHT:
-            editor_move_cursor(ARROW_RIGHT);
-            E.sel_end_x = E.cx;
-            E.sel_end_y = E.cy;
-            break;
-
-        /* Copy selection */
-        case 'y':
-            copy_selection_to_clipboard();
-            E.mode = MODE_NORMAL;
-            E.sel_active = 0;
-            editor_set_status_msg("Yanked selection");
-            break;
-
-        /* Delete selection (without undo for now) */
-        case 'd':
-        case 'x':
-            copy_selection_to_clipboard(); /* Save to clipboard first */
-            /* TODO: delete selection - need to implement this */
-            editor_set_status_msg("Delete not implemented yet");
-            E.mode = MODE_NORMAL;
-            E.sel_active = 0;
-            break;
-
-        /* Global commands */
-        case CTRL_C:
-            copy_selection_to_clipboard();
-            break;
-
-        default:
-            /* Unknown command - beep */
-            editor_set_status_msg("Unknown visual command");
-            break;
-    }
-    (void)fd; /* Unused */
-}
-
-/* Process a single keypress */
-void editor_process_keypress(int fd) {
-    /* When the file is modified, requires Ctrl-q to be pressed N times
-     * before actually quitting. */
-    static int quit_times = KILO_QUIT_TIMES;
-
-    int c = editor_read_key(fd);
-
-    /* REPL keypress handling */
-    if (E.repl.active) {
-        lua_repl_handle_keypress(c);
-        return;
-    }
-
-    /* Handle quit globally (works in all modes) */
-    if (c == CTRL_Q) {
-        if (E.dirty && quit_times) {
-            editor_set_status_msg("WARNING!!! File has unsaved changes. "
-                "Press Ctrl-Q %d more times to quit.", quit_times);
-            quit_times--;
-            return;
-        }
-        exit(0);
-    }
-
-    /* Dispatch to mode-specific handler */
-    switch(E.mode) {
-        case MODE_NORMAL:
-            process_normal_mode(fd, c);
-            break;
-        case MODE_INSERT:
-            process_insert_mode(fd, c);
-            break;
-        case MODE_VISUAL:
-            process_visual_mode(fd, c);
-            break;
-        case MODE_COMMAND:
-            /* TODO: implement command mode */
-            break;
-    }
-
-    quit_times = KILO_QUIT_TIMES; /* Reset it to the original value. */
-}
-
 void init_editor(void) {
     E.cx = 0;
     E.cy = 0;
@@ -2457,22 +2078,200 @@ void init_editor(void) {
     E.sel_start_x = E.sel_start_y = 0;
     E.sel_end_x = E.sel_end_y = 0;
     init_default_colors();
-    /* Lua REPL init and Lua initialization are in loki_editor.c */
+    lua_repl_init(&E.repl);
     update_window_size();
     signal(SIGWINCH, handle_sig_win_ch);
+
+    /* Initialize Lua */
+    struct loki_lua_opts lua_opts = {
+        .bind_editor = 1,
+        .bind_http = 1,
+        .load_config = 1,
+        .config_override = NULL,
+        .project_root = NULL,
+        .extra_lua_path = NULL,
+        .reporter = loki_lua_status_reporter,
+        .reporter_userdata = NULL,
+    };
+    E.L = loki_lua_bootstrap(&lua_opts);
+    if (!E.L) {
+        editor_set_status_msg("Failed to initialize Lua runtime (%s)", loki_lua_runtime());
+    }
 }
 
-/* AI command execution is in loki_editor.c */
 /* Run AI command in non-interactive mode */
-/*
 static int run_ai_command(char *filename, const char *command) {
     init_editor();
 
-    (void)filename;
-    (void)command;
-    fprintf(stderr, "Error: AI commands require Lua support\n");
-    return 1;
-}
-*/
+    /* Load the file */
+    editor_select_syntax_highlight(filename);
+    if (editor_open(filename) != 0 && errno != ENOENT) {
+        fprintf(stderr, "Error opening file: %s\n", filename);
+        return 1;
+    }
 
-/* Main editor entry point moved to loki_editor.c */
+    /* Check if Lua was initialized */
+    if (!E.L) {
+        fprintf(stderr, "Error: Lua not initialized\n");
+        return 1;
+    }
+
+    /* Record initial dirty state and row count */
+    int initial_dirty = E.dirty;
+    int initial_rows = E.numrows;
+
+    /* Record initial number of pending requests */
+    int initial_pending = num_pending;
+
+    /* Call the Lua command */
+    lua_getglobal(E.L, command);
+    if (!lua_isfunction(E.L, -1)) {
+        fprintf(stderr, "Error: Lua function '%s' not found\n", command);
+        fprintf(stderr, "Make sure .loki/init.lua or ~/.loki/init.lua defines this function\n");
+        return 1;
+    }
+
+    if (lua_pcall(E.L, 0, 0, 0) != LUA_OK) {
+        fprintf(stderr, "Error running %s: %s\n", command, lua_tostring(E.L, -1));
+        return 1;
+    }
+
+    /* Check if a request was initiated */
+    if (num_pending <= initial_pending) {
+        fprintf(stderr, "Error: No async request was initiated\n");
+        fprintf(stderr, "Check that OPENAI_API_KEY is set and the function makes an HTTP request\n");
+        return 1;
+    }
+
+    /* Wait for all async requests to complete (max 60 seconds) */
+    fprintf(stderr, "Waiting for AI response...\n");
+    int timeout = 60000; /* 60 seconds in iterations (assuming ~1ms per iteration) */
+    while (num_pending > 0 && timeout-- > 0) {
+        check_async_requests(E.L);
+        usleep(1000); /* 1ms */
+    }
+
+    if (num_pending > 0) {
+        fprintf(stderr, "Error: AI command timed out\n");
+        return 1;
+    }
+
+    /* Check if anything was actually inserted */
+    if (E.dirty == initial_dirty && E.numrows == initial_rows) {
+        fprintf(stderr, "Warning: No content was inserted. Possible issues:\n");
+        fprintf(stderr, "  - API request failed (check API key)\n");
+        fprintf(stderr, "  - Response parsing failed (check model name)\n");
+        fprintf(stderr, "  - Lua callback error (check .loki/init.lua)\n");
+        fprintf(stderr, "Status: %s\n", E.statusmsg);
+        return 1;
+    }
+
+    fprintf(stderr, "Content inserted: %d rows, dirty=%d\n", E.numrows, E.dirty);
+
+    /* For --complete, save the file */
+    if (strcmp(command, "ai_complete") == 0) {
+        if (editor_save() != 0) {
+            fprintf(stderr, "Error: Failed to save file\n");
+            return 1;
+        }
+        fprintf(stderr, "Completion saved to %s\n", filename);
+    } else if (strcmp(command, "ai_explain") == 0) {
+        /* For --explain, print the buffer content (explanation was inserted) */
+        for (int i = 0; i < E.numrows; i++) {
+            printf("%s\n", E.row[i].chars);
+        }
+    }
+
+    return 0;
+}
+
+static void print_usage(void) {
+    printf("Usage: loki [options] <filename>\n");
+    printf("\nOptions:\n");
+    printf("  --help              Show this help message\n");
+    printf("  --version           Show version information\n");
+    printf("  --complete <file>   Run AI completion on file and save result\n");
+    printf("  --explain <file>    Run AI explanation on file and print to stdout\n");
+    printf("\nInteractive mode (default):\n");
+    printf("  loki <filename>     Open file in interactive editor\n");
+    printf("\nKeybindings in interactive mode:\n");
+    printf("  Ctrl-S    Save file\n");
+    printf("  Ctrl-Q    Quit\n");
+    printf("  Ctrl-F    Find\n");
+    printf("  Ctrl-L    Toggle Lua REPL\n");
+    printf("\nAI commands require OPENAI_API_KEY environment variable\n");
+    printf("and .loki/init.lua or ~/.loki/init.lua configuration.\n");
+}
+
+int loki_editor_main(int argc, char **argv) {
+    /* Register cleanup handler early to ensure terminal is always restored */
+    atexit(editor_atexit);
+
+    /* Parse command-line arguments */
+    if (argc < 2) {
+        print_usage();
+        exit(1);
+    }
+
+    /* Check for --help flag */
+    if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
+        print_usage();
+        exit(0);
+    }
+
+    /* Check for --version flag */
+    if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-v") == 0) {
+        printf("loki %s\n", LOKI_VERSION);
+        exit(0);
+    }
+
+    /* Check for --complete flag */
+    if (strcmp(argv[1], "--complete") == 0) {
+        if (argc != 3) {
+            fprintf(stderr, "Error: --complete requires a filename\n");
+            print_usage();
+            exit(1);
+        }
+        int result = run_ai_command(argv[2], "ai_complete");
+        exit(result);
+    }
+
+    /* Check for --explain flag */
+    if (strcmp(argv[1], "--explain") == 0) {
+        if (argc != 3) {
+            fprintf(stderr, "Error: --explain requires a filename\n");
+            print_usage();
+            exit(1);
+        }
+        int result = run_ai_command(argv[2], "ai_explain");
+        exit(result);
+    }
+
+    /* Check for unknown options */
+    if (argv[1][0] == '-') {
+        fprintf(stderr, "Error: Unknown option: %s\n", argv[1]);
+        print_usage();
+        exit(1);
+    }
+
+    /* Default: interactive mode */
+    if (argc != 2) {
+        fprintf(stderr, "Error: Too many arguments\n");
+        print_usage();
+        exit(1);
+    }
+
+    init_editor();
+    editor_select_syntax_highlight(argv[1]);
+    editor_open(argv[1]);
+    enable_raw_mode(STDIN_FILENO);
+    editor_set_status_msg(
+        "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-W = wrap | Ctrl-L = repl | Ctrl-C = copy");
+    while(1) {
+        handle_windows_resize();
+        check_async_requests(E.L);  /* Process any pending async HTTP requests */
+        editor_refresh_screen();
+        editor_process_keypress(STDIN_FILENO);
+    }
+    return 0;
+}
