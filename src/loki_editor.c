@@ -54,13 +54,22 @@ static async_http_request *pending_requests[MAX_ASYNC_REQUESTS] = {0};
 static int num_pending = 0;
 static int curl_initialized = 0;
 
+/* ======================== Main Editor Instance ============================ */
+
+/* Static editor instance for the main editor.
+ * All functions now use explicit context passing (editor_ctx_t *ctx),
+ * enabling future support for multiple editor windows/buffers.
+ * This static instance is only used by main() as the primary editor instance.
+ */
+static editor_ctx_t E;
+
 /* ======================== Helper Functions =============================== */
 
 /* Lua status reporter - reports Lua errors to editor status bar */
 static void loki_lua_status_reporter(const char *message, void *userdata) {
-    (void)userdata;
-    if (message && message[0] != '\0') {
-        editor_set_status_msg("%s", message);
+    editor_ctx_t *ctx = (editor_ctx_t *)userdata;
+    if (message && message[0] != '\0' && ctx) {
+        editor_set_status_msg(ctx, "%s", message);
     }
 }
 
@@ -135,7 +144,8 @@ int start_async_http_request(const char *url, const char *method,
                                      const char *body, const char **headers,
                                      int num_headers, const char *lua_callback) {
     if (num_pending >= MAX_ASYNC_REQUESTS) {
-        editor_set_status_msg("Too many pending requests");
+        /* Note: Cannot set status message here as we don't have editor context.
+         * Caller (lua_loki_async_http) will set error message if needed. */
         return -1;
     }
 
@@ -299,7 +309,7 @@ void check_async_requests(editor_ctx_t *ctx, lua_State *L) {
             if (response_code >= 400) {
                 char errmsg[256];
                 snprintf(errmsg, sizeof(errmsg), "HTTP error %ld", response_code);
-                editor_set_status_msg("%s", errmsg);
+                editor_set_status_msg(ctx, "%s", errmsg);
                 if (!ctx || !ctx->rawmode) {
                     fprintf(stderr, "%s\n", errmsg);
                 }
@@ -338,7 +348,7 @@ void check_async_requests(editor_ctx_t *ctx, lua_State *L) {
 
                     if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
                         const char *err = lua_tostring(L, -1);
-                        editor_set_status_msg("Lua callback error: %s", err);
+                        editor_set_status_msg(ctx, "Lua callback error: %s", err);
                         /* Also print to stderr for non-interactive mode */
                         if (!ctx || !ctx->rawmode) {
                             fprintf(stderr, "Lua callback error: %s\n", err);
@@ -396,7 +406,7 @@ void editor_update_repl_layout(editor_ctx_t *ctx) {
 static void exec_lua_command(editor_ctx_t *ctx, int fd) {
     (void)fd;
     if (!ctx || !ctx->L) {
-        editor_set_status_msg("Lua not available");
+        editor_set_status_msg(ctx, "Lua not available");
         return;
     }
     int was_active = ctx->repl.active;
@@ -404,14 +414,14 @@ static void exec_lua_command(editor_ctx_t *ctx, int fd) {
     editor_update_repl_layout(ctx);
     if (ctx->repl.active) {
         ctx->repl.history_index = -1;
-        editor_set_status_msg(
+        editor_set_status_msg(ctx, 
             "Lua REPL: Enter runs, ESC exits, Up/Down history, type 'help'");
         if (ctx->repl.log_len == 0) {
             lua_repl_append_log(ctx, "Type 'help' for built-in commands");
         }
     } else {
         if (was_active) {
-            editor_set_status_msg("Lua REPL closed");
+            editor_set_status_msg(ctx, "Lua REPL closed");
         }
     }
 }
@@ -568,7 +578,7 @@ static void lua_apply_highlight_row(editor_ctx_t *ctx, t_erow *row, int default_
 
     if (lua_pcall(L, 5, 1, 0) != LUA_OK) {
         const char *err = lua_tostring(L, -1);
-        editor_set_status_msg("Lua highlight error: %s", err ? err : "unknown");
+        editor_set_status_msg(ctx, "Lua highlight error: %s", err ? err : "unknown");
         lua_settop(L, top);
         return;
     }
@@ -712,7 +722,7 @@ int loki_editor_main(int argc, char **argv) {
 
     /* Enable terminal raw mode and start main loop */
     enable_raw_mode(&E, STDIN_FILENO);
-    editor_set_status_msg(
+    editor_set_status_msg(&E,
         "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-W = wrap | Ctrl-L = repl | Ctrl-C = copy");
 
     while(1) {

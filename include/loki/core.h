@@ -21,6 +21,8 @@ struct lua_State;
 struct t_erow;
 struct t_hlcolor;
 struct t_editor_syntax;
+struct editor_ctx;
+typedef struct editor_ctx editor_ctx_t;
 
 /* Editor modes */
 typedef enum {
@@ -35,7 +37,7 @@ typedef enum {
  * ============================================================================ */
 
 /* Set status bar message (printf-style) */
-void editor_set_status_msg(const char *fmt, ...);
+void editor_set_status_msg(editor_ctx_t *ctx, const char *fmt, ...);
 
 /* ============================================================================
  * Buffer Access (Read-only)
@@ -69,10 +71,6 @@ void editor_get_cursor_file_pos(int *row, int *col);
 /* ============================================================================
  * Buffer Modification
  * ============================================================================ */
-
-/* Forward declaration for context type - full definition in loki_internal.h */
-struct editor_ctx;
-typedef struct editor_ctx editor_ctx_t;
 
 /* Insert a single character at cursor position */
 void editor_insert_char(editor_ctx_t *ctx, int c);

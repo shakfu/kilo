@@ -39,12 +39,6 @@ see LICENSE.
 /* libcurl for async HTTP */
 #include <curl/curl.h>
 
-/* Global editor state. Note: This makes the editor non-reentrant and
- * non-thread-safe. Only one editor instance can exist per process.
- * During migration to context passing, functions will gradually be updated
- * to take editor_ctx_t* instead of using this global. */
-editor_ctx_t E;
-
 /* Flag to indicate window size change (set by signal handler) */
 static volatile sig_atomic_t winsize_changed = 0;
 
@@ -78,12 +72,13 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c);
 static void process_insert_mode(editor_ctx_t *ctx, int fd, int c);
 static void process_visual_mode(editor_ctx_t *ctx, int fd, int c);
 
-void editor_set_status_msg(const char *fmt, ...) {
+void editor_set_status_msg(editor_ctx_t *ctx, const char *fmt, ...) {
+    if (!ctx) return;
     va_list ap;
     va_start(ap,fmt);
-    vsnprintf(E.statusmsg,sizeof(E.statusmsg),fmt,ap);
+    vsnprintf(ctx->statusmsg,sizeof(ctx->statusmsg),fmt,ap);
     va_end(ap);
-    E.statusmsg_time = time(NULL);
+    ctx->statusmsg_time = time(NULL);
 }
 
 static void cleanup_dynamic_languages(void);
@@ -211,7 +206,7 @@ char *base64_encode(const char *input, size_t len) {
 /* Copy selected text to clipboard using OSC 52 */
 void copy_selection_to_clipboard(editor_ctx_t *ctx) {
     if (!ctx->sel_active) {
-        editor_set_status_msg("No selection");
+        editor_set_status_msg(ctx, "No selection");
         return;
     }
 
@@ -266,7 +261,7 @@ void copy_selection_to_clipboard(editor_ctx_t *ctx) {
     fflush(stdout);
     free(encoded);
 
-    editor_set_status_msg("Copied %d bytes to clipboard", (int)text_len);
+    editor_set_status_msg(ctx, "Copied %d bytes to clipboard", (int)text_len);
     ctx->sel_active = 0;  /* Clear selection after copy */
 }
 /* Async HTTP and cleanup_curl are in loki_editor.c */
@@ -441,11 +436,17 @@ void disable_raw_mode(editor_ctx_t *ctx, int fd) {
     }
 }
 
+/* Static pointer to editor context for atexit cleanup.
+ * Set by init_editor() before registering atexit handler. */
+static editor_ctx_t *editor_for_atexit = NULL;
+
 /* Called at exit to avoid remaining in raw mode. */
 void editor_atexit(void) {
-    disable_raw_mode(&E, STDIN_FILENO);
+    if (editor_for_atexit) {
+        disable_raw_mode(editor_for_atexit, STDIN_FILENO);
+        editor_cleanup_resources(editor_for_atexit);
+    }
     cleanup_dynamic_languages();
-    editor_cleanup_resources(&E); /* Clean up Lua, REPL, and CURL (in loki_editor.c) */
 }
 
 /* Raw mode: 1960 magic shit. */
@@ -1068,8 +1069,7 @@ int editor_format_color(editor_ctx_t *ctx, int hl, char *buf, size_t bufsize) {
                     color->r, color->g, color->b);
 }
 
-/* Select the syntax highlight scheme depending on the filename,
- * setting it in the global state E.syntax. */
+/* Select the syntax highlight scheme depending on the filename. */
 void editor_select_syntax_highlight(editor_ctx_t *ctx, char *filename) {
     for (unsigned int j = 0; j < HLDB_ENTRIES; j++) {
         struct t_editor_syntax *s = HLDB+j;
@@ -1471,7 +1471,7 @@ int editor_open(editor_ctx_t *ctx, char *filename) {
     for (size_t i = 0; i < probe_len; i++) {
         if (probe[i] == '\0') {
             fclose(fp);
-            editor_set_status_msg("Cannot open binary file");
+            editor_set_status_msg(ctx, "Cannot open binary file");
             return 1;
         }
     }
@@ -1496,7 +1496,7 @@ int editor_save(editor_ctx_t *ctx) {
     int len;
     char *buf = editor_rows_to_string(ctx, &len);
     if (buf == NULL) {
-        editor_set_status_msg("Can't save! Out of memory");
+        editor_set_status_msg(ctx, "Can't save! Out of memory");
         return 1;
     }
     int fd = open(ctx->filename,O_RDWR|O_CREAT,0644);
@@ -1510,13 +1510,13 @@ int editor_save(editor_ctx_t *ctx) {
     close(fd);
     free(buf);
     ctx->dirty = 0;
-    editor_set_status_msg("%d bytes written on disk", len);
+    editor_set_status_msg(ctx, "%d bytes written on disk", len);
     return 0;
 
 writeerr:
     free(buf);
     if (fd != -1) close(fd);
-    editor_set_status_msg("Can't save! I/O error: %s",strerror(errno));
+    editor_set_status_msg(ctx, "Can't save! I/O error: %s",strerror(errno));
     return 1;
 }
 
@@ -1988,7 +1988,7 @@ void editor_find(editor_ctx_t *ctx, int fd) {
     int saved_coloff = ctx->coloff, saved_rowoff = ctx->rowoff;
 
     while(1) {
-        editor_set_status_msg(
+        editor_set_status_msg(ctx, 
             "Search: %s (Use ESC/Arrows/Enter)", query);
         editor_refresh_screen(ctx);
 
@@ -2002,7 +2002,7 @@ void editor_find(editor_ctx_t *ctx, int fd) {
                 ctx->coloff = saved_coloff; ctx->rowoff = saved_rowoff;
             }
             FIND_RESTORE_HL;
-            editor_set_status_msg("");
+            editor_set_status_msg(ctx, "");
             return;
         } else if (c == ARROW_RIGHT || c == ARROW_DOWN) {
             find_next = 1;
@@ -2130,7 +2130,7 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
             ctx->repl.active = !ctx->repl.active;
             editor_update_repl_layout(ctx);
             if (ctx->repl.active) {
-                editor_set_status_msg("Lua REPL active (Ctrl-L or ESC to close)");
+                editor_set_status_msg(ctx, "Lua REPL active (Ctrl-L or ESC to close)");
             }
             break;
         case CTRL_Q:
@@ -2147,7 +2147,7 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
 
         default:
             /* Beep or show message for unknown command */
-            editor_set_status_msg("Unknown command");
+            editor_set_status_msg(ctx, "Unknown command");
             break;
     }
 }
@@ -2185,14 +2185,14 @@ static void process_insert_mode(editor_ctx_t *ctx, int fd, int c) {
         case CTRL_F: editor_find(ctx, fd); break;
         case CTRL_W:
             ctx->word_wrap = !ctx->word_wrap;
-            editor_set_status_msg("Word wrap %s", ctx->word_wrap ? "enabled" : "disabled");
+            editor_set_status_msg(ctx, "Word wrap %s", ctx->word_wrap ? "enabled" : "disabled");
             break;
         case CTRL_L:
             /* Toggle REPL */
             ctx->repl.active = !ctx->repl.active;
             editor_update_repl_layout(ctx);
             if (ctx->repl.active) {
-                editor_set_status_msg("Lua REPL active (Ctrl-L or ESC to close)");
+                editor_set_status_msg(ctx, "Lua REPL active (Ctrl-L or ESC to close)");
             }
             break;
         case CTRL_C:
@@ -2281,7 +2281,7 @@ static void process_visual_mode(editor_ctx_t *ctx, int fd, int c) {
             copy_selection_to_clipboard(ctx);
             ctx->mode = MODE_NORMAL;
             ctx->sel_active = 0;
-            editor_set_status_msg("Yanked selection");
+            editor_set_status_msg(ctx, "Yanked selection");
             break;
 
         /* Delete selection (without undo for now) */
@@ -2289,7 +2289,7 @@ static void process_visual_mode(editor_ctx_t *ctx, int fd, int c) {
         case 'x':
             copy_selection_to_clipboard(ctx); /* Save to clipboard first */
             /* TODO: delete selection - need to implement this */
-            editor_set_status_msg("Delete not implemented yet");
+            editor_set_status_msg(ctx, "Delete not implemented yet");
             ctx->mode = MODE_NORMAL;
             ctx->sel_active = 0;
             break;
@@ -2301,7 +2301,7 @@ static void process_visual_mode(editor_ctx_t *ctx, int fd, int c) {
 
         default:
             /* Unknown command - beep */
-            editor_set_status_msg("Unknown visual command");
+            editor_set_status_msg(ctx, "Unknown visual command");
             break;
     }
     (void)fd; /* Unused */
@@ -2324,7 +2324,7 @@ void editor_process_keypress(editor_ctx_t *ctx, int fd) {
     /* Handle quit globally (works in all modes) */
     if (c == CTRL_Q) {
         if (ctx->dirty && quit_times) {
-            editor_set_status_msg("WARNING!!! File has unsaved changes. "
+            editor_set_status_msg(ctx, "WARNING!!! File has unsaved changes. "
                 "Press Ctrl-Q %d more times to quit.", quit_times);
             quit_times--;
             return;
@@ -2370,6 +2370,9 @@ void init_editor(editor_ctx_t *ctx) {
     /* Lua REPL init and Lua initialization are in loki_editor.c */
     update_window_size(ctx);
     signal(SIGWINCH, handle_sig_win_ch);
+
+    /* Set static pointer for atexit cleanup */
+    editor_for_atexit = ctx;
 }
 
 /* AI command execution is in loki_editor.c */

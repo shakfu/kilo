@@ -51,8 +51,9 @@ static editor_ctx_t* lua_get_editor_context(lua_State *L) {
 
 /* Lua API: loki.status(message) - Set status message */
 static int lua_loki_status(lua_State *L) {
+    editor_ctx_t *ctx = lua_get_editor_context(L);
     const char *msg = luaL_checkstring(L, 1);
-    editor_set_status_msg("%s", msg);
+    editor_set_status_msg(ctx, "%s", msg);
     return 0;
 }
 
@@ -313,6 +314,7 @@ static int lua_loki_register_command(lua_State *L) {
 
 /* Lua API: loki.async_http(url, method, body, headers, callback) - Async HTTP request */
 static int lua_loki_async_http(lua_State *L) {
+    editor_ctx_t *ctx = lua_get_editor_context(L);
     const char *url = luaL_checkstring(L, 1);
     const char *method = luaL_optstring(L, 2, "GET");
     const char *body = luaL_optstring(L, 3, NULL);
@@ -368,10 +370,11 @@ static int lua_loki_async_http(lua_State *L) {
     }
 
     if (req_id >= 0) {
-        editor_set_status_msg("HTTP request sent (async)...");
+        editor_set_status_msg(ctx, "HTTP request sent (async)...");
         lua_pushinteger(L, req_id);
         return 1;
     } else {
+        editor_set_status_msg(ctx, "Too many pending HTTP requests");
         lua_pushnil(L);
         return 1;
     }
@@ -1153,7 +1156,7 @@ void lua_repl_append_log(editor_ctx_t *ctx, const char *line) {
     if (!ctx || !line) return;
     char *copy = strdup(line);
     if (!copy) {
-        editor_set_status_msg("Lua REPL: out of memory");
+        editor_set_status_msg(ctx, "Lua REPL: out of memory");
         return;
     }
     lua_repl_append_log_owned(ctx, copy);
@@ -1171,7 +1174,7 @@ static void lua_repl_log_prefixed(editor_ctx_t *ctx, const char *prefix, const c
         size_t total = prefix_len + segment_len;
         char *entry = malloc(total + 1);
         if (!entry) {
-            editor_set_status_msg("Lua REPL: out of memory");
+            editor_set_status_msg(ctx, "Lua REPL: out of memory");
             return;
         }
         memcpy(entry, prefix, prefix_len);
@@ -1184,7 +1187,7 @@ static void lua_repl_log_prefixed(editor_ctx_t *ctx, const char *prefix, const c
             /* Preserve empty trailing line */
             char *blank = strdup(prefix);
             if (!blank) {
-                editor_set_status_msg("Lua REPL: out of memory");
+                editor_set_status_msg(ctx, "Lua REPL: out of memory");
                 return;
             }
             lua_repl_append_log_owned(ctx, blank);
@@ -1245,7 +1248,7 @@ static void lua_repl_push_history(editor_ctx_t *ctx, const char *cmd) {
 
     char *copy = strdup(cmd);
     if (!copy) {
-        editor_set_status_msg("Lua REPL: out of memory");
+        editor_set_status_msg(ctx, "Lua REPL: out of memory");
         return;
     }
     ctx->repl.history[ctx->repl.history_len++] = copy;
@@ -1487,7 +1490,7 @@ static int lua_repl_handle_builtin(editor_ctx_t *ctx, const char *cmd, size_t le
     if (lua_repl_iequals(cmd, len, "exit") || lua_repl_iequals(cmd, len, "quit")) {
         ctx->repl.active = 0;
         editor_update_repl_layout(ctx);
-        editor_set_status_msg("Lua REPL closed");
+        editor_set_status_msg(ctx, "Lua REPL closed");
         return 1;
     }
 
@@ -1505,7 +1508,7 @@ void lua_repl_handle_keypress(editor_ctx_t *ctx, int key) {
     case CTRL_C:
         repl->active = 0;
         editor_update_repl_layout(ctx);
-        editor_set_status_msg("Lua REPL closed");
+        editor_set_status_msg(ctx, "Lua REPL closed");
         return;
     case CTRL_U:
         lua_repl_clear_input(repl);

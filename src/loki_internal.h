@@ -130,8 +130,9 @@ typedef struct t_lua_repl {
 
 /* Editor context - one instance per editor viewport/buffer.
  * This structure will enable multiple independent editor contexts for future
- * split windows and multiple buffers implementation. */
-typedef struct editor_ctx {
+ * split windows and multiple buffers implementation.
+ * The typedef editor_ctx_t is declared in loki/core.h (public API). */
+struct editor_ctx {
     int cx,cy;  /* Cursor x and y position in characters */
     int rowoff;     /* Offset of row displayed. */
     int coloff;     /* Offset of column displayed. */
@@ -154,27 +155,11 @@ typedef struct editor_ctx {
     int sel_start_x, sel_start_y; /* Selection start position */
     int sel_end_x, sel_end_y;     /* Selection end position */
     t_hlcolor colors[9]; /* Syntax highlight colors: indexed by HL_* constants */
-} editor_ctx_t;
+};
 
 /* Legacy type name for compatibility during migration.
  * New code should use editor_ctx_t. */
 typedef editor_ctx_t loki_editor_instance;
-
-/* ======================= Global State ===================================== */
-
-/* Global editor state - the main editor instance.
- *
- * Most functions now accept explicit editor_ctx_t *ctx parameters for context
- * passing, enabling future support for split windows and multiple buffers.
- *
- * This global E is used by:
- * - main() in loki_editor.c as the primary editor instance
- * - editor_atexit() for cleanup
- * - editor_set_status_msg() for global status messages
- *
- * All other functions receive context via explicit parameter passing.
- */
-extern editor_ctx_t E;
 
 /* ======================= Screen Buffer =================================== */
 
@@ -196,7 +181,7 @@ void editor_ctx_init(editor_ctx_t *ctx);
 void editor_ctx_free(editor_ctx_t *ctx);
 
 /* Status message */
-void editor_set_status_msg(const char *fmt, ...);
+void editor_set_status_msg(editor_ctx_t *ctx, const char *fmt, ...);
 
 /* Character insertion (context-aware) */
 void editor_insert_char(editor_ctx_t *ctx, int c);

@@ -17,6 +17,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.4.3]
+
+### Changed
+
+- **Context Passing Migration (Phase 6)**: Complete removal of global E singleton - multi-window support now possible
+  - **Status Message Migration**:
+    - Updated `editor_set_status_msg(ctx, fmt, ...)` to accept context parameter (breaking API change)
+    - Updated ~35 call sites across loki_core.c (16), loki_lua.c (8), loki_editor.c (3)
+    - Added context retrieval in Lua C API functions (`lua_loki_status`, `lua_loki_async_http`)
+    - Fixed `loki_lua_status_reporter` to receive context via userdata parameter
+  - **Exit Cleanup Refactor**:
+    - Added static `editor_for_atexit` pointer set by `init_editor(ctx)`
+    - Updated `editor_atexit()` to use static pointer instead of global E
+    - Ensures proper cleanup without global dependency
+  - **Global E Elimination**:
+    - Moved `editor_ctx_t E` from global in loki_core.c to static in loki_editor.c
+    - Removed `extern editor_ctx_t E;` declaration from loki_internal.h
+    - Global E now completely eliminated - only one static instance in main()
+  - **Typedef Warning Fix**:
+    - Removed duplicate `typedef ... editor_ctx_t` from loki_internal.h
+    - Moved typedef to public API header (include/loki/core.h) with forward declaration
+    - Eliminated C11 typedef redefinition warning
+  - **Public API Changes**:
+    - `editor_set_status_msg(editor_ctx_t *ctx, const char *fmt, ...)` - breaking change in include/loki/core.h
+    - Status messages now per-context, enabling independent status bars per window
+  - **Results**:
+    - **Zero global E references remaining** - complete elimination of singleton pattern
+    - All functions use explicit context passing without exception
+    - 6 files modified: loki_core.c, loki_editor.c, loki_lua.c, include/loki/core.h, src/loki_internal.h
+    - All tests passing (2/2), clean compilation (only unused function warnings)
+    - Global E moved to static in loki_editor.c:64 (only accessible to main())
+  - **Architecture Milestone**:
+    - **Multiple independent editor instances now architecturally possible**
+    - No shared global state between editor contexts
+    - Each context has independent: status messages, cursor position, buffers, syntax highlighting, REPL state
+    - Foundation complete for implementing split windows, tabs, and multi-buffer editing
+    - Example future usage:
+      ```c
+      editor_ctx_t window1, window2, window3;
+      init_editor(&window1); init_editor(&window2); init_editor(&window3);
+      editor_set_status_msg(&window1, "Window 1");  // Independent status
+      editor_refresh_screen(&window2);              // Independent rendering
+      ```
 ## [0.4.2]
 
 ### Added
