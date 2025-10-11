@@ -215,6 +215,7 @@ int is_separator(int c, char *separators);
 /* Terminal and input */
 int enable_raw_mode(editor_ctx_t *ctx, int fd);
 void disable_raw_mode(editor_ctx_t *ctx, int fd);
+int editor_read_key(int fd);
 void handle_windows_resize(editor_ctx_t *ctx);
 void editor_process_keypress(editor_ctx_t *ctx, int fd);
 

@@ -92,6 +92,7 @@ add_library(libloki ${LOKI_LIBRARY_TYPE}
     src/loki_editor.c
     src/loki_languages.c
     src/loki_selection.c
+    src/loki_search.c
 )
 
 target_include_directories(libloki
