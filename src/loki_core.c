@@ -81,8 +81,6 @@ void editor_set_status_msg(editor_ctx_t *ctx, const char *fmt, ...) {
     ctx->statusmsg_time = time(NULL);
 }
 
-static void cleanup_dynamic_languages(void);
-
 /* ======================= Context Management =============================== */
 
 /* Initialize an editor context with default values.
@@ -273,10 +271,6 @@ void copy_selection_to_clipboard(editor_ctx_t *ctx) {
  */
 
 #include "loki_languages.h"
-
-/* Dynamic language registry for user-defined languages */
-static struct t_editor_syntax **HLDB_dynamic = NULL;
-static int HLDB_dynamic_count = 0;
 
 /* ======================= Low level terminal handling ====================== */
 
@@ -690,8 +684,10 @@ void editor_select_syntax_highlight(editor_ctx_t *ctx, char *filename) {
     }
 
     /* Also check dynamic language registry */
-    for (int j = 0; j < HLDB_dynamic_count; j++) {
-        struct t_editor_syntax *s = HLDB_dynamic[j];
+    int dynamic_count = get_dynamic_language_count();
+    for (int j = 0; j < dynamic_count; j++) {
+        struct t_editor_syntax *s = get_dynamic_language(j);
+        if (!s) continue;
         unsigned int i = 0;
         while(s->filematch[i]) {
             char *p;
@@ -705,63 +701,6 @@ void editor_select_syntax_highlight(editor_ctx_t *ctx, char *filename) {
             i++;
         }
     }
-}
-
-/* Free a single dynamically allocated language definition */
-void free_dynamic_language(struct t_editor_syntax *lang) {
-    if (!lang) return;
-
-    /* Free filematch array */
-    if (lang->filematch) {
-        for (int i = 0; lang->filematch[i]; i++) {
-            free(lang->filematch[i]);
-        }
-        free(lang->filematch);
-    }
-
-    /* Free keywords array */
-    if (lang->keywords) {
-        for (int i = 0; lang->keywords[i]; i++) {
-            free(lang->keywords[i]);
-        }
-        free(lang->keywords);
-    }
-
-    /* Free separators string */
-    if (lang->separators) {
-        free(lang->separators);
-    }
-
-    free(lang);
-}
-
-/* Free all dynamically allocated languages (called at exit) */
-static void cleanup_dynamic_languages(void) {
-    for (int i = 0; i < HLDB_dynamic_count; i++) {
-        free_dynamic_language(HLDB_dynamic[i]);
-    }
-    free(HLDB_dynamic);
-    HLDB_dynamic = NULL;
-    HLDB_dynamic_count = 0;
-}
-
-/* Add a new language definition dynamically
- * Returns 0 on success, -1 on error */
-int add_dynamic_language(struct t_editor_syntax *lang) {
-    if (!lang) return -1;
-
-    /* Grow the dynamic array */
-    struct t_editor_syntax **new_array = realloc(HLDB_dynamic,
-        sizeof(struct t_editor_syntax*) * (HLDB_dynamic_count + 1));
-    if (!new_array) {
-        return -1;  /* Allocation failed */
-    }
-
-    HLDB_dynamic = new_array;
-    HLDB_dynamic[HLDB_dynamic_count] = lang;
-    HLDB_dynamic_count++;
-
-    return 0;
 }
 
 /* ======================= Editor rows implementation ======================= */

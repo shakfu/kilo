@@ -33,4 +33,11 @@ unsigned int loki_get_builtin_language_count(void);
 void highlight_code_line(t_erow *row, char **keywords, char *scs, char *separators);
 void editor_update_syntax_markdown(editor_ctx_t *ctx, t_erow *row);
 
+/* Dynamic language registration */
+int add_dynamic_language(struct t_editor_syntax *lang);
+void free_dynamic_language(struct t_editor_syntax *lang);
+void cleanup_dynamic_languages(void);
+struct t_editor_syntax *get_dynamic_language(int index);
+int get_dynamic_language_count(void);
+
 #endif /* LOKI_LANGUAGES_H */

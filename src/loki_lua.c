@@ -29,6 +29,7 @@
 #include "loki/core.h"
 #include "loki/lua.h"
 #include "loki_internal.h"  /* Internal structures and functions */
+#include "loki_languages.h"  /* Language definitions and dynamic registration */
 
 /* ======================= Lua API bindings ================================ */
 

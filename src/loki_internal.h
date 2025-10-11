@@ -197,10 +197,6 @@ int start_async_http_request(const char *url, const char *method,
                              int num_headers, const char *lua_callback);
 void check_async_requests(editor_ctx_t *ctx, lua_State *L);
 
-/* Dynamic language registration */
-int add_dynamic_language(struct t_editor_syntax *lang);
-void free_dynamic_language(struct t_editor_syntax *lang);
-
 /* Lua REPL functions */
 void lua_repl_init(t_lua_repl *repl);
 void lua_repl_free(t_lua_repl *repl);

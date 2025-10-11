@@ -415,3 +415,80 @@ void editor_update_syntax_markdown(editor_ctx_t *ctx, t_erow *row) {
         i++;
     }
 }
+
+/* ======================= Dynamic Language Registration =================== */
+
+/* Dynamic language registry for user-defined languages */
+static struct t_editor_syntax **HLDB_dynamic = NULL;
+static int HLDB_dynamic_count = 0;
+
+/* Free a single dynamically allocated language definition */
+void free_dynamic_language(struct t_editor_syntax *lang) {
+    if (!lang) return;
+
+    /* Free filematch array */
+    if (lang->filematch) {
+        for (int i = 0; lang->filematch[i]; i++) {
+            free(lang->filematch[i]);
+        }
+        free(lang->filematch);
+    }
+
+    /* Free keywords array */
+    if (lang->keywords) {
+        for (int i = 0; lang->keywords[i]; i++) {
+            free(lang->keywords[i]);
+        }
+        free(lang->keywords);
+    }
+
+    /* Free separators string */
+    if (lang->separators) {
+        free(lang->separators);
+    }
+
+    free(lang);
+}
+
+/* Free all dynamically allocated languages (called at exit) */
+void cleanup_dynamic_languages(void) {
+    for (int i = 0; i < HLDB_dynamic_count; i++) {
+        free_dynamic_language(HLDB_dynamic[i]);
+    }
+    free(HLDB_dynamic);
+    HLDB_dynamic = NULL;
+    HLDB_dynamic_count = 0;
+}
+
+/* Add a new language definition dynamically
+ * Returns 0 on success, -1 on error */
+int add_dynamic_language(struct t_editor_syntax *lang) {
+    if (!lang) return -1;
+
+    /* Grow the dynamic array */
+    struct t_editor_syntax **new_array = realloc(HLDB_dynamic,
+        sizeof(struct t_editor_syntax*) * (HLDB_dynamic_count + 1));
+    if (!new_array) {
+        return -1;  /* Allocation failed */
+    }
+
+    HLDB_dynamic = new_array;
+    HLDB_dynamic[HLDB_dynamic_count] = lang;
+    HLDB_dynamic_count++;
+
+    return 0;
+}
+
+/* Get dynamic language by index (for iteration)
+ * Returns NULL if index out of bounds */
+struct t_editor_syntax *get_dynamic_language(int index) {
+    if (index < 0 || index >= HLDB_dynamic_count) {
+        return NULL;
+    }
+    return HLDB_dynamic[index];
+}
+
+/* Get count of dynamic languages */
+int get_dynamic_language_count(void) {
+    return HLDB_dynamic_count;
+}
