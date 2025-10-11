@@ -76,9 +76,9 @@ see LICENSE.
 struct t_editor_syntax {
     char **filematch;
     char **keywords;
-    char singleline_comment_start[2];
-    char multiline_comment_start[3];
-    char multiline_comment_end[3];
+    char singleline_comment_start[4];   /* Increased to support longer comment syntax */
+    char multiline_comment_start[6];    /* Increased for Lua's --[[ */
+    char multiline_comment_end[6];      /* Increased for potential longer delimiters */
     char *separators;
     int flags;
     int type;  /* HL_TYPE_* */
@@ -226,6 +226,7 @@ enum KEY_ACTION{
 
 void editor_set_status_msg(const char *fmt, ...);
 static void exec_lua_command(int fd);
+static void cleanup_dynamic_languages(void);
 
 /* Check if position is within selection */
 int is_selected(int row, int col) {
@@ -446,6 +447,15 @@ char *Cython_HL_keywords[] = {
 	"bytes|","bytearray|","object|","type|",NULL
 };
 
+/* Python extensions */
+char *Python_HL_extensions[] = {".py",".pyw",NULL};
+
+/* Lua extensions */
+char *Lua_HL_extensions[] = {".lua",NULL};
+
+/* Cython extensions */
+char *Cython_HL_extensions[] = {".pyx",".pxd",".pxi",NULL};
+
 /* Markdown extensions */
 char *MD_HL_extensions[] = {".md",".markdown",NULL};
 
@@ -462,6 +472,33 @@ struct t_editor_syntax HLDB[] = {
         HL_TYPE_C
     },
     {
+        /* Python */
+        Python_HL_extensions,
+        Python_HL_keywords,
+        "#","","",  /* Python uses # for comments, no block comments */
+        ",.()+-/*=~%[]{}:",  /* Separators */
+        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
+        HL_TYPE_C
+    },
+    {
+        /* Lua */
+        Lua_HL_extensions,
+        Lua_HL_keywords,
+        "--","--[[","]]",  /* Lua comments */
+        ",.()+-/*=~%[]{}:",  /* Separators */
+        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
+        HL_TYPE_C
+    },
+    {
+        /* Cython */
+        Cython_HL_extensions,
+        Cython_HL_keywords,
+        "#","","",  /* Same as Python */
+        ",.()+-/*=~%[]{}:",  /* Separators */
+        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
+        HL_TYPE_C
+    },
+    {
         /* Markdown */
         MD_HL_extensions,
         NULL,  /* No keywords */
@@ -473,6 +510,10 @@ struct t_editor_syntax HLDB[] = {
 };
 
 #define HLDB_ENTRIES (sizeof(HLDB)/sizeof(HLDB[0]))
+
+/* Dynamic language registry for user-defined languages */
+static struct t_editor_syntax **HLDB_dynamic = NULL;
+static int HLDB_dynamic_count = 0;
 
 /* ======================= Low level terminal handling ====================== */
 
@@ -495,6 +536,7 @@ void editor_atexit(void) {
         E.L = NULL;
     }
     cleanup_curl();
+    cleanup_dynamic_languages();
 }
 
 /* Raw mode: 1960 magic shit. */
@@ -1281,6 +1323,80 @@ void editor_select_syntax_highlight(char *filename) {
             i++;
         }
     }
+
+    /* Also check dynamic language registry */
+    for (int j = 0; j < HLDB_dynamic_count; j++) {
+        struct t_editor_syntax *s = HLDB_dynamic[j];
+        unsigned int i = 0;
+        while(s->filematch[i]) {
+            char *p;
+            int patlen = strlen(s->filematch[i]);
+            if ((p = strstr(filename,s->filematch[i])) != NULL) {
+                if (s->filematch[i][0] != '.' || p[patlen] == '\0') {
+                    E.syntax = s;
+                    return;
+                }
+            }
+            i++;
+        }
+    }
+}
+
+/* Free a single dynamically allocated language definition */
+static void free_dynamic_language(struct t_editor_syntax *lang) {
+    if (!lang) return;
+
+    /* Free filematch array */
+    if (lang->filematch) {
+        for (int i = 0; lang->filematch[i]; i++) {
+            free(lang->filematch[i]);
+        }
+        free(lang->filematch);
+    }
+
+    /* Free keywords array */
+    if (lang->keywords) {
+        for (int i = 0; lang->keywords[i]; i++) {
+            free(lang->keywords[i]);
+        }
+        free(lang->keywords);
+    }
+
+    /* Free separators string */
+    if (lang->separators) {
+        free(lang->separators);
+    }
+
+    free(lang);
+}
+
+/* Free all dynamically allocated languages (called at exit) */
+static void cleanup_dynamic_languages(void) {
+    for (int i = 0; i < HLDB_dynamic_count; i++) {
+        free_dynamic_language(HLDB_dynamic[i]);
+    }
+    free(HLDB_dynamic);
+    HLDB_dynamic = NULL;
+    HLDB_dynamic_count = 0;
+}
+
+/* Add a new language definition dynamically
+ * Returns 0 on success, -1 on error */
+static int add_dynamic_language(struct t_editor_syntax *lang) {
+    if (!lang) return -1;
+
+    /* Grow the dynamic array */
+    struct t_editor_syntax **new_array = realloc(HLDB_dynamic,
+        sizeof(struct t_editor_syntax*) * (HLDB_dynamic_count + 1));
+    if (!new_array) {
+        return -1;  /* Allocation failed */
+    }
+
+    HLDB_dynamic = new_array;
+    HLDB_dynamic[HLDB_dynamic_count] = lang;
+    HLDB_dynamic_count++;
+
+    return 0;
 }
 
 /* ======================= Editor rows implementation ======================= */
@@ -2678,6 +2794,233 @@ static int lua_loki_repl_register(lua_State *L) {
     return 0;
 }
 
+/* Lua API: loki.register_language(config) - Register a new language for syntax highlighting
+ * config table must contain:
+ *   - name (string): Language name
+ *   - extensions (table): File extensions (e.g., {".py", ".pyw"})
+ * Optional fields:
+ *   - keywords (table): Language keywords
+ *   - types (table): Type keywords
+ *   - line_comment (string): Single-line comment delimiter
+ *   - block_comment_start (string): Multi-line comment start
+ *   - block_comment_end (string): Multi-line comment end
+ *   - separators (string): Separator characters
+ *   - highlight_strings (boolean): Enable string highlighting (default: true)
+ *   - highlight_numbers (boolean): Enable number highlighting (default: true)
+ */
+static int lua_loki_register_language(lua_State *L) {
+    /* Validate argument is a table */
+    if (!lua_istable(L, 1)) {
+        lua_pushnil(L);
+        lua_pushstring(L, "argument must be a table");
+        return 2;
+    }
+
+    /* Allocate new language structure */
+    struct t_editor_syntax *lang = calloc(1, sizeof(struct t_editor_syntax));
+    if (!lang) {
+        lua_pushnil(L);
+        lua_pushstring(L, "memory allocation failed");
+        return 2;
+    }
+
+    /* Extract name (required) */
+    lua_getfield(L, 1, "name");
+    if (!lua_isstring(L, -1)) {
+        free(lang);
+        lua_pushnil(L);
+        lua_pushstring(L, "'name' field is required and must be a string");
+        return 2;
+    }
+    /* Note: name is not stored in the struct, just used for error messages */
+    lua_pop(L, 1);
+
+    /* Extract extensions (required) */
+    lua_getfield(L, 1, "extensions");
+    if (!lua_istable(L, -1)) {
+        free(lang);
+        lua_pushnil(L);
+        lua_pushstring(L, "'extensions' field is required and must be a table");
+        return 2;
+    }
+
+    /* Count extensions */
+    int ext_count = (int)lua_rawlen(L, -1);
+    if (ext_count == 0) {
+        lua_pop(L, 1);
+        free(lang);
+        lua_pushnil(L);
+        lua_pushstring(L, "'extensions' table cannot be empty");
+        return 2;
+    }
+
+    /* Allocate extension array (NULL-terminated) */
+    lang->filematch = calloc(ext_count + 1, sizeof(char*));
+    if (!lang->filematch) {
+        lua_pop(L, 1);
+        free(lang);
+        lua_pushnil(L);
+        lua_pushstring(L, "memory allocation failed for extensions");
+        return 2;
+    }
+
+    /* Copy extensions */
+    for (int i = 0; i < ext_count; i++) {
+        lua_rawgeti(L, -1, i + 1);
+        if (!lua_isstring(L, -1)) {
+            lua_pop(L, 2);
+            free_dynamic_language(lang);
+            lua_pushnil(L);
+            lua_pushstring(L, "extension must be a string");
+            return 2;
+        }
+        const char *ext = lua_tostring(L, -1);
+        if (ext[0] != '.') {
+            lua_pop(L, 2);
+            free_dynamic_language(lang);
+            lua_pushnil(L);
+            lua_pushstring(L, "extension must start with '.'");
+            return 2;
+        }
+        lang->filematch[i] = strdup(ext);
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1);  /* pop extensions table */
+
+    /* Extract keywords (optional) */
+    lua_getfield(L, 1, "keywords");
+    lua_getfield(L, 1, "types");
+    int kw_count = lua_istable(L, -2) ? (int)lua_rawlen(L, -2) : 0;
+    int type_count = lua_istable(L, -1) ? (int)lua_rawlen(L, -1) : 0;
+    int total_kw = kw_count + type_count;
+
+    if (total_kw > 0) {
+        lang->keywords = calloc(total_kw + 1, sizeof(char*));
+        if (!lang->keywords) {
+            lua_pop(L, 2);
+            free_dynamic_language(lang);
+            lua_pushnil(L);
+            lua_pushstring(L, "memory allocation failed for keywords");
+            return 2;
+        }
+
+        /* Copy regular keywords */
+        int idx = 0;
+        if (kw_count > 0) {
+            for (int i = 0; i < kw_count; i++) {
+                lua_rawgeti(L, -2, i + 1);
+                if (lua_isstring(L, -1)) {
+                    const char *kw = lua_tostring(L, -1);
+                    lang->keywords[idx++] = strdup(kw);
+                }
+                lua_pop(L, 1);
+            }
+        }
+
+        /* Copy type keywords (append "|" to distinguish them) */
+        if (type_count > 0) {
+            for (int i = 0; i < type_count; i++) {
+                lua_rawgeti(L, -1, i + 1);
+                if (lua_isstring(L, -1)) {
+                    const char *type = lua_tostring(L, -1);
+                    size_t len = strlen(type);
+                    char *type_with_pipe = malloc(len + 2);
+                    if (type_with_pipe) {
+                        strcpy(type_with_pipe, type);
+                        type_with_pipe[len] = '|';
+                        type_with_pipe[len + 1] = '\0';
+                        lang->keywords[idx++] = type_with_pipe;
+                    }
+                }
+                lua_pop(L, 1);
+            }
+        }
+    }
+    lua_pop(L, 2);  /* pop types and keywords tables */
+
+    /* Extract comment delimiters (optional) */
+    lua_getfield(L, 1, "line_comment");
+    if (lua_isstring(L, -1)) {
+        const char *lc = lua_tostring(L, -1);
+        size_t len = strlen(lc);
+        if (len >= sizeof(lang->singleline_comment_start)) {
+            lua_pop(L, 1);
+            free_dynamic_language(lang);
+            lua_pushnil(L);
+            lua_pushstring(L, "line_comment too long (max 3 chars)");
+            return 2;
+        }
+        strncpy(lang->singleline_comment_start, lc, sizeof(lang->singleline_comment_start) - 1);
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "block_comment_start");
+    if (lua_isstring(L, -1)) {
+        const char *bcs = lua_tostring(L, -1);
+        size_t len = strlen(bcs);
+        if (len >= sizeof(lang->multiline_comment_start)) {
+            lua_pop(L, 1);
+            free_dynamic_language(lang);
+            lua_pushnil(L);
+            lua_pushstring(L, "block_comment_start too long (max 5 chars)");
+            return 2;
+        }
+        strncpy(lang->multiline_comment_start, bcs, sizeof(lang->multiline_comment_start) - 1);
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "block_comment_end");
+    if (lua_isstring(L, -1)) {
+        const char *bce = lua_tostring(L, -1);
+        size_t len = strlen(bce);
+        if (len >= sizeof(lang->multiline_comment_end)) {
+            lua_pop(L, 1);
+            free_dynamic_language(lang);
+            lua_pushnil(L);
+            lua_pushstring(L, "block_comment_end too long (max 5 chars)");
+            return 2;
+        }
+        strncpy(lang->multiline_comment_end, bce, sizeof(lang->multiline_comment_end) - 1);
+    }
+    lua_pop(L, 1);
+
+    /* Extract separators (optional) */
+    lua_getfield(L, 1, "separators");
+    if (lua_isstring(L, -1)) {
+        const char *sep = lua_tostring(L, -1);
+        lang->separators = strdup(sep);
+    } else {
+        lang->separators = strdup(",.()+-/*=~%<>[];");  /* Default separators */
+    }
+    lua_pop(L, 1);
+
+    /* Extract flags (optional) */
+    lua_getfield(L, 1, "highlight_strings");
+    int hl_strings = lua_isboolean(L, -1) ? lua_toboolean(L, -1) : 1;  /* Default: true */
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "highlight_numbers");
+    int hl_numbers = lua_isboolean(L, -1) ? lua_toboolean(L, -1) : 1;  /* Default: true */
+    lua_pop(L, 1);
+
+    lang->flags = 0;
+    if (hl_strings) lang->flags |= HL_HIGHLIGHT_STRINGS;
+    if (hl_numbers) lang->flags |= HL_HIGHLIGHT_NUMBERS;
+
+    lang->type = HL_TYPE_C;  /* Use C-style highlighting */
+
+    /* Add to dynamic registry */
+    if (add_dynamic_language(lang) != 0) {
+        free_dynamic_language(lang);
+        lua_pushnil(L);
+        lua_pushstring(L, "failed to register language");
+        return 2;
+    }
+
+    lua_pushboolean(L, 1);  /* Success */
+    return 1;
+}
+
 static int lua_loki_status_stdout(lua_State *L) {
     const char *msg = luaL_checkstring(L, 1);
     if (msg && *msg) {
@@ -2696,6 +3039,9 @@ static void loki_lua_bind_minimal(lua_State *L) {
 
     lua_pushcfunction(L, lua_loki_status_stdout);
     lua_setfield(L, -2, "status");
+
+    lua_pushcfunction(L, lua_loki_register_language);
+    lua_setfield(L, -2, "register_language");
 
     lua_newtable(L); /* storage for registered help */
     lua_setfield(L, -2, "__repl_help");
@@ -2737,6 +3083,9 @@ void loki_lua_bind_editor(lua_State *L) {
 
     lua_pushcfunction(L, lua_loki_async_http);
     lua_setfield(L, -2, "async_http");
+
+    lua_pushcfunction(L, lua_loki_register_language);
+    lua_setfield(L, -2, "register_language");
 
     lua_newtable(L); /* storage for registered help */
     lua_setfield(L, -2, "__repl_help");

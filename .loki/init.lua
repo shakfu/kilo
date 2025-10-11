@@ -15,8 +15,37 @@
 -- Detect context: "editor" or "repl"
 MODE = loki.get_lines and "editor" or "repl"
 
+-- ===========================================================================
+-- Auto-load language definitions from .loki/languages/
+-- ===========================================================================
+local lang_dir = ".loki/languages"
+local loaded_count = 0
+
+-- Try to load all language definition files
+local handle = io.popen("ls " .. lang_dir .. "/*.lua 2>/dev/null")
+if handle then
+    for filepath in handle:lines() do
+        local success, result = pcall(dofile, filepath)
+        if success and result then
+            loaded_count = loaded_count + 1
+        elseif not success then
+            -- Report error but continue loading other languages
+            if MODE == "editor" then
+                loki.status("Warning: Failed to load " .. filepath)
+            else
+                print("Warning: Failed to load " .. filepath .. ": " .. tostring(result))
+            end
+        end
+    end
+    handle:close()
+end
+
 -- Set a welcome message
-loki.status("Lua scripting enabled! Press Ctrl-L to run commands.")
+if loaded_count > 0 then
+    loki.status(string.format("Lua scripting enabled! Loaded %d language(s).", loaded_count))
+else
+    loki.status("Lua scripting enabled! Press Ctrl-L to run commands.")
+end
 
 -- ===========================================================================
 -- Editor utility functions namespace (only available in editor, not REPL)
