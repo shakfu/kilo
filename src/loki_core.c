@@ -505,7 +505,7 @@ void disable_raw_mode(int fd) {
 void editor_atexit(void) {
     disable_raw_mode(STDIN_FILENO);
     cleanup_dynamic_languages();
-    editor_cleanup_resources(); /* Clean up Lua, REPL, and CURL (in loki_editor.c) */
+    editor_cleanup_resources(&E); /* Clean up Lua, REPL, and CURL (in loki_editor.c) */
 }
 
 /* Raw mode: 1960 magic shit. */

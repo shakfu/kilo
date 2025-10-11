@@ -204,7 +204,7 @@ void editor_refresh_screen(editor_ctx_t *ctx);
 int start_async_http_request(const char *url, const char *method,
                              const char *body, const char **headers,
                              int num_headers, const char *lua_callback);
-void check_async_requests(lua_State *L);
+void check_async_requests(editor_ctx_t *ctx, lua_State *L);
 
 /* Dynamic language registration */
 int add_dynamic_language(struct t_editor_syntax *lang);
@@ -219,7 +219,7 @@ void lua_repl_append_log(editor_ctx_t *ctx, const char *line);
 void editor_update_repl_layout(editor_ctx_t *ctx);
 
 /* Editor cleanup */
-void editor_cleanup_resources(void);
+void editor_cleanup_resources(editor_ctx_t *ctx);
 
 /* Syntax highlighting helper */
 int hl_name_to_code(const char *name);

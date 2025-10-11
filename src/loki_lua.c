@@ -1013,8 +1013,8 @@ void loki_lua_install_namespaces(lua_State *L) {
 }
 
 /* Public API: Poll async HTTP requests (for REPL and external users) */
-void loki_poll_async_http(lua_State *L) {
-    check_async_requests(L);
+void loki_poll_async_http(editor_ctx_t *ctx, lua_State *L) {
+    check_async_requests(ctx, L);
 }
 
 const char *loki_lua_runtime(void) {

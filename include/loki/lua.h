@@ -28,7 +28,7 @@ void loki_lua_bind_editor(lua_State *L);
 void loki_lua_bind_http(lua_State *L);
 int loki_lua_load_config(lua_State *L, const struct loki_lua_opts *opts);
 void loki_lua_install_namespaces(lua_State *L);
-void loki_poll_async_http(lua_State *L);
+void loki_poll_async_http(editor_ctx_t *ctx, lua_State *L);
 
 #ifdef __cplusplus
 }

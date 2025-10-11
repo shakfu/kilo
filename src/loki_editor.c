@@ -241,7 +241,7 @@ int start_async_http_request(const char *url, const char *method,
 }
 
 /* Check and process completed async HTTP requests */
-void check_async_requests(lua_State *L) {
+void check_async_requests(editor_ctx_t *ctx, lua_State *L) {
     for (int i = 0; i < MAX_ASYNC_REQUESTS; i++) {
         async_http_request *req = pending_requests[i];
         if (!req) continue;
@@ -275,7 +275,7 @@ void check_async_requests(lua_State *L) {
             curl_easy_getinfo(req->easy_handle, CURLINFO_RESPONSE_CODE, &response_code);
 
             /* Debug output for non-interactive mode */
-            if (!E.rawmode) {
+            if (!ctx || !ctx->rawmode) {
                 fprintf(stderr, "HTTP request completed: status=%ld, response_size=%zu\n",
                         response_code, req->response.size);
 
@@ -300,7 +300,7 @@ void check_async_requests(lua_State *L) {
                 char errmsg[256];
                 snprintf(errmsg, sizeof(errmsg), "HTTP error %ld", response_code);
                 editor_set_status_msg("%s", errmsg);
-                if (!E.rawmode) {
+                if (!ctx || !ctx->rawmode) {
                     fprintf(stderr, "%s\n", errmsg);
                 }
             }
@@ -340,7 +340,7 @@ void check_async_requests(lua_State *L) {
                         const char *err = lua_tostring(L, -1);
                         editor_set_status_msg("Lua callback error: %s", err);
                         /* Also print to stderr for non-interactive mode */
-                        if (!E.rawmode) {
+                        if (!ctx || !ctx->rawmode) {
                             fprintf(stderr, "Lua callback error: %s\n", err);
                         }
                         lua_pop(L, 1);
@@ -393,21 +393,21 @@ void editor_update_repl_layout(editor_ctx_t *ctx) {
 }
 
 /* Toggle the Lua REPL focus */
-static void exec_lua_command(int fd) {
+static void exec_lua_command(editor_ctx_t *ctx, int fd) {
     (void)fd;
-    if (!E.L) {
+    if (!ctx || !ctx->L) {
         editor_set_status_msg("Lua not available");
         return;
     }
-    int was_active = E.repl.active;
-    E.repl.active = !E.repl.active;
-    editor_update_repl_layout(&E);
-    if (E.repl.active) {
-        E.repl.history_index = -1;
+    int was_active = ctx->repl.active;
+    ctx->repl.active = !ctx->repl.active;
+    editor_update_repl_layout(ctx);
+    if (ctx->repl.active) {
+        ctx->repl.history_index = -1;
         editor_set_status_msg(
             "Lua REPL: Enter runs, ESC exits, Up/Down history, type 'help'");
-        if (E.repl.log_len == 0) {
-            lua_repl_append_log(&E, "Type 'help' for built-in commands");
+        if (ctx->repl.log_len == 0) {
+            lua_repl_append_log(ctx, "Type 'help' for built-in commands");
         }
     } else {
         if (was_active) {
@@ -462,53 +462,54 @@ static int run_ai_command(char *filename, const char *command) {
 }
 
 /* Apply Lua-based highlighting spans to a row */
-static int lua_apply_span_table(t_erow *row, int table_index) {
-    if (!E.L) return 0;
-    if (!lua_istable(E.L, table_index)) return 0;
+static int lua_apply_span_table(editor_ctx_t *ctx, t_erow *row, int table_index) {
+    if (!ctx || !ctx->L) return 0;
+    lua_State *L = ctx->L;
+    if (!lua_istable(L, table_index)) return 0;
 
     int applied = 0;
-    size_t entries = lua_rawlen(E.L, table_index);
+    size_t entries = lua_rawlen(L, table_index);
 
     for (size_t i = 1; i <= entries; i++) {
-        lua_rawgeti(E.L, table_index, (lua_Integer)i);
-        if (lua_type(E.L, -1) == LUA_TTABLE) {
+        lua_rawgeti(L, table_index, (lua_Integer)i);
+        if (lua_type(L, -1) == LUA_TTABLE) {
             int start = 0;
             int stop = 0;
             int length = 0;
             int style = -1;
 
-            lua_getfield(E.L, -1, "start");
-            if (lua_isnumber(E.L, -1)) start = (int)lua_tointeger(E.L, -1);
-            lua_pop(E.L, 1);
+            lua_getfield(L, -1, "start");
+            if (lua_isnumber(L, -1)) start = (int)lua_tointeger(L, -1);
+            lua_pop(L, 1);
 
-            lua_getfield(E.L, -1, "stop");
-            if (lua_isnumber(E.L, -1)) stop = (int)lua_tointeger(E.L, -1);
-            lua_pop(E.L, 1);
+            lua_getfield(L, -1, "stop");
+            if (lua_isnumber(L, -1)) stop = (int)lua_tointeger(L, -1);
+            lua_pop(L, 1);
 
-            lua_getfield(E.L, -1, "end");
-            if (lua_isnumber(E.L, -1)) stop = (int)lua_tointeger(E.L, -1);
-            lua_pop(E.L, 1);
+            lua_getfield(L, -1, "end");
+            if (lua_isnumber(L, -1)) stop = (int)lua_tointeger(L, -1);
+            lua_pop(L, 1);
 
-            lua_getfield(E.L, -1, "length");
-            if (lua_isnumber(E.L, -1)) length = (int)lua_tointeger(E.L, -1);
-            lua_pop(E.L, 1);
+            lua_getfield(L, -1, "length");
+            if (lua_isnumber(L, -1)) length = (int)lua_tointeger(L, -1);
+            lua_pop(L, 1);
 
-            lua_getfield(E.L, -1, "style");
-            if (lua_isstring(E.L, -1)) {
-                style = hl_name_to_code(lua_tostring(E.L, -1));
-            } else if (lua_isnumber(E.L, -1)) {
-                style = (int)lua_tointeger(E.L, -1);
+            lua_getfield(L, -1, "style");
+            if (lua_isstring(L, -1)) {
+                style = hl_name_to_code(lua_tostring(L, -1));
+            } else if (lua_isnumber(L, -1)) {
+                style = (int)lua_tointeger(L, -1);
             }
-            lua_pop(E.L, 1);
+            lua_pop(L, 1);
 
             if (style < 0) {
-                lua_getfield(E.L, -1, "type");
-                if (lua_isstring(E.L, -1)) {
-                    style = hl_name_to_code(lua_tostring(E.L, -1));
-                } else if (lua_isnumber(E.L, -1)) {
-                    style = (int)lua_tointeger(E.L, -1);
+                lua_getfield(L, -1, "type");
+                if (lua_isstring(L, -1)) {
+                    style = hl_name_to_code(lua_tostring(L, -1));
+                } else if (lua_isnumber(L, -1)) {
+                    style = (int)lua_tointeger(L, -1);
                 }
-                lua_pop(E.L, 1);
+                lua_pop(L, 1);
             }
 
             if (start <= 0) start = 1;
@@ -531,80 +532,81 @@ static int lua_apply_span_table(t_erow *row, int table_index) {
                 applied = 1;
             }
         }
-        lua_pop(E.L, 1);
+        lua_pop(L, 1);
     }
 
     return applied;
 }
 
 /* Apply Lua custom highlighting to a row */
-static void lua_apply_highlight_row(t_erow *row, int default_ran) {
-    if (!E.L || row == NULL || row->render == NULL) return;
-    int top = lua_gettop(E.L);
+static void lua_apply_highlight_row(editor_ctx_t *ctx, t_erow *row, int default_ran) {
+    if (!ctx || !ctx->L || row == NULL || row->render == NULL) return;
+    lua_State *L = ctx->L;
+    int top = lua_gettop(L);
 
-    lua_getglobal(E.L, "loki");
-    if (!lua_istable(E.L, -1)) {
-        lua_settop(E.L, top);
+    lua_getglobal(L, "loki");
+    if (!lua_istable(L, -1)) {
+        lua_settop(L, top);
         return;
     }
 
-    lua_getfield(E.L, -1, "highlight_row");
-    if (!lua_isfunction(E.L, -1)) {
-        lua_settop(E.L, top);
+    lua_getfield(L, -1, "highlight_row");
+    if (!lua_isfunction(L, -1)) {
+        lua_settop(L, top);
         return;
     }
 
-    lua_pushinteger(E.L, row->idx);
-    lua_pushlstring(E.L, row->chars ? row->chars : "", (size_t)row->size);
-    lua_pushlstring(E.L, row->render ? row->render : "", (size_t)row->rsize);
-    if (E.syntax) {
-        lua_pushinteger(E.L, E.syntax->type);
+    lua_pushinteger(L, row->idx);
+    lua_pushlstring(L, row->chars ? row->chars : "", (size_t)row->size);
+    lua_pushlstring(L, row->render ? row->render : "", (size_t)row->rsize);
+    if (ctx->syntax) {
+        lua_pushinteger(L, ctx->syntax->type);
     } else {
-        lua_pushnil(E.L);
+        lua_pushnil(L);
     }
-    lua_pushboolean(E.L, default_ran);
+    lua_pushboolean(L, default_ran);
 
-    if (lua_pcall(E.L, 5, 1, 0) != LUA_OK) {
-        const char *err = lua_tostring(E.L, -1);
+    if (lua_pcall(L, 5, 1, 0) != LUA_OK) {
+        const char *err = lua_tostring(L, -1);
         editor_set_status_msg("Lua highlight error: %s", err ? err : "unknown");
-        lua_settop(E.L, top);
+        lua_settop(L, top);
         return;
     }
 
-    if (!lua_istable(E.L, -1)) {
-        lua_settop(E.L, top);
+    if (!lua_istable(L, -1)) {
+        lua_settop(L, top);
         return;
     }
 
-    int table_index = lua_gettop(E.L);
+    int table_index = lua_gettop(L);
     int replace = 0;
 
-    lua_getfield(E.L, table_index, "replace");
-    if (lua_isboolean(E.L, -1)) replace = lua_toboolean(E.L, -1);
-    lua_pop(E.L, 1);
+    lua_getfield(L, table_index, "replace");
+    if (lua_isboolean(L, -1)) replace = lua_toboolean(L, -1);
+    lua_pop(L, 1);
 
     int spans_index = table_index;
     int has_spans_field = 0;
 
-    lua_getfield(E.L, table_index, "spans");
-    if (lua_istable(E.L, -1)) {
-        spans_index = lua_gettop(E.L);
+    lua_getfield(L, table_index, "spans");
+    if (lua_istable(L, -1)) {
+        spans_index = lua_gettop(L);
         has_spans_field = 1;
     } else {
-        lua_pop(E.L, 1);
+        lua_pop(L, 1);
     }
 
     if (replace) {
         memset(row->hl, HL_NORMAL, row->rsize);
     }
 
-    lua_apply_span_table(row, spans_index);
+    lua_apply_span_table(ctx, row, spans_index);
 
     if (has_spans_field) {
-        lua_pop(E.L, 1);
+        lua_pop(L, 1);
     }
 
-    lua_settop(E.L, top);
+    lua_settop(L, top);
 }
 
 /* ======================== Main Editor Function =========================== */
@@ -718,7 +720,7 @@ int loki_editor_main(int argc, char **argv) {
 
         /* Process any pending async HTTP requests */
         if (E.L) {
-            loki_poll_async_http(E.L);
+            loki_poll_async_http(&E, E.L);
         }
 
         editor_refresh_screen(&E);
@@ -729,14 +731,16 @@ int loki_editor_main(int argc, char **argv) {
 }
 
 /* Clean up editor resources (called from editor_atexit in loki_core.c) */
-void editor_cleanup_resources(void) {
+void editor_cleanup_resources(editor_ctx_t *ctx) {
+    if (!ctx) return;
+
     /* Clean up Lua REPL */
-    lua_repl_free(&E.repl);
+    lua_repl_free(&ctx->repl);
 
     /* Clean up Lua state */
-    if (E.L) {
-        lua_close(E.L);
-        E.L = NULL;
+    if (ctx->L) {
+        lua_close(ctx->L);
+        ctx->L = NULL;
     }
 
     /* Clean up CURL */
