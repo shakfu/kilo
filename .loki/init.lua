@@ -48,6 +48,26 @@ else
 end
 
 -- ===========================================================================
+-- Load custom color theme (optional)
+-- ===========================================================================
+-- Uncomment one of these to use a pre-made theme:
+-- dofile(".loki/themes/dracula.lua")
+-- dofile(".loki/themes/monokai.lua")
+-- dofile(".loki/themes/nord.lua")
+-- dofile(".loki/themes/github-light.lua")
+
+-- Or define your own custom colors:
+-- loki.set_theme({
+--     normal = {r=200, g=200, b=200},
+--     comment = {r=100, g=150, b=100},
+--     keyword1 = {r=220, g=100, b=220},
+--     keyword2 = {r=100, g=220, b=220},
+--     string = {r=220, g=220, b=100},
+--     number = {r=200, g=100, b=200},
+--     match = {r=100, g=150, b=220}
+-- })
+
+-- ===========================================================================
 -- Editor utility functions namespace (only available in editor, not REPL)
 -- ===========================================================================
 editor = editor or {}

@@ -143,6 +143,7 @@ struct t_editor_config {
     int sel_start_x, sel_start_y; /* Selection start position */
     int sel_end_x, sel_end_y;     /* Selection end position */
     t_lua_repl repl; /* Embedded Lua REPL state */
+    t_hlcolor colors[9]; /* Syntax highlight colors: indexed by HL_* constants */
 };
 
 /* Global editor state. Note: This makes the editor non-reentrant and
@@ -1291,18 +1292,14 @@ void editor_update_syntax_markdown(t_erow *row) {
     }
 }
 
-/* Maps syntax highlight token types to terminal colors. */
-int editor_syntax_to_color(int hl) {
-    switch(hl) {
-    case HL_COMMENT:
-    case HL_MLCOMMENT:  return 90;  /* gray (bright black) */
-    case HL_KEYWORD1:   return 95;  /* bright magenta (pink) */
-    case HL_KEYWORD2:   return 96;  /* bright cyan (classes/types) */
-    case HL_STRING:     return 93;  /* bright yellow */
-    case HL_NUMBER:     return 35;  /* magenta (purple-ish) */
-    case HL_MATCH:      return 34;  /* blue (keep as-is) */
-    default:            return 37;  /* white */
-    }
+/* Format RGB color escape sequence for syntax highlighting.
+ * Uses true color (24-bit) escape codes: ESC[38;2;R;G;Bm
+ * Returns the length of the formatted string. */
+int editor_format_color(int hl, char *buf, size_t bufsize) {
+    if (hl < 0 || hl >= 9) hl = 0;  /* Default to HL_NORMAL */
+    t_hlcolor *color = &E.colors[hl];
+    return snprintf(buf, bufsize, "\x1b[38;2;%d;%d;%dm",
+                    color->r, color->g, color->b);
 }
 
 /* Select the syntax highlight scheme depending on the filename,
@@ -1863,8 +1860,8 @@ void editor_refresh_screen(void) {
                     ab_append(&ab,&sym,1);
                     ab_append(&ab,"\x1b[0m",4);
                     if (current_color != -1) {
-                        char buf[16];
-                        int clen = snprintf(buf,sizeof(buf),"\x1b[%dm",current_color);
+                        char buf[32];
+                        int clen = editor_format_color(current_color, buf, sizeof(buf));
                         ab_append(&ab,buf,clen);
                     }
                 } else if (hl[j] == HL_NORMAL) {
@@ -1877,10 +1874,10 @@ void editor_refresh_screen(void) {
                         ab_append(&ab,"\x1b[0m",4); /* Reset */
                     }
                 } else {
-                    int color = editor_syntax_to_color(hl[j]);
+                    int color = hl[j];
                     if (color != current_color) {
-                        char buf[16];
-                        int clen = snprintf(buf,sizeof(buf),"\x1b[%dm",color);
+                        char buf[32];
+                        int clen = editor_format_color(color, buf, sizeof(buf));
                         current_color = color;
                         ab_append(&ab,buf,clen);
                     }
@@ -1888,8 +1885,8 @@ void editor_refresh_screen(void) {
                     if (selected) {
                         ab_append(&ab,"\x1b[0m",4); /* Reset */
                         if (current_color != -1) {
-                            char buf[16];
-                            int clen = snprintf(buf,sizeof(buf),"\x1b[%dm",current_color);
+                            char buf[32];
+                            int clen = editor_format_color(current_color, buf, sizeof(buf));
                             ab_append(&ab,buf,clen);
                         }
                     }
@@ -2694,6 +2691,93 @@ static int lua_loki_get_filename(lua_State *L) {
     return 1;
 }
 
+/* Helper: Map color name to HL_* constant */
+static int color_name_to_hl(const char *name) {
+    if (strcasecmp(name, "normal") == 0) return HL_NORMAL;
+    if (strcasecmp(name, "nonprint") == 0) return HL_NONPRINT;
+    if (strcasecmp(name, "comment") == 0) return HL_COMMENT;
+    if (strcasecmp(name, "mlcomment") == 0) return HL_MLCOMMENT;
+    if (strcasecmp(name, "keyword1") == 0) return HL_KEYWORD1;
+    if (strcasecmp(name, "keyword2") == 0) return HL_KEYWORD2;
+    if (strcasecmp(name, "string") == 0) return HL_STRING;
+    if (strcasecmp(name, "number") == 0) return HL_NUMBER;
+    if (strcasecmp(name, "match") == 0) return HL_MATCH;
+    return -1;
+}
+
+/* Lua API: loki.set_color(name, {r=R, g=G, b=B}) - Set syntax highlight color */
+static int lua_loki_set_color(lua_State *L) {
+    const char *name = luaL_checkstring(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    int hl = color_name_to_hl(name);
+    if (hl < 0) {
+        return luaL_error(L, "Unknown color name: %s", name);
+    }
+
+    /* Get RGB values from table */
+    lua_getfield(L, 2, "r");
+    lua_getfield(L, 2, "g");
+    lua_getfield(L, 2, "b");
+
+    if (!lua_isnumber(L, -3) || !lua_isnumber(L, -2) || !lua_isnumber(L, -1)) {
+        return luaL_error(L, "Color table must have r, g, b numeric fields");
+    }
+
+    int r = lua_tointeger(L, -3);
+    int g = lua_tointeger(L, -2);
+    int b = lua_tointeger(L, -1);
+
+    if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255) {
+        return luaL_error(L, "RGB values must be 0-255");
+    }
+
+    E.colors[hl].r = r;
+    E.colors[hl].g = g;
+    E.colors[hl].b = b;
+
+    lua_pop(L, 3);
+    return 0;
+}
+
+/* Lua API: loki.set_theme(table) - Set multiple colors at once */
+static int lua_loki_set_theme(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TTABLE);
+
+    /* Iterate over theme table */
+    lua_pushnil(L);
+    while (lua_next(L, 1) != 0) {
+        /* Key at -2, value at -1 */
+        if (lua_type(L, -2) == LUA_TSTRING && lua_type(L, -1) == LUA_TTABLE) {
+            const char *name = lua_tostring(L, -2);
+            int hl = color_name_to_hl(name);
+
+            if (hl >= 0) {
+                /* Get RGB from value table */
+                lua_getfield(L, -1, "r");
+                lua_getfield(L, -1, "g");
+                lua_getfield(L, -1, "b");
+
+                if (lua_isnumber(L, -3) && lua_isnumber(L, -2) && lua_isnumber(L, -1)) {
+                    int r = lua_tointeger(L, -3);
+                    int g = lua_tointeger(L, -2);
+                    int b = lua_tointeger(L, -1);
+
+                    if (r >= 0 && r <= 255 && g >= 0 && g <= 255 && b >= 0 && b <= 255) {
+                        E.colors[hl].r = r;
+                        E.colors[hl].g = g;
+                        E.colors[hl].b = b;
+                    }
+                }
+                lua_pop(L, 3);
+            }
+        }
+        lua_pop(L, 1); /* Remove value, keep key for next iteration */
+    }
+
+    return 0;
+}
+
 /* Lua API: loki.async_http(url, method, body, headers, callback) - Async HTTP request */
 static int lua_loki_async_http(lua_State *L) {
     const char *url = luaL_checkstring(L, 1);
@@ -3080,6 +3164,12 @@ void loki_lua_bind_editor(lua_State *L) {
 
     lua_pushcfunction(L, lua_loki_get_filename);
     lua_setfield(L, -2, "get_filename");
+
+    lua_pushcfunction(L, lua_loki_set_color);
+    lua_setfield(L, -2, "set_color");
+
+    lua_pushcfunction(L, lua_loki_set_theme);
+    lua_setfield(L, -2, "set_theme");
 
     lua_pushcfunction(L, lua_loki_async_http);
     lua_setfield(L, -2, "async_http");
@@ -3945,6 +4035,30 @@ static void loki_lua_status_reporter(const char *message, void *userdata) {
     }
 }
 
+/* Initialize default syntax highlighting colors.
+ * Colors are stored as RGB values and rendered using true color escape codes.
+ * These defaults match the visual appearance of the original ANSI color scheme. */
+void init_default_colors(void) {
+    /* HL_NORMAL */
+    E.colors[0].r = 200; E.colors[0].g = 200; E.colors[0].b = 200;
+    /* HL_NONPRINT */
+    E.colors[1].r = 100; E.colors[1].g = 100; E.colors[1].b = 100;
+    /* HL_COMMENT */
+    E.colors[2].r = 100; E.colors[2].g = 100; E.colors[2].b = 100;
+    /* HL_MLCOMMENT */
+    E.colors[3].r = 100; E.colors[3].g = 100; E.colors[3].b = 100;
+    /* HL_KEYWORD1 */
+    E.colors[4].r = 220; E.colors[4].g = 100; E.colors[4].b = 220;
+    /* HL_KEYWORD2 */
+    E.colors[5].r = 100; E.colors[5].g = 220; E.colors[5].b = 220;
+    /* HL_STRING */
+    E.colors[6].r = 220; E.colors[6].g = 220; E.colors[6].b = 100;
+    /* HL_NUMBER */
+    E.colors[7].r = 200; E.colors[7].g = 100; E.colors[7].b = 200;
+    /* HL_MATCH */
+    E.colors[8].r = 100; E.colors[8].g = 150; E.colors[8].b = 220;
+}
+
 void init_editor(void) {
     E.cx = 0;
     E.cy = 0;
@@ -3959,6 +4073,7 @@ void init_editor(void) {
     E.sel_active = 0;
     E.sel_start_x = E.sel_start_y = 0;
     E.sel_end_x = E.sel_end_y = 0;
+    init_default_colors();
     lua_repl_init(&E.repl);
     update_window_size();
     signal(SIGWINCH, handle_sig_win_ch);
