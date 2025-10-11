@@ -155,6 +155,12 @@ static int run_script(lua_State *L, const char *path) {
         return 1;
     }
 
+    /* Poll for async HTTP requests in a loop (5 seconds max) */
+    for (int i = 0; i < 50; i++) {
+        loki_poll_async_http(L);
+        usleep(100000);  /* 100ms */
+    }
+
     lua_settop(L, base);
     return 0;
 }
@@ -238,6 +244,9 @@ static int run_repl(lua_State *L, repl_history_config *history) {
     size_t buffer_cap = 0;
 
     while (1) {
+        /* Poll async HTTP requests */
+        loki_poll_async_http(L);
+
         const char *prompt = (buffer_len > 0) ? cont_prompt : main_prompt;
         char *line = repl_read_line(prompt);
 

@@ -356,7 +356,7 @@ void copy_selection_to_clipboard(void) {
     E.sel_active = 0;  /* Clear selection after copy */
 }
 static void cleanup_curl(void);
-static void check_async_requests(void);
+static void check_async_requests(lua_State *L);
 
 /* =========================== Syntax highlights DB =========================
  *
@@ -2507,7 +2507,7 @@ static int start_async_http_request(const char *url, const char *method,
 }
 
 /* Check and process async HTTP requests */
-static void check_async_requests(void) {
+static void check_async_requests(lua_State *L) {
     for (int i = 0; i < MAX_ASYNC_REQUESTS; i++) {
         async_http_request *req = pending_requests[i];
         if (!req) continue;
@@ -2572,26 +2572,47 @@ static void check_async_requests(void) {
             }
 
             /* Call Lua callback with response */
-            if (E.L && req->lua_callback) {
-                lua_getglobal(E.L, req->lua_callback);
-                if (lua_isfunction(E.L, -1)) {
-                    if (req->response.data && req->response.size > 0) {
-                        lua_pushstring(E.L, req->response.data);
-                    } else {
-                        lua_pushnil(E.L);
-                    }
+            if (L && req->lua_callback) {
+                lua_getglobal(L, req->lua_callback);
+                if (lua_isfunction(L, -1)) {
+                    /* Create response table */
+                    lua_newtable(L);  /* Stack: function, table */
 
-                    if (lua_pcall(E.L, 1, 0, 0) != LUA_OK) {
-                        const char *err = lua_tostring(E.L, -1);
+                    /* Set status field */
+                    lua_pushinteger(L, (lua_Integer)response_code);
+                    lua_setfield(L, -2, "status");
+
+                    /* Set body field */
+                    if (req->response.data && req->response.size > 0) {
+                        lua_pushstring(L, req->response.data);
+                    } else {
+                        lua_pushnil(L);
+                    }
+                    lua_setfield(L, -2, "body");
+
+                    /* Set error field */
+                    if (req->failed && req->error_buffer[0] != '\0') {
+                        lua_pushstring(L, req->error_buffer);
+                    } else if (response_code >= 400) {
+                        char errbuf[128];
+                        snprintf(errbuf, sizeof(errbuf), "HTTP error %ld", response_code);
+                        lua_pushstring(L, errbuf);
+                    } else {
+                        lua_pushnil(L);
+                    }
+                    lua_setfield(L, -2, "error");
+
+                    if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+                        const char *err = lua_tostring(L, -1);
                         editor_set_status_msg("Lua callback error: %s", err);
                         /* Also print to stderr for non-interactive mode */
                         if (!E.rawmode) {
                             fprintf(stderr, "Lua callback error: %s\n", err);
                         }
-                        lua_pop(E.L, 1);
+                        lua_pop(L, 1);
                     }
                 } else {
-                    lua_pop(E.L, 1);
+                    lua_pop(L, 1);
                 }
             }
 
@@ -3469,6 +3490,11 @@ void loki_lua_install_namespaces(lua_State *L) {
     lua_pop(L, 1); /* loki */
 }
 
+/* Public API: Poll async HTTP requests (for REPL and external users) */
+void loki_poll_async_http(lua_State *L) {
+    check_async_requests(L);
+}
+
 const char *loki_lua_runtime(void) {
 #if defined(LUAJIT_VERSION)
     return "LuaJIT " LUAJIT_VERSION;
@@ -4143,7 +4169,7 @@ static int run_ai_command(char *filename, const char *command) {
     fprintf(stderr, "Waiting for AI response...\n");
     int timeout = 60000; /* 60 seconds in iterations (assuming ~1ms per iteration) */
     while (num_pending > 0 && timeout-- > 0) {
-        check_async_requests();
+        check_async_requests(E.L);
         usleep(1000); /* 1ms */
     }
 
@@ -4265,7 +4291,7 @@ int loki_editor_main(int argc, char **argv) {
         "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-W = wrap | Ctrl-L = repl | Ctrl-C = copy");
     while(1) {
         handle_windows_resize();
-        check_async_requests();  /* Process any pending async HTTP requests */
+        check_async_requests(E.L);  /* Process any pending async HTTP requests */
         editor_refresh_screen();
         editor_process_keypress(STDIN_FILENO);
     }

@@ -18,8 +18,38 @@ local function response_handler(response)
         return
     end
 
-    -- Check for API errors first
-    local error_msg = response:match('"error"%s*:%s*{.-"message"%s*:%s*"(.-)"')
+    -- Check for errors
+    if response.error then
+        if MODE == "editor" then
+            loki.status("Error: " .. response.error)
+        else
+            print("Error: " .. response.error)
+        end
+        return
+    end
+
+    -- Check HTTP status
+    if response.status ~= 200 then
+        if MODE == "editor" then
+            loki.status(string.format("HTTP error %d", response.status))
+        else
+            print(string.format("HTTP error %d", response.status))
+        end
+        return
+    end
+
+    local body = response.body
+    if not body then
+        if MODE == "editor" then
+            loki.status("Error: Empty response body")
+        else
+            print("Error: Empty response body")
+        end
+        return
+    end
+
+    -- Check for API errors in JSON body
+    local error_msg = body:match('"error"%s*:%s*{.-"message"%s*:%s*"(.-)"')
     if error_msg then
         if MODE == "editor" then
             loki.status("API Error: " .. error_msg)
@@ -31,11 +61,11 @@ local function response_handler(response)
 
     -- Parse OpenAI response format: {"choices":[{"message":{"content":"..."}}]}
     -- First try the nested format (OpenAI chat completions)
-    local content = response:match('"message"%s*:%s*{.-"content"%s*:%s*"(.-[^\\])"')
+    local content = body:match('"message"%s*:%s*{.-"content"%s*:%s*"(.-[^\\])"')
 
     -- If that fails, try simple format: {"content":"..."}
     if not content then
-        content = response:match('"content"%s*:%s*"(.-[^\\])"')
+        content = body:match('"content"%s*:%s*"(.-[^\\])"')
     end
 
     if content then
@@ -58,7 +88,7 @@ local function response_handler(response)
         end
     else
         -- Show first 100 chars of response for debugging
-        local preview = response:sub(1, math.min(100, #response))
+        local preview = body:sub(1, math.min(100, #body))
         if MODE == "editor" then
             loki.status("Error parsing response: " .. preview)
         else
