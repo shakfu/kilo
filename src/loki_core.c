@@ -1904,7 +1904,7 @@ void editor_refresh_screen(editor_ctx_t *ctx) {
         ab_append(&ab,ctx->statusmsg,msglen <= ctx->screencols ? msglen : ctx->screencols);
 
     /* Render REPL if active */
-    if (ctx->repl.active) lua_repl_render(&ab);
+    if (ctx->repl.active) lua_repl_render(ctx, &ab);
 
     /* Put cursor at its current position. Note that the horizontal position
      * at which the cursor is displayed may be different compared to 'ctx->cx'
@@ -2335,7 +2335,7 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
         case CTRL_L:
             /* Toggle REPL */
             ctx->repl.active = !ctx->repl.active;
-            editor_update_repl_layout();
+            editor_update_repl_layout(ctx);
             if (ctx->repl.active) {
                 editor_set_status_msg("Lua REPL active (Ctrl-L or ESC to close)");
             }
@@ -2397,7 +2397,7 @@ static void process_insert_mode(editor_ctx_t *ctx, int fd, int c) {
         case CTRL_L:
             /* Toggle REPL */
             ctx->repl.active = !ctx->repl.active;
-            editor_update_repl_layout();
+            editor_update_repl_layout(ctx);
             if (ctx->repl.active) {
                 editor_set_status_msg("Lua REPL active (Ctrl-L or ESC to close)");
             }
@@ -2524,7 +2524,7 @@ void editor_process_keypress(editor_ctx_t *ctx, int fd) {
 
     /* REPL keypress handling */
     if (ctx->repl.active) {
-        lua_repl_handle_keypress(c);
+        lua_repl_handle_keypress(ctx, c);
         return;
     }
 

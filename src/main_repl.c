@@ -104,7 +104,7 @@ int main(int argc, char **argv) {
         .reporter_userdata = NULL,
     };
 
-    lua_State *L = loki_lua_bootstrap(&opts);
+    lua_State *L = loki_lua_bootstrap(NULL, &opts);
     if (!L) {
         fprintf(stderr, "Failed to initialize Lua runtime (%s)\n", loki_lua_runtime());
         return 1;

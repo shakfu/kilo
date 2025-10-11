@@ -213,10 +213,10 @@ void free_dynamic_language(struct t_editor_syntax *lang);
 /* Lua REPL functions */
 void lua_repl_init(t_lua_repl *repl);
 void lua_repl_free(t_lua_repl *repl);
-void lua_repl_handle_keypress(int key);
-void lua_repl_render(struct abuf *ab);
-void lua_repl_append_log(const char *line);
-void editor_update_repl_layout(void);
+void lua_repl_handle_keypress(editor_ctx_t *ctx, int key);
+void lua_repl_render(editor_ctx_t *ctx, struct abuf *ab);
+void lua_repl_append_log(editor_ctx_t *ctx, const char *line);
+void editor_update_repl_layout(editor_ctx_t *ctx);
 
 /* Editor cleanup */
 void editor_cleanup_resources(void);

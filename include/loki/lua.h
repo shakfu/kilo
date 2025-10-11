@@ -2,6 +2,7 @@
 #define LOKI_LUA_H
 
 #include <lua.h>
+#include "loki/core.h"  /* For editor_ctx_t typedef */
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,7 +21,7 @@ struct loki_lua_opts {
     void *reporter_userdata;   /* Context passed to reporter */
 };
 
-lua_State *loki_lua_bootstrap(const struct loki_lua_opts *opts);
+lua_State *loki_lua_bootstrap(editor_ctx_t *ctx, const struct loki_lua_opts *opts);
 const char *loki_lua_runtime(void);
 void loki_lua_bind_minimal(lua_State *L);
 void loki_lua_bind_editor(lua_State *L);

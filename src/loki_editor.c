@@ -368,26 +368,27 @@ void check_async_requests(lua_State *L) {
 }
 
 /* Update REPL layout when active/inactive state changes */
-void editor_update_repl_layout(void) {
-    int reserved = E.repl.active ? LUA_REPL_TOTAL_ROWS : 0;
-    int available = E.screenrows_total;
+void editor_update_repl_layout(editor_ctx_t *ctx) {
+    if (!ctx) return;
+    int reserved = ctx->repl.active ? LUA_REPL_TOTAL_ROWS : 0;
+    int available = ctx->screenrows_total;
     if (available > reserved) {
-        E.screenrows = available - reserved;
+        ctx->screenrows = available - reserved;
     } else {
-        E.screenrows = 1;
+        ctx->screenrows = 1;
     }
-    if (E.screenrows < 1) E.screenrows = 1;
+    if (ctx->screenrows < 1) ctx->screenrows = 1;
 
-    if (E.cy >= E.screenrows) {
-        E.cy = E.screenrows - 1;
-        if (E.cy < 0) E.cy = 0;
+    if (ctx->cy >= ctx->screenrows) {
+        ctx->cy = ctx->screenrows - 1;
+        if (ctx->cy < 0) ctx->cy = 0;
     }
 
-    if (E.numrows > E.screenrows && E.rowoff > E.numrows - E.screenrows) {
-        E.rowoff = E.numrows - E.screenrows;
+    if (ctx->numrows > ctx->screenrows && ctx->rowoff > ctx->numrows - ctx->screenrows) {
+        ctx->rowoff = ctx->numrows - ctx->screenrows;
     }
-    if (E.numrows <= E.screenrows) {
-        E.rowoff = 0;
+    if (ctx->numrows <= ctx->screenrows) {
+        ctx->rowoff = 0;
     }
 }
 
@@ -400,13 +401,13 @@ static void exec_lua_command(int fd) {
     }
     int was_active = E.repl.active;
     E.repl.active = !E.repl.active;
-    editor_update_repl_layout();
+    editor_update_repl_layout(&E);
     if (E.repl.active) {
         E.repl.history_index = -1;
         editor_set_status_msg(
             "Lua REPL: Enter runs, ESC exits, Up/Down history, type 'help'");
         if (E.repl.log_len == 0) {
-            lua_repl_append_log("Type 'help' for built-in commands");
+            lua_repl_append_log(&E, "Type 'help' for built-in commands");
         }
     } else {
         if (was_active) {
@@ -431,7 +432,7 @@ static int run_ai_command(char *filename, const char *command) {
         .reporter_userdata = NULL
     };
 
-    lua_State *L = loki_lua_bootstrap(&opts);
+    lua_State *L = loki_lua_bootstrap(&E, &opts);
     if (!L) {
         fprintf(stderr, "Failed to initialize Lua\n");
         return 1;
@@ -699,7 +700,7 @@ int loki_editor_main(int argc, char **argv) {
         .reporter_userdata = NULL
     };
 
-    E.L = loki_lua_bootstrap(&opts);
+    E.L = loki_lua_bootstrap(&E, &opts);
     if (!E.L) {
         fprintf(stderr, "Warning: Failed to initialize Lua runtime (%s)\n", loki_lua_runtime());
     }

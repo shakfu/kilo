@@ -32,6 +32,23 @@
 
 /* ======================= Lua API bindings ================================ */
 
+/* Registry key for storing editor context pointer.
+ * This is used to retrieve the context in Lua C API functions.
+ * The key itself is just the address of this variable - we don't care about
+ * its value, just that it's a unique pointer for the registry. */
+static const char editor_ctx_registry_key = 0;
+
+/* Helper function to retrieve editor context from Lua registry.
+ * This is called by all Lua API functions to get the current editor context.
+ * Returns NULL if context is not found (shouldn't happen in normal operation). */
+static editor_ctx_t* lua_get_editor_context(lua_State *L) {
+    lua_pushlightuserdata(L, (void *)&editor_ctx_registry_key);
+    lua_gettable(L, LUA_REGISTRYINDEX);
+    editor_ctx_t *ctx = (editor_ctx_t *)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    return ctx;
+}
+
 /* Lua API: loki.status(message) - Set status message */
 static int lua_loki_status(lua_State *L) {
     const char *msg = luaL_checkstring(L, 1);
@@ -41,68 +58,86 @@ static int lua_loki_status(lua_State *L) {
 
 /* Lua API: loki.get_line(row) - Get line content at row (0-indexed) */
 static int lua_loki_get_line(lua_State *L) {
+    editor_ctx_t *ctx = lua_get_editor_context(L);
+    if (!ctx) return 0;
+
     int row = luaL_checkinteger(L, 1);
-    if (row < 0 || row >= E.numrows) {
+    if (row < 0 || row >= ctx->numrows) {
         lua_pushnil(L);
         return 1;
     }
-    lua_pushstring(L, E.row[row].chars);
+    lua_pushstring(L, ctx->row[row].chars);
     return 1;
 }
 
 /* Lua API: loki.get_lines() - Get total number of lines */
 static int lua_loki_get_lines(lua_State *L) {
-    lua_pushinteger(L, E.numrows);
+    editor_ctx_t *ctx = lua_get_editor_context(L);
+    if (!ctx) return 0;
+
+    lua_pushinteger(L, ctx->numrows);
     return 1;
 }
 
 /* Lua API: loki.get_cursor() - Get cursor position (returns row, col) */
 static int lua_loki_get_cursor(lua_State *L) {
-    lua_pushinteger(L, E.cy);
-    lua_pushinteger(L, E.cx);
+    editor_ctx_t *ctx = lua_get_editor_context(L);
+    if (!ctx) return 0;
+
+    lua_pushinteger(L, ctx->cy);
+    lua_pushinteger(L, ctx->cx);
     return 2;
 }
 
 /* Lua API: loki.insert_text(text) - Insert text at cursor */
 static int lua_loki_insert_text(lua_State *L) {
+    editor_ctx_t *ctx = lua_get_editor_context(L);
+    if (!ctx) return 0;
+
     const char *text = luaL_checkstring(L, 1);
     for (const char *p = text; *p; p++) {
-        editor_insert_char(&E, *p);
+        editor_insert_char(ctx, *p);
     }
     return 0;
 }
 
 /* Lua API: loki.stream_text(text) - Append text and scroll to bottom */
 static int lua_loki_stream_text(lua_State *L) {
+    editor_ctx_t *ctx = lua_get_editor_context(L);
+    if (!ctx) return 0;
+
     const char *text = luaL_checkstring(L, 1);
 
     /* Move to end of file */
-    if (E.numrows > 0) {
-        E.cy = E.numrows - 1;
-        E.cx = E.row[E.cy].size;
+    if (ctx->numrows > 0) {
+        ctx->cy = ctx->numrows - 1;
+        ctx->cx = ctx->row[ctx->cy].size;
     }
 
     /* Insert the text */
     for (const char *p = text; *p; p++) {
-        editor_insert_char(&E, *p);
+        editor_insert_char(ctx, *p);
     }
 
     /* Scroll to bottom */
-    if (E.numrows > E.screenrows) {
-        E.rowoff = E.numrows - E.screenrows;
+    if (ctx->numrows > ctx->screenrows) {
+        ctx->rowoff = ctx->numrows - ctx->screenrows;
     }
-    E.cy = E.numrows - 1;
+    ctx->cy = ctx->numrows - 1;
 
     /* Refresh screen immediately */
-    editor_refresh_screen(&E);
+    editor_refresh_screen(ctx);
 
     return 0;
 }
 
 /* Lua API: loki.get_filename() - Get current filename */
 static int lua_loki_get_filename(lua_State *L) {
-    if (E.filename) {
-        lua_pushstring(L, E.filename);
+    editor_ctx_t *ctx = lua_get_editor_context(L);
+    if (!ctx) return 0;
+
+    if (ctx->filename) {
+        lua_pushstring(L, ctx->filename);
     } else {
         lua_pushnil(L);
     }
@@ -125,6 +160,9 @@ static int color_name_to_hl(const char *name) {
 
 /* Lua API: loki.set_color(name, {r=R, g=G, b=B}) - Set syntax highlight color */
 static int lua_loki_set_color(lua_State *L) {
+    editor_ctx_t *ctx = lua_get_editor_context(L);
+    if (!ctx) return 0;
+
     const char *name = luaL_checkstring(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
 
@@ -150,9 +188,9 @@ static int lua_loki_set_color(lua_State *L) {
         return luaL_error(L, "RGB values must be 0-255");
     }
 
-    E.colors[hl].r = r;
-    E.colors[hl].g = g;
-    E.colors[hl].b = b;
+    ctx->colors[hl].r = r;
+    ctx->colors[hl].g = g;
+    ctx->colors[hl].b = b;
 
     lua_pop(L, 3);
     return 0;
@@ -160,6 +198,9 @@ static int lua_loki_set_color(lua_State *L) {
 
 /* Lua API: loki.set_theme(table) - Set multiple colors at once */
 static int lua_loki_set_theme(lua_State *L) {
+    editor_ctx_t *ctx = lua_get_editor_context(L);
+    if (!ctx) return 0;
+
     luaL_checktype(L, 1, LUA_TTABLE);
 
     /* Iterate over theme table */
@@ -182,9 +223,9 @@ static int lua_loki_set_theme(lua_State *L) {
                     int b = lua_tointeger(L, -1);
 
                     if (r >= 0 && r <= 255 && g >= 0 && g <= 255 && b >= 0 && b <= 255) {
-                        E.colors[hl].r = r;
-                        E.colors[hl].g = g;
-                        E.colors[hl].b = b;
+                        ctx->colors[hl].r = r;
+                        ctx->colors[hl].g = g;
+                        ctx->colors[hl].b = b;
                     }
                 }
                 lua_pop(L, 3);
@@ -200,8 +241,11 @@ static int lua_loki_set_theme(lua_State *L) {
 
 /* Lua API: loki.get_mode() - Get current editor mode */
 static int lua_loki_get_mode(lua_State *L) {
+    editor_ctx_t *ctx = lua_get_editor_context(L);
+    if (!ctx) return 0;
+
     const char *mode_str = "";
-    switch(E.mode) {
+    switch(ctx->mode) {
         case MODE_NORMAL: mode_str = "normal"; break;
         case MODE_INSERT: mode_str = "insert"; break;
         case MODE_VISUAL: mode_str = "visual"; break;
@@ -213,9 +257,12 @@ static int lua_loki_get_mode(lua_State *L) {
 
 /* Lua API: loki.set_mode(mode) - Set editor mode */
 static int lua_loki_set_mode(lua_State *L) {
+    editor_ctx_t *ctx = lua_get_editor_context(L);
+    if (!ctx) return 0;
+
     const char *mode_str = luaL_checkstring(L, 1);
 
-    EditorMode new_mode = E.mode;
+    EditorMode new_mode = ctx->mode;
     if (strcasecmp(mode_str, "normal") == 0) {
         new_mode = MODE_NORMAL;
     } else if (strcasecmp(mode_str, "insert") == 0) {
@@ -223,18 +270,18 @@ static int lua_loki_set_mode(lua_State *L) {
     } else if (strcasecmp(mode_str, "visual") == 0) {
         new_mode = MODE_VISUAL;
         /* Activate selection */
-        E.sel_active = 1;
-        E.sel_start_x = E.cx;
-        E.sel_start_y = E.cy;
-        E.sel_end_x = E.cx;
-        E.sel_end_y = E.cy;
+        ctx->sel_active = 1;
+        ctx->sel_start_x = ctx->cx;
+        ctx->sel_start_y = ctx->cy;
+        ctx->sel_end_x = ctx->cx;
+        ctx->sel_end_y = ctx->cy;
     } else if (strcasecmp(mode_str, "command") == 0) {
         new_mode = MODE_COMMAND;
     } else {
         return luaL_error(L, "Invalid mode: %s", mode_str);
     }
 
-    E.mode = new_mode;
+    ctx->mode = new_mode;
     return 0;
 }
 
@@ -982,7 +1029,7 @@ const char *loki_lua_runtime(void) {
 #endif
 }
 
-lua_State *loki_lua_bootstrap(const struct loki_lua_opts *opts) {
+lua_State *loki_lua_bootstrap(editor_ctx_t *ctx, const struct loki_lua_opts *opts) {
     struct loki_lua_opts effective = {
         .bind_editor = 1,
         .bind_http = 1,
@@ -1009,6 +1056,13 @@ lua_State *loki_lua_bootstrap(const struct loki_lua_opts *opts) {
     if (!L) {
         loki_lua_report(&effective, "Failed to allocate Lua state");
         return NULL;
+    }
+
+    /* Store editor context in Lua registry for retrieval by API functions */
+    if (ctx) {
+        lua_pushlightuserdata(L, (void *)&editor_ctx_registry_key);
+        lua_pushlightuserdata(L, ctx);
+        lua_settable(L, LUA_REGISTRYINDEX);
     }
 
     luaL_openlibs(L);
@@ -1038,21 +1092,21 @@ lua_State *loki_lua_bootstrap(const struct loki_lua_opts *opts) {
 /* Extracted from loki_core.c - handles the embedded Lua REPL interface */
 
 /* Forward declarations */
-static int lua_repl_handle_builtin(const char *cmd, size_t len);
+static int lua_repl_handle_builtin(editor_ctx_t *ctx, const char *cmd, size_t len);
 
-void lua_repl_render(struct abuf *ab) {
-    if (!E.repl.active) return;
+void lua_repl_render(editor_ctx_t *ctx, struct abuf *ab) {
+    if (!ctx || !ctx->repl.active) return;
 
     ab_append(ab,"\r\n",2);
 
-    int start = E.repl.log_len - LUA_REPL_OUTPUT_ROWS;
+    int start = ctx->repl.log_len - LUA_REPL_OUTPUT_ROWS;
     if (start < 0) start = 0;
     int rendered = 0;
 
-    for (int i = start; i < E.repl.log_len; i++) {
-        const char *line = E.repl.log[i] ? E.repl.log[i] : "";
+    for (int i = start; i < ctx->repl.log_len; i++) {
+        const char *line = ctx->repl.log[i] ? ctx->repl.log[i] : "";
         int take = (int)strlen(line);
-        if (take > E.screencols) take = E.screencols;
+        if (take > ctx->screencols) take = ctx->screencols;
         ab_append(ab,"\x1b[0K",4);
         if (take > 0) ab_append(ab,line,take);
         ab_append(ab,"\r\n",2);
@@ -1068,12 +1122,12 @@ void lua_repl_render(struct abuf *ab) {
     ab_append(ab,LUA_REPL_PROMPT,strlen(LUA_REPL_PROMPT));
 
     int prompt_len = (int)strlen(LUA_REPL_PROMPT);
-    int available = E.screencols - prompt_len;
+    int available = ctx->screencols - prompt_len;
     if (available < 0) available = 0;
-    if (available > 0 && E.repl.input_len > 0) {
-        int shown = E.repl.input_len;
+    if (available > 0 && ctx->repl.input_len > 0) {
+        int shown = ctx->repl.input_len;
         if (shown > available) shown = available;
-        ab_append(ab,E.repl.input,shown);
+        ab_append(ab,ctx->repl.input,shown);
     }
 }
 
@@ -1084,29 +1138,29 @@ static void lua_repl_clear_input(t_lua_repl *repl) {
     repl->input[0] = '\0';
 }
 
-static void lua_repl_append_log_owned(char *line) {
-    if (!line) return;
-    if (E.repl.log_len == LUA_REPL_LOG_MAX) {
-        free(E.repl.log[0]);
-        memmove(E.repl.log, E.repl.log + 1,
+static void lua_repl_append_log_owned(editor_ctx_t *ctx, char *line) {
+    if (!ctx || !line) return;
+    if (ctx->repl.log_len == LUA_REPL_LOG_MAX) {
+        free(ctx->repl.log[0]);
+        memmove(ctx->repl.log, ctx->repl.log + 1,
                 sizeof(char*) * (LUA_REPL_LOG_MAX - 1));
-        E.repl.log_len--;
+        ctx->repl.log_len--;
     }
-    E.repl.log[E.repl.log_len++] = line;
+    ctx->repl.log[ctx->repl.log_len++] = line;
 }
 
-void lua_repl_append_log(const char *line) {
-    if (!line) return;
+void lua_repl_append_log(editor_ctx_t *ctx, const char *line) {
+    if (!ctx || !line) return;
     char *copy = strdup(line);
     if (!copy) {
         editor_set_status_msg("Lua REPL: out of memory");
         return;
     }
-    lua_repl_append_log_owned(copy);
+    lua_repl_append_log_owned(ctx, copy);
 }
 
-static void lua_repl_log_prefixed(const char *prefix, const char *text) {
-    if (!prefix) prefix = "";
+static void lua_repl_log_prefixed(editor_ctx_t *ctx, const char *prefix, const char *text) {
+    if (!ctx || !prefix) prefix = "";
     if (!text) text = "";
 
     size_t prefix_len = strlen(prefix);
@@ -1123,7 +1177,7 @@ static void lua_repl_log_prefixed(const char *prefix, const char *text) {
         memcpy(entry, prefix, prefix_len);
         if (segment_len) memcpy(entry + prefix_len, line, segment_len);
         entry[total] = '\0';
-        lua_repl_append_log_owned(entry);
+        lua_repl_append_log_owned(ctx, entry);
         if (!newline) break;
         line = newline + 1;
         if (*line == '\0') {
@@ -1133,7 +1187,7 @@ static void lua_repl_log_prefixed(const char *prefix, const char *text) {
                 editor_set_status_msg("Lua REPL: out of memory");
                 return;
             }
-            lua_repl_append_log_owned(blank);
+            lua_repl_append_log_owned(ctx, blank);
             break;
         }
     } while (1);
@@ -1162,8 +1216,8 @@ static const char *lua_repl_top_to_string(lua_State *L, size_t *len) {
 #endif
 }
 
-static void lua_repl_push_history(const char *cmd) {
-    if (!cmd || !*cmd) return;
+static void lua_repl_push_history(editor_ctx_t *ctx, const char *cmd) {
+    if (!ctx || !cmd || !*cmd) return;
     size_t len = strlen(cmd);
     int all_space = 1;
     for (size_t i = 0; i < len; i++) {
@@ -1174,17 +1228,17 @@ static void lua_repl_push_history(const char *cmd) {
     }
     if (all_space) return;
 
-    if (E.repl.history_len == LUA_REPL_HISTORY_MAX) {
-        free(E.repl.history[0]);
-        memmove(E.repl.history, E.repl.history + 1,
+    if (ctx->repl.history_len == LUA_REPL_HISTORY_MAX) {
+        free(ctx->repl.history[0]);
+        memmove(ctx->repl.history, ctx->repl.history + 1,
                 sizeof(char*) * (LUA_REPL_HISTORY_MAX - 1));
-        E.repl.history_len--;
+        ctx->repl.history_len--;
     }
 
-    if (E.repl.history_len > 0) {
-        const char *last = E.repl.history[E.repl.history_len - 1];
+    if (ctx->repl.history_len > 0) {
+        const char *last = ctx->repl.history[ctx->repl.history_len - 1];
         if (last && strcmp(last, cmd) == 0) {
-            E.repl.history_index = -1;
+            ctx->repl.history_index = -1;
             return;
         }
     }
@@ -1194,8 +1248,8 @@ static void lua_repl_push_history(const char *cmd) {
         editor_set_status_msg("Lua REPL: out of memory");
         return;
     }
-    E.repl.history[E.repl.history_len++] = copy;
-    E.repl.history_index = -1;
+    ctx->repl.history[ctx->repl.history_len++] = copy;
+    ctx->repl.history_index = -1;
 }
 
 static void lua_repl_history_apply(t_lua_repl *repl) {
@@ -1225,127 +1279,127 @@ static int lua_repl_input_has_content(const t_lua_repl *repl) {
     return 0;
 }
 
-static void lua_repl_emit_registered_help(void) {
-    if (!E.L) return;
+static void lua_repl_emit_registered_help(editor_ctx_t *ctx) {
+    if (!ctx || !ctx->L) return;
 
-    lua_getglobal(E.L, "loki");
-    if (!lua_istable(E.L, -1)) {
-        lua_pop(E.L, 1);
+    lua_getglobal(ctx->L, "loki");
+    if (!lua_istable(ctx->L, -1)) {
+        lua_pop(ctx->L, 1);
         return;
     }
 
-    lua_getfield(E.L, -1, "__repl_help");
-    if (!lua_istable(E.L, -1)) {
-        lua_pop(E.L, 2);
+    lua_getfield(ctx->L, -1, "__repl_help");
+    if (!lua_istable(ctx->L, -1)) {
+        lua_pop(ctx->L, 2);
         return;
     }
 
-    int len = (int)lua_rawlen(E.L, -1);
+    int len = (int)lua_rawlen(ctx->L, -1);
     if (len == 0) {
-        lua_pop(E.L, 2);
+        lua_pop(ctx->L, 2);
         return;
     }
 
-    lua_repl_log_prefixed("= ", "Project commands:");
+    lua_repl_log_prefixed(ctx, "= ", "Project commands:");
 
-    lua_pushnil(E.L);
-    while (lua_next(E.L, -2) != 0) {
+    lua_pushnil(ctx->L);
+    while (lua_next(ctx->L, -2) != 0) {
         const char *name = NULL;
         const char *desc = NULL;
         const char *example = NULL;
 
-        lua_getfield(E.L, -1, "name");
-        if (lua_isstring(E.L, -1)) name = lua_tostring(E.L, -1);
-        lua_pop(E.L, 1);
+        lua_getfield(ctx->L, -1, "name");
+        if (lua_isstring(ctx->L, -1)) name = lua_tostring(ctx->L, -1);
+        lua_pop(ctx->L, 1);
 
-        lua_getfield(E.L, -1, "description");
-        if (lua_isstring(E.L, -1)) desc = lua_tostring(E.L, -1);
-        lua_pop(E.L, 1);
+        lua_getfield(ctx->L, -1, "description");
+        if (lua_isstring(ctx->L, -1)) desc = lua_tostring(ctx->L, -1);
+        lua_pop(ctx->L, 1);
 
-        lua_getfield(E.L, -1, "example");
-        if (lua_isstring(E.L, -1)) example = lua_tostring(E.L, -1);
-        lua_pop(E.L, 1);
+        lua_getfield(ctx->L, -1, "example");
+        if (lua_isstring(ctx->L, -1)) example = lua_tostring(ctx->L, -1);
+        lua_pop(ctx->L, 1);
 
         if (name && desc) {
             char buf[256];
             snprintf(buf, sizeof(buf), "  %s - %s", name, desc);
-            lua_repl_append_log(buf);
+            lua_repl_append_log(ctx, buf);
         }
         if (example) {
             char buf[256];
             snprintf(buf, sizeof(buf), "    e.g. %s", example);
-            lua_repl_append_log(buf);
+            lua_repl_append_log(ctx, buf);
         }
 
-        lua_pop(E.L, 1); /* pop value, keep key for next iteration */
+        lua_pop(ctx->L, 1); /* pop value, keep key for next iteration */
     }
 
-    lua_pop(E.L, 2); /* __repl_help, loki */
+    lua_pop(ctx->L, 2); /* __repl_help, loki */
 }
 
-static void lua_repl_execute_current(void) {
-    if (!E.L) {
-        lua_repl_append_log("! Lua interpreter not available");
+static void lua_repl_execute_current(editor_ctx_t *ctx) {
+    if (!ctx || !ctx->L) {
+        if (ctx) lua_repl_append_log(ctx, "! Lua interpreter not available");
         return;
     }
 
-    if (!lua_repl_input_has_content(&E.repl)) {
-        lua_repl_clear_input(&E.repl);
+    if (!lua_repl_input_has_content(&ctx->repl)) {
+        lua_repl_clear_input(&ctx->repl);
         return;
     }
 
-    lua_repl_log_prefixed(LUA_REPL_PROMPT, E.repl.input);
-    lua_repl_push_history(E.repl.input);
+    lua_repl_log_prefixed(ctx, LUA_REPL_PROMPT, ctx->repl.input);
+    lua_repl_push_history(ctx, ctx->repl.input);
 
-    const char *trim = E.repl.input;
+    const char *trim = ctx->repl.input;
     while (*trim && isspace((unsigned char)*trim)) trim++;
     size_t tlen = strlen(trim);
     while (tlen > 0 && isspace((unsigned char)trim[tlen-1])) tlen--;
 
-    if (lua_repl_handle_builtin(trim, tlen)) {
-        lua_repl_clear_input(&E.repl);
+    if (lua_repl_handle_builtin(ctx, trim, tlen)) {
+        lua_repl_clear_input(&ctx->repl);
         return;
     }
 
-    int base = lua_gettop(E.L);
-    if (luaL_loadbuffer(E.L, E.repl.input, (size_t)E.repl.input_len,
+    int base = lua_gettop(ctx->L);
+    if (luaL_loadbuffer(ctx->L, ctx->repl.input, (size_t)ctx->repl.input_len,
                         "repl") != LUA_OK) {
-        const char *err = lua_tostring(E.L, -1);
-        lua_repl_log_prefixed("! ", err ? err : "(unknown error)");
-        lua_pop(E.L, 1);
-        lua_settop(E.L, base);
-        lua_repl_clear_input(&E.repl);
+        const char *err = lua_tostring(ctx->L, -1);
+        lua_repl_log_prefixed(ctx, "! ", err ? err : "(unknown error)");
+        lua_pop(ctx->L, 1);
+        lua_settop(ctx->L, base);
+        lua_repl_clear_input(&ctx->repl);
         return;
     }
 
-    int status = lua_pcall(E.L, 0, LUA_MULTRET, 0);
+    int status = lua_pcall(ctx->L, 0, LUA_MULTRET, 0);
     if (status != LUA_OK) {
-        const char *err = lua_tostring(E.L, -1);
-        lua_repl_log_prefixed("! ", err ? err : "(unknown error)");
-        lua_pop(E.L, 1);
-        lua_settop(E.L, base);
-        lua_repl_clear_input(&E.repl);
+        const char *err = lua_tostring(ctx->L, -1);
+        lua_repl_log_prefixed(ctx, "! ", err ? err : "(unknown error)");
+        lua_pop(ctx->L, 1);
+        lua_settop(ctx->L, base);
+        lua_repl_clear_input(&ctx->repl);
         return;
     }
 
-    int results = lua_gettop(E.L) - base;
+    int results = lua_gettop(ctx->L) - base;
     if (results == 0) {
-        lua_repl_log_prefixed("= ", "ok");
+        lua_repl_log_prefixed(ctx, "= ", "ok");
     } else {
         for (int i = 0; i < results; i++) {
-            lua_pushvalue(E.L, base + 1 + i);
+            lua_pushvalue(ctx->L, base + 1 + i);
             size_t len = 0;
-            const char *res = lua_repl_top_to_string(E.L, &len);
+            const char *res = lua_repl_top_to_string(ctx->L, &len);
             if (res) {
-                lua_repl_log_prefixed("= ", res);
+                lua_repl_log_prefixed(ctx, "= ", res);
             } else {
-                lua_repl_log_prefixed("= ", "(non-printable)");
+                lua_repl_log_prefixed(ctx, "= ", "(non-printable)");
             }
-            lua_settop(E.L, base + results);
+            lua_settop(ctx->L, base + results);
         }
     }
-    lua_settop(E.L, base);
-    lua_repl_clear_input(&E.repl);
+    lua_settop(ctx->L, base);
+    lua_repl_clear_input(&ctx->repl);
 }
 
 static int lua_repl_iequals(const char *cmd, size_t len, const char *word) {
@@ -1358,8 +1412,8 @@ static int lua_repl_iequals(const char *cmd, size_t len, const char *word) {
     return 1;
 }
 
-static int lua_repl_handle_builtin(const char *cmd, size_t len) {
-    if (!cmd) return 0;
+static int lua_repl_handle_builtin(editor_ctx_t *ctx, const char *cmd, size_t len) {
+    if (!ctx || !cmd) return 0;
     while (len && isspace((unsigned char)*cmd)) {
         cmd++;
         len--;
@@ -1379,40 +1433,40 @@ static int lua_repl_handle_builtin(const char *cmd, size_t len) {
     }
 
     if ((len == 1 && cmd[0] == '?') || lua_repl_iequals(cmd, len, "help")) {
-        lua_repl_log_prefixed("= ", "Built-in commands:");
-        lua_repl_append_log("  help       Show this help message");
-        lua_repl_append_log("  history    Print recent commands");
-        lua_repl_append_log("  clear      Clear the REPL output log");
-        lua_repl_append_log("  clear-history  Drop saved input history");
-        lua_repl_append_log("  exit       Close the REPL panel");
-        lua_repl_emit_registered_help();
-        lua_repl_append_log("  Lua code   Any other input runs inside loki's Lua state");
+        lua_repl_log_prefixed(ctx, "= ", "Built-in commands:");
+        lua_repl_append_log(ctx, "  help       Show this help message");
+        lua_repl_append_log(ctx, "  history    Print recent commands");
+        lua_repl_append_log(ctx, "  clear      Clear the REPL output log");
+        lua_repl_append_log(ctx, "  clear-history  Drop saved input history");
+        lua_repl_append_log(ctx, "  exit       Close the REPL panel");
+        lua_repl_emit_registered_help(ctx);
+        lua_repl_append_log(ctx, "  Lua code   Any other input runs inside loki's Lua state");
         return 1;
     }
 
     if (lua_repl_iequals(cmd, len, "clear")) {
-        lua_repl_reset_log(&E.repl);
-        lua_repl_log_prefixed("= ", "Log cleared");
+        lua_repl_reset_log(&ctx->repl);
+        lua_repl_log_prefixed(ctx, "= ", "Log cleared");
         return 1;
     }
 
     if (lua_repl_iequals(cmd, len, "history")) {
-        if (E.repl.history_len == 0) {
-            lua_repl_log_prefixed("= ", "History is empty");
+        if (ctx->repl.history_len == 0) {
+            lua_repl_log_prefixed(ctx, "= ", "History is empty");
             return 1;
         }
-        lua_repl_log_prefixed("= ", "History (newest first):");
-        int start = E.repl.history_len - 1;
+        lua_repl_log_prefixed(ctx, "= ", "History (newest first):");
+        int start = ctx->repl.history_len - 1;
         int shown = 0;
         for (int i = start; i >= 0; i--) {
-            const char *entry = E.repl.history[i];
+            const char *entry = ctx->repl.history[i];
             if (!entry) continue;
             char buf[256];
-            snprintf(buf, sizeof(buf), "  %d: %s", E.repl.history_len - i, entry);
-            lua_repl_append_log(buf);
+            snprintf(buf, sizeof(buf), "  %d: %s", ctx->repl.history_len - i, entry);
+            lua_repl_append_log(ctx, buf);
             shown++;
             if (shown >= 20) {
-                lua_repl_append_log("  ...");
+                lua_repl_append_log(ctx, "  ...");
                 break;
             }
         }
@@ -1420,19 +1474,19 @@ static int lua_repl_handle_builtin(const char *cmd, size_t len) {
     }
 
     if (lua_repl_iequals(cmd, len, "clear-history")) {
-        for (int i = 0; i < E.repl.history_len; i++) {
-            free(E.repl.history[i]);
-            E.repl.history[i] = NULL;
+        for (int i = 0; i < ctx->repl.history_len; i++) {
+            free(ctx->repl.history[i]);
+            ctx->repl.history[i] = NULL;
         }
-        E.repl.history_len = 0;
-        E.repl.history_index = -1;
-        lua_repl_log_prefixed("= ", "History cleared");
+        ctx->repl.history_len = 0;
+        ctx->repl.history_index = -1;
+        lua_repl_log_prefixed(ctx, "= ", "History cleared");
         return 1;
     }
 
     if (lua_repl_iequals(cmd, len, "exit") || lua_repl_iequals(cmd, len, "quit")) {
-        E.repl.active = 0;
-        editor_update_repl_layout();
+        ctx->repl.active = 0;
+        editor_update_repl_layout(ctx);
         editor_set_status_msg("Lua REPL closed");
         return 1;
     }
@@ -1440,8 +1494,9 @@ static int lua_repl_handle_builtin(const char *cmd, size_t len) {
     return 0;
 }
 
-void lua_repl_handle_keypress(int key) {
-    t_lua_repl *repl = &E.repl;
+void lua_repl_handle_keypress(editor_ctx_t *ctx, int key) {
+    if (!ctx) return;
+    t_lua_repl *repl = &ctx->repl;
     int prompt_len = (int)strlen(LUA_REPL_PROMPT);
 
     switch(key) {
@@ -1449,7 +1504,7 @@ void lua_repl_handle_keypress(int key) {
     case ESC:
     case CTRL_C:
         repl->active = 0;
-        editor_update_repl_layout();
+        editor_update_repl_layout(ctx);
         editor_set_status_msg("Lua REPL closed");
         return;
     case CTRL_U:
@@ -1487,16 +1542,16 @@ void lua_repl_handle_keypress(int key) {
         }
         return;
     case ENTER:
-        lua_repl_execute_current();
+        lua_repl_execute_current(ctx);
         if (!repl->active) {
-            editor_update_repl_layout();
+            editor_update_repl_layout(ctx);
         }
         return;
     default:
         if (isprint(key)) {
             if (repl->input_len < KILO_QUERY_LEN) {
-                if (E.screencols <= prompt_len) return;
-                if (prompt_len + repl->input_len >= E.screencols) return;
+                if (ctx->screencols <= prompt_len) return;
+                if (prompt_len + repl->input_len >= ctx->screencols) return;
                 repl->input[repl->input_len++] = key;
                 repl->input[repl->input_len] = '\0';
                 repl->history_index = -1;

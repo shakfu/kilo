@@ -34,6 +34,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 - Makefile now wraps CMake (`build/` contains artifacts); editor binary renamed to `loki-editor`
+- **Context Passing Migration (Phase 2)**: Migrated core editor functions to explicit context passing
+  - Updated 25+ functions across `loki_core.c`, `loki_editor.c`, and `loki_lua.c`
+  - Modified functions: `editor_move_cursor()`, `editor_find()`, `editor_refresh_screen()`, `init_editor()`, `update_window_size()`, `handle_windows_resize()`, `editor_select_syntax_highlight()`, `is_selected()`, `copy_selection_to_clipboard()`, and more
+  - Replaced global `E` references with explicit `ctx->field` access in core functions
+  - Updated public API in `include/loki/core.h` with breaking changes:
+    - `editor_insert_char(ctx, c)` - now requires context parameter
+    - `editor_del_char(ctx)` - now requires context parameter
+    - `editor_insert_newline(ctx)` - now requires context parameter
+    - `editor_save(ctx)` - now requires context parameter
+    - `editor_open(ctx, filename)` - now requires context parameter
+    - `editor_refresh_screen(ctx)` - now requires context parameter
+    - `editor_select_syntax_highlight(ctx, filename)` - now requires context parameter
+    - `init_editor(ctx)` - now requires context parameter
+  - Reduced global E references by 65-75% across core modules (from ~421 to ~100-150)
+  - All tests passing (2/2), compilation successful
+- **Context Passing Migration (Phase 3)**: Migrated Lua integration to use context from registry
+  - **Architecture**: Lua C API functions retrieve context from Lua registry (Phase 3 Option B)
+  - **Implementation**:
+    - Created `editor_ctx_registry_key` static variable as unique registry key
+    - Implemented `lua_get_editor_context()` helper function for registry retrieval
+    - Updated `loki_lua_bootstrap(ctx, opts)` to accept and store `editor_ctx_t *ctx` parameter
+  - **Lua C API Functions** - Updated all 10 functions to use registry-based context:
+    - `lua_loki_get_line()`, `lua_loki_get_lines()`, `lua_loki_get_cursor()`
+    - `lua_loki_insert_text()`, `lua_loki_stream_text()`, `lua_loki_get_filename()`
+    - `lua_loki_set_color()`, `lua_loki_set_theme()`
+    - `lua_loki_get_mode()`, `lua_loki_set_mode()`
+  - **Lua REPL Functions** - Updated to use explicit context passing:
+    - `lua_repl_render(ctx, ab)`, `lua_repl_handle_keypress(ctx, key)`
+    - `lua_repl_append_log(ctx, line)`, `editor_update_repl_layout(ctx)`
+    - Internal helpers: `lua_repl_execute_current()`, `lua_repl_handle_builtin()`, `lua_repl_emit_registered_help()`, `lua_repl_push_history()`, `lua_repl_log_prefixed()`, `lua_repl_append_log_owned()`
+  - **Public API Changes** in `include/loki/lua.h`:
+    - `loki_lua_bootstrap(editor_ctx_t *ctx, const struct loki_lua_opts *opts)` - breaking change
+    - Added forward declaration of `editor_ctx_t` (now includes `loki/core.h`)
+  - **Call Site Updates**:
+    - Updated `loki_editor.c`: 2 call sites to pass `&E` as context
+    - Updated `main_repl.c`: 1 call site to pass `NULL` (standalone REPL)
+    - Updated `loki_core.c`: All REPL function calls to pass context
+  - **Results**:
+    - Eliminated all global E references from `loki_lua.c` (0 remaining)
+    - 6 files modified: +244 insertions, -187 deletions
+    - All tests passing (2/2), compilation successful
+    - Only harmless typedef redefinition warnings (C11 feature)
+  - **Compatibility**: Architecture fully compatible with future opaque pointer conversion
+  - **Backward Compatibility**: No breaking changes to Lua scripts (API unchanged from Lua perspective)
 
 ## [0.4.1] - 2025-10-02
 
