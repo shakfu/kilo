@@ -2754,9 +2754,9 @@ static int lua_loki_set_theme(lua_State *L) {
 
             if (hl >= 0) {
                 /* Get RGB from value table */
-                lua_getfield(L, -1, "r");
-                lua_getfield(L, -1, "g");
-                lua_getfield(L, -1, "b");
+                lua_getfield(L, -1, "r");  /* Stack: ... table, r */
+                lua_getfield(L, -2, "g");  /* Stack: ... table, r, g */
+                lua_getfield(L, -3, "b");  /* Stack: ... table, r, g, b */
 
                 if (lua_isnumber(L, -3) && lua_isnumber(L, -2) && lua_isnumber(L, -1)) {
                     int r = lua_tointeger(L, -3);

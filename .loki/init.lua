@@ -78,6 +78,10 @@ test_http = test.http
 
 -- Uncomment one of these to load a pre-made theme (only works in editor mode):
 if MODE == "editor" then
+    local ok, err = theme.load("nord")
+    if not ok then
+        loki.status("Theme error: " .. tostring(err))
+    end
     -- theme.load("dracula")
     -- theme.load("monokai")
     -- theme.load("nord")
