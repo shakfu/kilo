@@ -25,6 +25,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 - **REPL Enhancements**: `help` command now mirrors `:help` inside the standalone `loki-repl`
 - **AI Namespace**: `ai.prompt(prompt[, opts])` wrapper exposed to Lua (editor + REPL) with sensible defaults and environment overrides
 - **Readline Integration**: `loki-repl` uses GNU Readline/libedit when available (history, keybindings) and highlights commands on execution
+- **Context Passing Infrastructure (Phase 1)**: Foundation for future split windows and multi-buffer support
+  - New `editor_ctx_t` structure containing all editor state fields
+  - Context management functions: `editor_ctx_init()`, `editor_ctx_from_global()`, `editor_ctx_to_global()`, `editor_ctx_free()`
+  - Infrastructure allows creating independent editor contexts for split windows and tabs
+  - Global singleton `E` retained temporarily for gradual migration
+  - See `docs/remove_global.md` for complete migration plan and architecture
 
 ### Changed
 - Makefile now wraps CMake (`build/` contains artifacts); editor binary renamed to `loki-editor`

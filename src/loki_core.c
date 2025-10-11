@@ -40,8 +40,10 @@ see LICENSE.
 #include <curl/curl.h>
 
 /* Global editor state. Note: This makes the editor non-reentrant and
- * non-thread-safe. Only one editor instance can exist per process. */
-struct loki_editor_instance E;
+ * non-thread-safe. Only one editor instance can exist per process.
+ * During migration to context passing, functions will gradually be updated
+ * to take editor_ctx_t* instead of using this global. */
+editor_ctx_t E;
 
 /* Flag to indicate window size change (set by signal handler) */
 static volatile sig_atomic_t winsize_changed = 0;
@@ -857,7 +859,7 @@ static void lua_apply_highlight_row(t_erow *row, int default_ran) {
 
 /* Set every byte of row->hl (that corresponds to every character in the line)
  * to the right syntax highlight type (HL_* defines). */
-void editor_update_syntax(t_erow *row) {
+void editor_update_syntax(editor_ctx_t *ctx, t_erow *row) {
     unsigned char *new_hl = realloc(row->hl,row->rsize);
     if (new_hl == NULL) return; /* Out of memory, keep old highlighting */
     row->hl = new_hl;
@@ -865,18 +867,18 @@ void editor_update_syntax(t_erow *row) {
 
     int default_ran = 0;
 
-    if (E.syntax != NULL) {
-        if (E.syntax->type == HL_TYPE_MARKDOWN) {
+    if (ctx->syntax != NULL) {
+        if (ctx->syntax->type == HL_TYPE_MARKDOWN) {
             editor_update_syntax_markdown(row);
             default_ran = 1;
         } else {
             int i, prev_sep, in_string, in_comment;
             char *p;
-            char **keywords = E.syntax->keywords;
-            char *scs = E.syntax->singleline_comment_start;
-            char *mcs = E.syntax->multiline_comment_start;
-            char *mce = E.syntax->multiline_comment_end;
-            char *separators = E.syntax->separators;
+            char **keywords = ctx->syntax->keywords;
+            char *scs = ctx->syntax->singleline_comment_start;
+            char *mcs = ctx->syntax->multiline_comment_start;
+            char *mce = ctx->syntax->multiline_comment_end;
+            char *separators = ctx->syntax->separators;
 
             /* Point to the first non-space char. */
             p = row->render;
@@ -891,7 +893,7 @@ void editor_update_syntax(t_erow *row) {
 
             /* If the previous line has an open comment, this line starts
              * with an open comment state. */
-            if (row->idx > 0 && editor_row_has_open_comment(&E.row[row->idx-1]))
+            if (row->idx > 0 && editor_row_has_open_comment(&ctx->row[row->idx-1]))
                 in_comment = 1;
 
             while(*p) {
@@ -1006,8 +1008,8 @@ void editor_update_syntax(t_erow *row) {
      * state changed. This may recursively affect all the following rows
      * in the file. */
     int oc = editor_row_has_open_comment(row);
-    if (row->hl_oc != oc && row->idx+1 < E.numrows)
-        editor_update_syntax(&E.row[row->idx+1]);
+    if (row->hl_oc != oc && row->idx+1 < ctx->numrows)
+        editor_update_syntax(ctx, &ctx->row[row->idx+1]);
     row->hl_oc = oc;
 }
 
@@ -1266,9 +1268,9 @@ void editor_update_syntax_markdown(t_erow *row) {
 /* Format RGB color escape sequence for syntax highlighting.
  * Uses true color (24-bit) escape codes: ESC[38;2;R;G;Bm
  * Returns the length of the formatted string. */
-int editor_format_color(int hl, char *buf, size_t bufsize) {
+int editor_format_color(editor_ctx_t *ctx, int hl, char *buf, size_t bufsize) {
     if (hl < 0 || hl >= 9) hl = 0;  /* Default to HL_NORMAL */
-    t_hlcolor *color = &E.colors[hl];
+    t_hlcolor *color = &ctx->colors[hl];
     return snprintf(buf, bufsize, "\x1b[38;2;%d;%d;%dm",
                     color->r, color->g, color->b);
 }
@@ -1370,7 +1372,7 @@ int add_dynamic_language(struct t_editor_syntax *lang) {
 /* ======================= Editor rows implementation ======================= */
 
 /* Update the rendered version and the syntax highlight of a row. */
-void editor_update_row(t_erow *row) {
+void editor_update_row(editor_ctx_t *ctx, t_erow *row) {
     unsigned int tabs = 0;
     int j, idx;
 
@@ -1405,7 +1407,7 @@ void editor_update_row(t_erow *row) {
     row->render[idx] = '\0';
 
     /* Update the syntax highlighting attributes of the row. */
-    editor_update_syntax(row);
+    editor_update_syntax(ctx, row);
 }
 
 /* Insert a row at the specified position, shifting the other rows on the bottom
@@ -1827,7 +1829,7 @@ void editor_refresh_screen(void) {
                     ab_append(&ab,"\x1b[0m",4);
                     if (current_color != -1) {
                         char buf[32];
-                        int clen = editor_format_color(current_color, buf, sizeof(buf));
+                        int clen = editor_format_color(&E, current_color, buf, sizeof(buf));
                         ab_append(&ab,buf,clen);
                     }
                 } else if (hl[j] == HL_NORMAL) {
@@ -1843,7 +1845,7 @@ void editor_refresh_screen(void) {
                     int color = hl[j];
                     if (color != current_color) {
                         char buf[32];
-                        int clen = editor_format_color(color, buf, sizeof(buf));
+                        int clen = editor_format_color(&E, color, buf, sizeof(buf));
                         current_color = color;
                         ab_append(&ab,buf,clen);
                     }
@@ -1852,7 +1854,7 @@ void editor_refresh_screen(void) {
                         ab_append(&ab,"\x1b[0m",4); /* Reset */
                         if (current_color != -1) {
                             char buf[32];
-                            int clen = editor_format_color(current_color, buf, sizeof(buf));
+                            int clen = editor_format_color(&E, current_color, buf, sizeof(buf));
                             ab_append(&ab,buf,clen);
                         }
                     }
