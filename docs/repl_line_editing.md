@@ -9,7 +9,8 @@ The loki-repl now has comprehensive line editing support with automatic detectio
 - **Command history** with up/down arrow navigation
 - **Line editing** with cursor movement (left/right arrows, home/end)
 - **History persistence** across sessions (saved to `.loki/repl_history`)
-- **Tab completion** (available with future additions to Lua API)
+- **Tab completion** for Lua keywords, globals, and loki.* API functions
+- **Multi-line input** with automatic detection of incomplete Lua code
 
 ## Library Priority
 
@@ -69,22 +70,49 @@ Line editing library not found; loki-repl will use basic fallback (no history/co
 ```bash
 $ ./build/loki-repl
 loki-repl 0.4.1 (Lua 5.4). Type :help for commands.
-Line editing: editline (history enabled)
+Line editing: editline (history + tab completion + multi-line enabled)
 loki>
 ```
 
 **Available features:**
-- ⬆️ **Up arrow**: Navigate to previous command
-- ⬇️ **Down arrow**: Navigate to next command
-- ⬅️ **Left arrow**: Move cursor left
-- ➡️ **Right arrow**: Move cursor right
+
+**Navigation:**
+- ⬆ **Up arrow**: Navigate to previous command
+- ⬇ **Down arrow**: Navigate to next command
+- ⬅ **Left arrow**: Move cursor left
+-  **Right arrow**: Move cursor right
 - **Home/End**: Jump to start/end of line
 - **Ctrl-A**: Jump to start of line
 - **Ctrl-E**: Jump to end of line
+
+**Editing:**
 - **Ctrl-K**: Delete from cursor to end
 - **Ctrl-U**: Delete entire line
 - **Ctrl-W**: Delete word backward
+- **Ctrl-_**: Undo last edit
+
+**History:**
+- **Ctrl-R**: Reverse incremental search through history
 - **Ctrl-D**: Exit REPL (EOF)
+
+**Tab Completion:**
+- **TAB**: Complete Lua keywords (if, then, function, etc.)
+- **TAB**: Complete Lua globals from _G table (print, string, table, etc.)
+- **TAB**: Complete loki.* API functions (loki.status, loki.get_lines, etc.)
+
+**Multi-line Input:**
+- Incomplete Lua code automatically triggers continuation prompt `cont>`
+- Works for: functions, tables, control structures, incomplete expressions
+- Example:
+  ```lua
+  loki> function factorial(n)
+  cont>   if n <= 1 then return 1
+  cont>   else return n * factorial(n-1)
+  cont>   end
+  cont> end
+  loki> factorial(5)
+  120
+  ```
 
 ### Without line editing:
 
@@ -224,18 +252,23 @@ If no editline/readline found, rebuild after installing.
 
 ## Future Enhancements
 
+### Completed [x]
+- [x] Tab completion for Lua globals
+- [x] Tab completion for `loki.*` API functions
+- [x] Multi-line editing for functions/tables
+- [x] Tab completion for Lua keywords
+
 ### Planned
-- [ ] Tab completion for Lua globals
-- [ ] Tab completion for `loki.*` API functions
 - [ ] Syntax-aware completion (table keys, methods)
-- [ ] Multi-line editing for functions/tables
 - [ ] Vi mode toggle
+- [ ] Smart indentation in multi-line mode
 
 ### Possible
 - [ ] Completion from Lua documentation
 - [ ] Completion from loaded modules
 - [ ] Context-aware hints (like fish shell)
 - [ ] Inline syntax highlighting (limited by terminal)
+- [ ] Completion with function signatures/parameter hints
 
 ## Technical Notes
 
@@ -250,11 +283,29 @@ If no editline/readline found, rebuild after installing.
 
 **Files modified:**
 - `CMakeLists.txt`: Enhanced detection logic with editline priority
-- `src/main_repl.c`: Added editline support, unified API under `LOKI_HAVE_LINEEDIT`
+- `src/main_repl.c`: Added editline support, tab completion, multi-line input
 
-**Lines changed:** ~80 lines
+**Lines changed:** ~280 lines total
 - CMakeLists.txt: +65 lines (improved detection, status messages)
-- main_repl.c: +15 lines (editline support, status display)
+- main_repl.c: +215 lines (editline support, tab completion, multi-line input)
+
+**New features implemented:**
+1. **Tab completion system (lines 397-535)**:
+   - `get_lua_completions()`: Queries Lua keywords, globals, and loki API
+   - `completion_generator()`: State machine for readline completion
+   - `loki_completion()`: Entry point for readline/editline
+   - `repl_init_completion()`: Initialize completion system
+
+2. **Multi-line input support (lines 189-209, 211-306)**:
+   - `is_lua_complete()`: Checks if Lua code is syntactically complete
+   - Modified main REPL loop with line buffering
+   - Continuation prompt (`cont>`) for incomplete code
+   - Proper handling of syntax errors vs incomplete code
+
+3. **Enhanced help documentation** (lines 308-325):
+   - Documents multi-line input feature
+   - Documents tab completion
+   - Documents readline shortcuts (Ctrl-R, Ctrl-_)
 
 ### Testing performed
 
@@ -268,21 +319,62 @@ $ rm -rf build && make build
 $ otool -L build/loki-repl | grep edit
 	/usr/lib/libedit.3.dylib (compatibility version 2.0.0, current version 3.0.0)
 
-# Test REPL
+# Test basic REPL
 $ ./build/loki-repl
 loki-repl 0.4.1 (Lua 5.4). Type :help for commands.
-Line editing: editline (history enabled)
+Line editing: editline (history + tab completion + multi-line enabled)
 loki> print(1+1)
 2
 loki> quit
 
-# Verify history
+# Test multi-line input
+$ ./build/loki-repl
+loki> function factorial(n)
+cont>   if n <= 1 then return 1
+cont>   else return n * factorial(n-1)
+cont>   end
+cont> end
+loki> factorial(5)
+120
+loki> quit
+
+# Test multi-line table
+$ ./build/loki-repl
+loki> t = {
+cont>   x = 1,
+cont>   y = 2
+cont> }
+loki> print(t.x, t.y)
+1	2
+loki> quit
+
+# Verify history (multi-line stored as single entry)
 $ cat .loki/repl_history
 _HiStOrY_V2_
 print(1+1)
+function factorial(n)\n  if n <= 1 then return 1\n  else return n * factorial(n-1)\n  end\nend
+factorial(5)
+t = {\n  x = 1,\n  y = 2\n}
+print(t.x, t.y)
 ```
 
-✅ All tests passed
+**Tab completion testing:**
+- Type `fun` + TAB → completes to `function`
+- Type `loki.` + TAB → shows loki.status, loki.get_lines, etc.
+- Type `pri` + TAB → completes to `print`
+
+[x] All tests passed
+
+**Test results:**
+- [x] Basic single-line evaluation
+- [x] Multi-line functions with proper indentation
+- [x] Multi-line tables
+- [x] Incomplete expressions show `cont>` prompt
+- [x] Tab completion for keywords
+- [x] Tab completion for Lua globals
+- [x] Tab completion for loki.* API
+- [x] History persistence across sessions
+- [x] Help documentation complete
 
 ---
 
@@ -316,19 +408,22 @@ make test
 
 | Key | Action |
 |-----|--------|
-| ⬆️ / ⬇️ | Navigate history |
-| ⬅️ / ➡️ | Move cursor |
+| ⬆ / ⬇ | Navigate history |
+| ⬅ /  | Move cursor |
+| **TAB** | Complete keywords/globals/loki.* API |
 | **Ctrl-A** | Start of line |
 | **Ctrl-E** | End of line |
 | **Ctrl-K** | Delete to end |
 | **Ctrl-U** | Delete line |
 | **Ctrl-W** | Delete word back |
+| **Ctrl-R** | Reverse search history |
+| **Ctrl-_** | Undo last edit |
 | **Ctrl-D** | Exit (EOF) |
 | **Ctrl-C** | Cancel line |
 | `:quit` | Exit REPL (saves history) |
 
 ---
 
-**Status:** ✅ COMPLETE AND TESTED
+**Status:** [x] COMPLETE AND TESTED
 
 Line editing support is fully functional with automatic library detection and fallback support.

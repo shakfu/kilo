@@ -9,36 +9,56 @@
 --
 -- If .loki/init.lua exists, global config is NOT loaded.
 
+-- ===========================================================================
+-- Global mode detection
+-- ===========================================================================
+-- Detect context: "editor" or "repl"
+MODE = loki.get_lines and "editor" or "repl"
+
 -- Set a welcome message
 loki.status("Lua scripting enabled! Press Ctrl-L to run commands.")
 
--- Example function: count lines
-function count_lines()
-    local n = loki.get_lines()
-    loki.status(string.format("File has %d lines", n))
-end
+-- ===========================================================================
+-- Editor utility functions namespace (only available in editor, not REPL)
+-- ===========================================================================
+editor = editor or {}
 
--- Example function: show cursor position
-function show_cursor()
-    local row, col = loki.get_cursor()
-    loki.status(string.format("Cursor at row %d, col %d", row, col))
-end
-
--- Example function: insert current timestamp
-function insert_timestamp()
-    local timestamp = os.date("%Y-%m-%d %H:%M:%S")
-    loki.insert_text(timestamp)
-    loki.status("Inserted timestamp")
-end
-
--- Example function: print first line
-function first_line()
-    local line = loki.get_line(0)
-    if line then
-        loki.status("First line: " .. line)
-    else
-        loki.status("No lines in file")
+-- Only define editor functions if we're in the editor context (not REPL)
+if MODE == "editor" then
+    -- Count lines in buffer
+    function editor.count_lines()
+        local n = loki.get_lines()
+        loki.status(string.format("File has %d lines", n))
     end
+
+    -- Show cursor position
+    function editor.cursor()
+        local row, col = loki.get_cursor()
+        loki.status(string.format("Cursor at row %d, col %d", row, col))
+    end
+
+    -- Insert current timestamp
+    function editor.timestamp()
+        local timestamp = os.date("%Y-%m-%d %H:%M:%S")
+        loki.insert_text(timestamp)
+        loki.status("Inserted timestamp")
+    end
+
+    -- Print first line
+    function editor.first_line()
+        local line = loki.get_line(0)
+        if line then
+            loki.status("First line: " .. line)
+        else
+            loki.status("No lines in file")
+        end
+    end
+
+    -- Backward compatibility aliases (deprecated)
+    count_lines = editor.count_lines
+    show_cursor = editor.cursor
+    insert_timestamp = editor.timestamp
+    first_line = editor.first_line
 end
 
 local hl = loki.hl or {}
@@ -154,23 +174,100 @@ function loki.highlight_row(idx, text, render, syntax_type, default_applied)
 end
 
 -- ===========================================================================
--- AI Completion Example (requires OPENAI_API_KEY environment variable)
+-- AI Completion namespace (requires OPENAI_API_KEY environment variable)
 -- ===========================================================================
+ai = {}
 
--- Main AI completion function
--- Sends entire buffer to OpenAI and inserts response asynchronously
-function ai_complete()
-    -- Get all buffer content
-    local lines = {}
-    for i = 0, loki.get_lines() - 1 do
-        table.insert(lines, loki.get_line(i))
+-- Internal: response handler for AI requests
+local function ai_response_handler(response)
+    if not response then
+        if MODE == "editor" then
+            loki.status("Error: No response from AI")
+        else
+            print("Error: No response from AI")
+        end
+        return
     end
-    local prompt = table.concat(lines, "\n")
+
+    -- Check for API errors first
+    local error_msg = response:match('"error"%s*:%s*{.-"message"%s*:%s*"(.-)"')
+    if error_msg then
+        if MODE == "editor" then
+            loki.status("API Error: " .. error_msg)
+        else
+            print("API Error: " .. error_msg)
+        end
+        return
+    end
+
+    -- Parse OpenAI response format: {"choices":[{"message":{"content":"..."}}]}
+    -- First try the nested format (OpenAI chat completions)
+    local content = response:match('"message"%s*:%s*{.-"content"%s*:%s*"(.-[^\\])"')
+
+    -- If that fails, try simple format: {"content":"..."}
+    if not content then
+        content = response:match('"content"%s*:%s*"(.-[^\\])"')
+    end
+
+    if content then
+        -- Unescape JSON string
+        content = content:gsub('\\n', '\n')
+        content = content:gsub('\\t', '\t')
+        content = content:gsub('\\"', '"')
+        content = content:gsub('\\\\', '\\')
+
+        -- Output response based on context
+        if MODE == "editor" then
+            -- Editor context: insert into buffer
+            loki.insert_text("\n\n--- AI Response ---\n" .. content .. "\n---\n")
+            loki.status("AI response inserted!")
+        else
+            -- REPL context: print to console
+            print("\n--- AI Response ---")
+            print(content)
+            print("---\n")
+        end
+    else
+        -- Show first 100 chars of response for debugging
+        local preview = response:sub(1, math.min(100, #response))
+        if MODE == "editor" then
+            loki.status("Error parsing response: " .. preview)
+        else
+            print("Error parsing response: " .. preview)
+        end
+    end
+end
+
+-- Send entire buffer (or text) to OpenAI and insert response asynchronously
+-- In editor: ai.complete() uses buffer content
+-- In REPL: ai.complete("your prompt text") or ai.complete() prompts for input
+function ai.complete(text)
+    local prompt
+
+    if text then
+        -- Explicit text provided
+        prompt = text
+    elseif MODE == "editor" then
+        -- Editor context: get buffer content
+        local lines = {}
+        for i = 0, loki.get_lines() - 1 do
+            table.insert(lines, loki.get_line(i))
+        end
+        prompt = table.concat(lines, "\n")
+    else
+        -- REPL context without text: error
+        print("Usage: ai.complete('your prompt text')")
+        return
+    end
 
     -- Get API key from environment
     local api_key = os.getenv("OPENAI_API_KEY")
     if not api_key or api_key == "" then
-        loki.status("Error: OPENAI_API_KEY environment variable not set")
+        if MODE == "editor" then
+            loki.status("Error: OPENAI_API_KEY environment variable not set")
+        else
+            print("Error: OPENAI_API_KEY environment variable not set")
+        end
         return
     end
 
@@ -197,60 +294,39 @@ function ai_complete()
         "ai_response_handler"  -- Callback function
     )
 
-    loki.status("AI request sent... (will appear when ready)")
-end
-
--- Callback function called when AI response arrives
-function ai_response_handler(response)
-    if not response then
-        loki.status("Error: No response from AI")
-        return
-    end
-
-    -- Check for API errors first
-    local error_msg = response:match('"error"%s*:%s*{.-"message"%s*:%s*"(.-)"')
-    if error_msg then
-        loki.status("API Error: " .. error_msg)
-        return
-    end
-
-    -- Parse OpenAI response format: {"choices":[{"message":{"content":"..."}}]}
-    -- First try the nested format (OpenAI chat completions)
-    local content = response:match('"message"%s*:%s*{.-"content"%s*:%s*"(.-[^\\])"')
-
-    -- If that fails, try simple format: {"content":"..."}
-    if not content then
-        content = response:match('"content"%s*:%s*"(.-[^\\])"')
-    end
-
-    if content then
-        -- Unescape JSON string
-        content = content:gsub('\\n', '\n')
-        content = content:gsub('\\t', '\t')
-        content = content:gsub('\\"', '"')
-        content = content:gsub('\\\\', '\\')
-
-        -- Insert response into buffer at cursor position
-        loki.insert_text("\n\n--- AI Response ---\n" .. content .. "\n---\n")
-        loki.status("AI response inserted!")
+    if MODE == "editor" then
+        loki.status("AI request sent... (will appear when ready)")
     else
-        -- Show first 100 chars of response for debugging
-        local preview = response:sub(1, math.min(100, #response))
-        loki.status("Error parsing response: " .. preview)
+        print("AI request sent... (will appear when ready)")
     end
 end
 
--- Example: AI completion for specific task
-function ai_explain()
-    local lines = {}
-    for i = 0, loki.get_lines() - 1 do
-        table.insert(lines, loki.get_line(i))
+-- Get code explanation from AI
+-- In editor: ai.explain() uses buffer content
+-- In REPL: ai.explain("code to explain")
+function ai.explain(code)
+    if not code then
+        if MODE == "editor" then
+            -- Editor context: get buffer content
+            local lines = {}
+            for i = 0, loki.get_lines() - 1 do
+                table.insert(lines, loki.get_line(i))
+            end
+            code = table.concat(lines, "\n")
+        else
+            -- REPL context without text: error
+            print("Usage: ai.explain('code to explain')")
+            return
+        end
     end
-    local code = table.concat(lines, "\n")
 
     local api_key = os.getenv("OPENAI_API_KEY")
     if not api_key or api_key == "" then
-        loki.status("Error: OPENAI_API_KEY not set")
+        if MODE == "editor" then
+            loki.status("Error: OPENAI_API_KEY not set")
+        else
+            print("Error: OPENAI_API_KEY not set")
+        end
         return
     end
 
@@ -275,11 +351,35 @@ function ai_explain()
         "ai_response_handler"
     )
 
-    loki.status("Requesting code explanation...")
+    if MODE == "editor" then
+        loki.status("Requesting code explanation...")
+    else
+        print("Requesting code explanation...")
+    end
 end
 
--- Example: Test the async HTTP with a simple GET request
-function test_http()
+-- Backward compatibility aliases (deprecated)
+ai_complete = ai.complete
+ai_explain = ai.explain
+ai_response_handler = ai_response_handler
+
+-- ===========================================================================
+-- Test namespace
+-- ===========================================================================
+test = {}
+
+-- Internal: handler for HTTP test
+local function test_http_handler(response)
+    if response then
+        loki.insert_text("\n\nGitHub Zen: " .. response .. "\n")
+        loki.status("HTTP test successful!")
+    else
+        loki.status("HTTP test failed")
+    end
+end
+
+-- Test the async HTTP with a simple GET request
+function test.http()
     loki.async_http(
         "https://api.github.com/zen",
         "GET",
@@ -290,20 +390,32 @@ function test_http()
     loki.status("Testing HTTP...")
 end
 
-function test_http_handler(response)
-    if response then
-        loki.insert_text("\n\nGitHub Zen: " .. response .. "\n")
-        loki.status("HTTP test successful!")
-    else
-        loki.status("HTTP test failed")
-    end
-end
+-- Backward compatibility aliases (deprecated)
+test_http = test.http
+test_http_handler = test_http_handler
 
 print("Loki Lua init.lua loaded successfully")
 print("Available commands:")
-print("  count_lines()      - Show line count")
-print("  show_cursor()      - Show cursor position")
-print("  insert_timestamp() - Insert current date/time")
-print("  ai_complete()      - Send buffer to AI (requires OPENAI_API_KEY)")
-print("  ai_explain()       - Get code explanation (requires OPENAI_API_KEY)")
-print("  test_http()        - Test async HTTP with GitHub API")
+print("")
+
+-- Only show editor utilities if in editor context
+if MODE == "editor" then
+    print("Editor utilities:")
+    print("  editor.count_lines()  - Show line count")
+    print("  editor.cursor()       - Show cursor position")
+    print("  editor.timestamp()    - Insert current date/time")
+    print("  editor.first_line()   - Display first line")
+    print("")
+end
+
+print("AI functions (requires OPENAI_API_KEY):")
+if MODE == "editor" then
+    print("  ai.complete()         - Send buffer to AI for completion")
+    print("  ai.explain()          - Get code explanation from AI")
+else
+    print("  ai.complete('text')   - Send text to AI for completion")
+    print("  ai.explain('code')    - Get code explanation from AI")
+end
+print("")
+print("Test functions:")
+print("  test.http()           - Test async HTTP with GitHub API")

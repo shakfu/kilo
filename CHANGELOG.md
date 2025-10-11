@@ -15,6 +15,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Lua REPL Panel**: `Ctrl-L` toggles a console that hides when idle and uses a `>>` prompt
+- **Lua REPL Helpers**: Built-in commands (help/history/clear) and the `loki.repl.register` hook
+- **Documentation**: New `docs/REPL_EXTENSION.md` covering REPL customization strategies
+- **Modular Targets**: New `libloki` library plus `loki-editor` and `loki-repl` executables built via CMake backend
+- **REPL Enhancements**: `help` command now mirrors `:help` inside the standalone `loki-repl`
+- **AI Namespace**: `ai.prompt(prompt[, opts])` wrapper exposed to Lua (editor + REPL) with sensible defaults and environment overrides
+- **Readline Integration**: `loki-repl` uses GNU Readline/libedit when available (history, keybindings) and highlights commands on execution
+
+### Changed
+- Makefile now wraps CMake (`build/` contains artifacts); editor binary renamed to `loki-editor`
+
 ## [0.4.1] - 2025-10-02
 
 ### Fixed

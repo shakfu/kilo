@@ -33,22 +33,22 @@ loki uses a basic hand-coded syntax highlighter (~150 lines):
 **What it is:** Incremental parser generator that creates concrete syntax trees. Used by Neovim, Helix, Zed, GitHub.com, and Atom.
 
 **Pros:**
-- ✅ Extremely accurate syntax highlighting (AST-based, not regex)
-- ✅ Incremental parsing (only re-parses changed sections)
-- ✅ High performance even on large files
-- ✅ 100+ languages with community grammars
-- ✅ Written in pure C11, embeddable
-- ✅ Supports language injection (e.g., SQL in Python strings)
-- ✅ Can power additional features (code folding, navigation, selection)
-- ✅ Active development and community
+- [x] Extremely accurate syntax highlighting (AST-based, not regex)
+- [x] Incremental parsing (only re-parses changed sections)
+- [x] High performance even on large files
+- [x] 100+ languages with community grammars
+- [x] Written in pure C11, embeddable
+- [x] Supports language injection (e.g., SQL in Python strings)
+- [x] Can power additional features (code folding, navigation, selection)
+- [x] Active development and community
 
 **Cons:**
-- ❌ Significant complexity overhead (~10K lines of integration code in real editors)
-- ❌ Requires language grammar files (.so or .a per language)
-- ❌ Binary size: ~300-500KB core + ~100-200KB per language grammar
-- ❌ Requires query files for highlight rules (additional complexity)
-- ❌ Learning curve for query syntax
-- ❌ May be overkill for a 1.9K-line editor
+- [X] Significant complexity overhead (~10K lines of integration code in real editors)
+- [X] Requires language grammar files (.so or .a per language)
+- [X] Binary size: ~300-500KB core + ~100-200KB per language grammar
+- [X] Requires query files for highlight rules (additional complexity)
+- [X] Learning curve for query syntax
+- [X] May be overkill for a 1.9K-line editor
 
 **Integration Approach:**
 
@@ -100,19 +100,19 @@ clang -I tree-sitter/lib/include \
 **What it is:** Regex-based pattern matching system used by VS Code, Sublime Text, TextMate.
 
 **Pros:**
-- ✅ 200+ languages with existing grammar files (JSON)
-- ✅ Simpler than Tree-sitter
-- ✅ Industry standard (VS Code compatibility)
-- ✅ Grammar files are redistributable JSON
-- ✅ Well-documented pattern syntax
+- [x] 200+ languages with existing grammar files (JSON)
+- [x] Simpler than Tree-sitter
+- [x] Industry standard (VS Code compatibility)
+- [x] Grammar files are redistributable JSON
+- [x] Well-documented pattern syntax
 
 **Cons:**
-- ❌ Requires Oniguruma regex library (~200KB)
-- ❌ Slower than Tree-sitter for complex grammars
-- ❌ Less accurate (regex limitations)
-- ❌ No incremental parsing
-- ❌ Grammar files can be very complex (1000+ lines)
-- ❌ Need JSON parser for grammar loading
+- [X] Requires Oniguruma regex library (~200KB)
+- [X] Slower than Tree-sitter for complex grammars
+- [X] Less accurate (regex limitations)
+- [X] No incremental parsing
+- [X] Grammar files can be very complex (1000+ lines)
+- [X] Need JSON parser for grammar loading
 
 **Libraries:**
 - **Oniguruma** (C): ~150KB library, BSDL license
@@ -132,14 +132,14 @@ clang -I tree-sitter/lib/include \
 **What it is:** Rust library used by `bat` (cat clone) and other tools. Parses Sublime Text syntax definitions.
 
 **Pros:**
-- ✅ Battle-tested (bat has millions of users)
-- ✅ Sublime Text syntax compatibility
-- ✅ Good performance
+- [x] Battle-tested (bat has millions of users)
+- [x] Sublime Text syntax compatibility
+- [x] Good performance
 
 **Cons:**
-- ❌ Written in Rust (not suitable for C codebase)
-- ❌ Would require FFI bindings
-- ❌ Large Rust stdlib overhead
+- [X] Written in Rust (not suitable for C codebase)
+- [X] Would require FFI bindings
+- [X] Large Rust stdlib overhead
 
 **Verdict:** Not suitable for C integration, but interesting reference implementation.
 
@@ -150,17 +150,17 @@ clang -I tree-sitter/lib/include \
 **What it is:** Improve kilo's current approach with a data-driven design instead of full parsing library.
 
 **Pros:**
-- ✅ Minimal code addition (~200-300 lines)
-- ✅ No external dependencies
-- ✅ Zero binary size increase (or +10KB for embedded grammars)
-- ✅ Full control and simplicity
-- ✅ Easy to understand and maintain
+- [x] Minimal code addition (~200-300 lines)
+- [x] No external dependencies
+- [x] Zero binary size increase (or +10KB for embedded grammars)
+- [x] Full control and simplicity
+- [x] Easy to understand and maintain
 
 **Cons:**
-- ❌ Limited accuracy (regex-like patterns only)
-- ❌ Manual language definition required
-- ❌ No advanced features (semantic highlighting, injection)
-- ❌ Does not scale to 100+ languages
+- [X] Limited accuracy (regex-like patterns only)
+- [X] Manual language definition required
+- [X] No advanced features (semantic highlighting, injection)
+- [X] Does not scale to 100+ languages
 
 **Proposed Implementation:**
 
@@ -243,19 +243,19 @@ Language Server Protocol provides:
 **Repository:** https://github.com/leon-bckl/lsp-framework
 
 **Pros:**
-- ✅ Modern C++20, type-safe
-- ✅ Zero dependencies (except CMake + C++20 compiler)
-- ✅ Automatic JSON serialization/deserialization
-- ✅ Supports both stdio and socket communication
-- ✅ Both client and server support
-- ✅ Static library (embeddable)
-- ✅ Minimal threading (async handlers only)
+- [x] Modern C++20, type-safe
+- [x] Zero dependencies (except CMake + C++20 compiler)
+- [x] Automatic JSON serialization/deserialization
+- [x] Supports both stdio and socket communication
+- [x] Both client and server support
+- [x] Static library (embeddable)
+- [x] Minimal threading (async handlers only)
 
 **Cons:**
-- ❌ Requires C++20 compiler (may limit portability)
-- ❌ Increases binary size significantly
-- ❌ Learning curve for LSP protocol
-- ❌ Adds complexity to UI (need to display diagnostics, completions, etc.)
+- [X] Requires C++20 compiler (may limit portability)
+- [X] Increases binary size significantly
+- [X] Learning curve for LSP protocol
+- [X] Adds complexity to UI (need to display diagnostics, completions, etc.)
 
 **Integration Example:**
 
@@ -303,13 +303,13 @@ while (true) {
 **Repository:** https://github.com/kuafuwang/LspCpp
 
 **Pros:**
-- ✅ C++ implementation
-- ✅ Full LSP support
+- [x] C++ implementation
+- [x] Full LSP support
 
 **Cons:**
-- ❌ Depends on Boost, RapidJSON, utfcpp, uri
-- ❌ Heavy dependency chain
-- ❌ Less actively maintained
+- [X] Depends on Boost, RapidJSON, utfcpp, uri
+- [X] Heavy dependency chain
+- [X] Less actively maintained
 
 **Verdict:** Too many dependencies for kilo's philosophy.
 
@@ -320,15 +320,15 @@ while (true) {
 **What it is:** Implement a minimal LSP client manually using just JSON parsing.
 
 **Pros:**
-- ✅ Full control
-- ✅ Minimal code
-- ✅ Can cherry-pick LSP features (e.g., only diagnostics)
+- [x] Full control
+- [x] Minimal code
+- [x] Can cherry-pick LSP features (e.g., only diagnostics)
 
 **Cons:**
-- ❌ Still need JSON parser (cJSON ~300 lines, or json-c ~50KB)
-- ❌ Significant protocol complexity
-- ❌ Easy to get wrong
-- ❌ Maintenance burden
+- [X] Still need JSON parser (cJSON ~300 lines, or json-c ~50KB)
+- [X] Significant protocol complexity
+- [X] Easy to get wrong
+- [X] Maintenance burden
 
 **Example using cJSON:**
 
@@ -368,16 +368,16 @@ void send_lsp_initialize() {
 **What it is:** Implement LSP client logic in Lua using kilo's existing Lua integration.
 
 **Pros:**
-- ✅ Leverages existing Lua runtime
-- ✅ No additional C dependencies
-- ✅ Easy to prototype and iterate
-- ✅ Can use Lua JSON libraries
-- ✅ Async I/O already available in kilo
+- [x] Leverages existing Lua runtime
+- [x] No additional C dependencies
+- [x] Easy to prototype and iterate
+- [x] Can use Lua JSON libraries
+- [x] Async I/O already available in kilo
 
 **Cons:**
-- ❌ Performance overhead for JSON parsing in Lua
-- ❌ Lua JSON library needed (can be pure Lua)
-- ❌ Still complex protocol handling
+- [X] Performance overhead for JSON parsing in Lua
+- [X] Lua JSON library needed (can be pure Lua)
+- [X] Still complex protocol handling
 
 **Example Lua implementation:**
 

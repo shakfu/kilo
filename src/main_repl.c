@@ -40,17 +40,24 @@ static void print_usage(void);
 static int run_script(lua_State *L, const char *path);
 static int run_repl(lua_State *L, repl_history_config *history);
 static int execute_lua_line(lua_State *L, const char *line);
+static bool is_lua_complete(lua_State *L, const char *code);
 static void repl_print_help(void);
 static void repl_init_history(repl_history_config *config);
 static void repl_shutdown_history(repl_history_config *config);
 static void repl_add_history_entry(const char *line, repl_history_config *config);
 static char *repl_read_line(const char *prompt);
 static void repl_free_line(char *line);
+static char *repl_edit_external(const char *initial_content);
+#ifdef LOKI_HAVE_LINEEDIT
+static void repl_init_completion(lua_State *L);
+#endif
+#ifndef LOKI_HAVE_LINEEDIT
 static void repl_show_highlight(const char *prompt, const char *line);
 static char *repl_highlight_lua(const char *prompt, const char *line);
 static void repl_append_colored(char **buf, size_t *len, size_t *cap, const char *text);
 static void repl_append_char(char **buf, size_t *len, size_t *cap, char ch);
 static bool repl_is_lua_keyword(const char *word, size_t len);
+#endif
 
 int main(int argc, char **argv) {
     int trace_http = 0;
@@ -183,50 +190,143 @@ static int execute_lua_line(lua_State *L, const char *line) {
     return 0;
 }
 
+/* Check if Lua code is syntactically complete */
+static bool is_lua_complete(lua_State *L, const char *code) {
+    int base = lua_gettop(L);
+    int status = luaL_loadstring(L, code);
+
+    if (status == LUA_OK) {
+        lua_pop(L, 1);  /* Pop the compiled chunk */
+        return true;
+    }
+
+    if (status == LUA_ERRSYNTAX) {
+        const char *msg = lua_tostring(L, -1);
+        /* Check for "unexpected <eof>" or "unfinished" which indicate incomplete input */
+        bool incomplete = (msg && (strstr(msg, "<eof>") != NULL || strstr(msg, "unfinished") != NULL));
+        lua_pop(L, 1);  /* Pop the error message */
+        return !incomplete;
+    }
+
+    lua_settop(L, base);  /* Pop any other errors */
+    return true;  /* Other errors mean it's "complete" but has real errors */
+}
+
 static int run_repl(lua_State *L, repl_history_config *history) {
     printf("loki-repl %s (%s). Type :help for commands.\n", LOKI_VERSION, loki_lua_runtime());
 
 #if defined(LOKI_HAVE_EDITLINE)
-    printf("Line editing: editline (history enabled)\n");
+    printf("Line editing: editline (history + tab completion + multi-line enabled)\n");
 #elif defined(LOKI_HAVE_READLINE)
-    printf("Line editing: readline (history enabled)\n");
+    printf("Line editing: readline (history + tab completion + multi-line enabled)\n");
 #else
-    printf("Line editing: basic (no history)\n");
+    printf("Line editing: basic (multi-line enabled)\n");
+#endif
+
+#ifdef LOKI_HAVE_LINEEDIT
+    /* Initialize tab completion */
+    repl_init_completion(L);
 #endif
 
     int status = 0;
-    const char *prompt = "loki> ";
+    const char *main_prompt = "loki> ";
+    const char *cont_prompt = "cont> ";
+
+    /* Multi-line buffer */
+    char *buffer = NULL;
+    size_t buffer_len = 0;
+    size_t buffer_cap = 0;
 
     while (1) {
+        const char *prompt = (buffer_len > 0) ? cont_prompt : main_prompt;
         char *line = repl_read_line(prompt);
+
         if (!line) {
             putchar('\n');
             break;
         }
 
-        if (strcmp(line, "quit") == 0 || strcmp(line, ":quit") == 0) {
+        /* Check for quit commands (only at main prompt) */
+        if (buffer_len == 0 && (strcmp(line, "quit") == 0 || strcmp(line, ":quit") == 0 || strcmp(line, ":q") == 0)) {
             repl_free_line(line);
             break;
         }
 
-        if (strcmp(line, ":help") == 0 || strcmp(line, "help") == 0) {
+        /* Check for help commands (only at main prompt) */
+        if (buffer_len == 0 && (strcmp(line, ":help") == 0 || strcmp(line, "help") == 0)) {
+#ifndef LOKI_HAVE_LINEEDIT
+            /* Only show highlighting with basic getline (not readline/editline) */
             repl_show_highlight(prompt, line);
+#endif
             repl_print_help();
             repl_free_line(line);
             continue;
         }
 
-        if (line[0] != '\0') {
-            repl_show_highlight(prompt, line);
-            repl_add_history_entry(line, history);
-            if (execute_lua_line(L, line) != 0) {
-                status = 1;
+        /* Check for edit command */
+        if (strcmp(line, ":edit") == 0 || strcmp(line, ":e") == 0) {
+            repl_free_line(line);
+
+            /* Open editor with current buffer content (if any) */
+            char *content = repl_edit_external(buffer_len > 0 ? buffer : NULL);
+            if (content && content[0]) {
+                /* Execute the content from editor */
+                repl_add_history_entry(content, history);
+                if (execute_lua_line(L, content) != 0) {
+                    status = 1;
+                }
+                free(content);
+            }
+
+            /* Reset buffer */
+            buffer_len = 0;
+            if (buffer) buffer[0] = '\0';
+            continue;
+        }
+
+        /* Append line to buffer */
+        size_t line_len = strlen(line);
+        size_t needed = buffer_len + line_len + 2;  /* +1 for newline, +1 for null */
+
+        if (needed > buffer_cap) {
+            buffer_cap = needed * 2;
+            buffer = realloc(buffer, buffer_cap);
+            if (!buffer) {
+                fprintf(stderr, "Out of memory\n");
+                repl_free_line(line);
+                return 1;
             }
         }
 
+        if (buffer_len > 0) {
+            buffer[buffer_len++] = '\n';
+        }
+        memcpy(buffer + buffer_len, line, line_len);
+        buffer_len += line_len;
+        buffer[buffer_len] = '\0';
+
         repl_free_line(line);
+
+        /* Check if code is complete */
+        if (buffer[0] != '\0' && is_lua_complete(L, buffer)) {
+#ifndef LOKI_HAVE_LINEEDIT
+            /* Only show highlighting with basic getline (not readline/editline) */
+            repl_show_highlight(main_prompt, buffer);
+#endif
+            repl_add_history_entry(buffer, history);
+
+            if (execute_lua_line(L, buffer) != 0) {
+                status = 1;
+            }
+
+            /* Reset buffer */
+            buffer_len = 0;
+            buffer[0] = '\0';
+        }
+        /* If incomplete, loop will continue with cont_prompt */
     }
 
+    free(buffer);
     return status;
 }
 
@@ -234,6 +334,21 @@ static void repl_print_help(void) {
     printf("Commands:\n");
     printf("  help / :help    Show this help message\n");
     printf("  quit / :quit    Exit the repl\n");
+    printf("  :q              Shortcut for :quit\n");
+    printf("  edit / :edit    Open $EDITOR to write/edit multi-line code\n");
+    printf("  :e              Shortcut for :edit\n");
+    printf("\n");
+    printf("Features:\n");
+    printf("  Multi-line input: Incomplete Lua code (functions, tables, etc.) will\n");
+    printf("                    automatically show a continuation prompt (cont>)\n");
+    printf("  External editor:  Type :edit to open your preferred editor ($EDITOR or vi)\n");
+    printf("                    for complex code. Content will be executed on save & exit.\n");
+#ifdef LOKI_HAVE_LINEEDIT
+    printf("  Tab completion:   Press TAB to complete Lua keywords, globals, and loki.* API\n");
+    printf("  History:          Use Up/Down arrows to navigate previous commands\n");
+    printf("                    Ctrl-R: Reverse search through history\n");
+    printf("                    Ctrl-_: Undo last edit\n");
+#endif
     printf("\n");
     printf("Any other input is executed as Lua code using the shared loki runtime.\n");
     printf("Use --trace-http on startup (or set KILO_DEBUG=1) for verbose async logs.\n");
@@ -243,9 +358,11 @@ static void repl_print_help(void) {
 /* History and line input helpers                                           */
 /* ------------------------------------------------------------------------- */
 
+#ifndef LOKI_HAVE_LINEEDIT
 static bool repl_is_tty(void) {
     return isatty(STDIN_FILENO) && isatty(STDOUT_FILENO);
 }
+#endif
 
 static void repl_init_history(repl_history_config *config) {
     if (!config || !config->path) return;
@@ -301,9 +418,265 @@ static void repl_free_line(char *line) {
 }
 
 /* ------------------------------------------------------------------------- */
-/* Syntax highlighting                                                      */
+/* External editor integration                                              */
 /* ------------------------------------------------------------------------- */
 
+/* Edit code in external editor ($EDITOR or vi) */
+static char *repl_edit_external(const char *initial_content) {
+    /* Create temporary file */
+    char tmpfile[] = "/tmp/loki_repl_XXXXXX";
+    int fd = mkstemp(tmpfile);
+    if (fd < 0) {
+        fprintf(stderr, "Error: Failed to create temporary file\n");
+        return NULL;
+    }
+
+    /* Write initial content if provided */
+    if (initial_content && initial_content[0]) {
+        ssize_t written = write(fd, initial_content, strlen(initial_content));
+        if (written < 0) {
+            fprintf(stderr, "Error: Failed to write to temporary file\n");
+            close(fd);
+            unlink(tmpfile);
+            return NULL;
+        }
+    }
+    close(fd);
+
+    /* Get editor from environment, default to vi */
+    const char *editor = getenv("EDITOR");
+    if (!editor || !editor[0]) {
+        editor = getenv("VISUAL");
+    }
+    if (!editor || !editor[0]) {
+        editor = "vi";
+    }
+
+    /* Build command and launch editor */
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd), "%s %s", editor, tmpfile);
+
+    printf("Opening editor: %s\n", editor);
+    fflush(stdout);
+
+    int status = system(cmd);
+    if (status != 0) {
+        fprintf(stderr, "Error: Editor exited with status %d\n", status);
+        unlink(tmpfile);
+        return NULL;
+    }
+
+    /* Read back the file content */
+    FILE *f = fopen(tmpfile, "r");
+    if (!f) {
+        fprintf(stderr, "Error: Failed to reopen temporary file\n");
+        unlink(tmpfile);
+        return NULL;
+    }
+
+    /* Get file size */
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    if (size < 0) {
+        fprintf(stderr, "Error: Failed to get file size\n");
+        fclose(f);
+        unlink(tmpfile);
+        return NULL;
+    }
+
+    if (size == 0) {
+        /* Empty file - user cleared content or didn't write anything */
+        fclose(f);
+        unlink(tmpfile);
+        return NULL;
+    }
+
+    /* Allocate buffer and read content */
+    char *content = malloc(size + 1);
+    if (!content) {
+        fprintf(stderr, "Error: Out of memory\n");
+        fclose(f);
+        unlink(tmpfile);
+        return NULL;
+    }
+
+    size_t nread = fread(content, 1, size, f);
+    content[nread] = '\0';
+
+    fclose(f);
+    unlink(tmpfile);
+
+    return content;
+}
+
+/* ------------------------------------------------------------------------- */
+/* Tab completion (readline/editline only)                                 */
+/* ------------------------------------------------------------------------- */
+
+#ifdef LOKI_HAVE_LINEEDIT
+
+/* Global Lua state for completion (set in run_repl) */
+static lua_State *g_completion_L = NULL;
+
+/* Get completions from Lua environment */
+static char **get_lua_completions(lua_State *L, const char *text, int *count) {
+    if (!L) return NULL;
+
+    char **matches = NULL;
+    *count = 0;
+    size_t len = strlen(text);
+
+    /* Lua keywords */
+    const char *keywords[] = {
+        "and", "break", "do", "else", "elseif", "end", "false",
+        "for", "function", "goto", "if", "in", "local", "nil",
+        "not", "or", "repeat", "return", "then", "true", "until", "while",
+        NULL
+    };
+
+    for (int i = 0; keywords[i]; i++) {
+        if (strncmp(keywords[i], text, len) == 0) {
+            matches = realloc(matches, sizeof(char*) * (*count + 1));
+            matches[(*count)++] = strdup(keywords[i]);
+        }
+    }
+
+    /* loki.* API functions */
+    const char *loki_api[] = {
+        "loki.status", "loki.get_lines", "loki.get_line",
+        "loki.get_cursor", "loki.insert_text", "loki.get_filename",
+        "loki.async_http", "loki.repl.register",
+        NULL
+    };
+
+    for (int i = 0; loki_api[i]; i++) {
+        if (strncmp(loki_api[i], text, len) == 0) {
+            matches = realloc(matches, sizeof(char*) * (*count + 1));
+            matches[(*count)++] = strdup(loki_api[i]);
+        }
+    }
+
+    /* Namespaced functions from init.lua */
+    const char *namespaced[] = {
+        "editor.count_lines", "editor.cursor", "editor.timestamp", "editor.first_line",
+        "ai.complete", "ai.explain",
+        "test.http",
+        NULL
+    };
+
+    for (int i = 0; namespaced[i]; i++) {
+        if (strncmp(namespaced[i], text, len) == 0) {
+            matches = realloc(matches, sizeof(char*) * (*count + 1));
+            matches[(*count)++] = strdup(namespaced[i]);
+        }
+    }
+
+    /* Lua globals from _G table */
+    lua_getglobal(L, "_G");
+    if (lua_istable(L, -1)) {
+        lua_pushnil(L);
+        while (lua_next(L, -2) != 0) {
+            if (lua_type(L, -2) == LUA_TSTRING) {
+                const char *key = lua_tostring(L, -2);
+                if (key && strncmp(key, text, len) == 0) {
+                    /* Avoid duplicates with keywords */
+                    int is_dup = 0;
+                    for (int i = 0; i < *count; i++) {
+                        if (strcmp(matches[i], key) == 0) {
+                            is_dup = 1;
+                            break;
+                        }
+                    }
+                    if (!is_dup) {
+                        matches = realloc(matches, sizeof(char*) * (*count + 1));
+                        matches[(*count)++] = strdup(key);
+                    }
+                }
+            }
+            lua_pop(L, 1);
+        }
+    }
+    lua_pop(L, 1);
+
+    return matches;
+}
+
+/* Completion generator for readline */
+static char *completion_generator(const char *text, int state) {
+    static char **matches = NULL;
+    static int match_count = 0;
+    static int match_index = 0;
+
+    if (!state) {
+        /* First call - generate matches */
+        match_index = 0;
+        if (matches) {
+            for (int i = 0; i < match_count; i++) {
+                free(matches[i]);
+            }
+            free(matches);
+            matches = NULL;
+        }
+        matches = get_lua_completions(g_completion_L, text, &match_count);
+    }
+
+    /* Return next match */
+    if (matches && match_index < match_count) {
+        return strdup(matches[match_index++]);
+    }
+
+    /* Cleanup after last match */
+    if (matches) {
+        for (int i = 0; i < match_count; i++) {
+            free(matches[i]);
+        }
+        free(matches);
+        matches = NULL;
+        match_count = 0;
+    }
+
+    return NULL;
+}
+
+/* Completion entry point for readline/editline */
+static char **loki_completion(const char *text, int start, int end) {
+    (void)end;
+
+    /* Disable default filename completion */
+    rl_attempted_completion_over = 1;
+
+    /* Only complete at start of word */
+    if (start > 0) {
+        char prev = rl_line_buffer[start - 1];
+        if (prev != ' ' && prev != '(' && prev != ',' && prev != '{' && prev != '[') {
+            /* In middle of compound expression like "loki.get_lines" */
+            /* Let it fall through to default word completion */
+        }
+    }
+
+    return rl_completion_matches(text, completion_generator);
+}
+
+/* Initialize tab completion */
+static void repl_init_completion(lua_State *L) {
+    g_completion_L = L;
+
+    /* Set readline completion function */
+    rl_attempted_completion_function = loki_completion;
+
+    /* Don't append space after completion */
+    rl_completion_append_character = '\0';
+}
+
+#endif /* LOKI_HAVE_LINEEDIT */
+
+/* ------------------------------------------------------------------------- */
+/* Syntax highlighting (only used when not using editline/readline)        */
+/* ------------------------------------------------------------------------- */
+
+#ifndef LOKI_HAVE_LINEEDIT
 static void repl_show_highlight(const char *prompt, const char *line) {
     if (!repl_is_tty()) return;
     if (!line || !*line) return;
@@ -457,6 +830,7 @@ static char *repl_highlight_lua(const char *prompt, const char *line) {
 
     return out;
 }
+#endif /* LOKI_HAVE_LINEEDIT */
 
 /* ------------------------------------------------------------------------- */
 /* Lua namespace helpers                                                    */

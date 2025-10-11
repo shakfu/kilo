@@ -16,7 +16,7 @@ The Loki project has undergone a significant architectural transformation from a
 
 ## Architecture Review
 
-### New Structure ✅ GOOD
+### New Structure [x] GOOD
 
 ```
 loki/
@@ -47,7 +47,7 @@ loki/
 
 ---
 
-## Critical Issues 🔴
+## Critical Issues 
 
 ### 1. Missing NULL Check After strdup() in Async HTTP (src/loki_core.c:2284)
 
@@ -166,7 +166,7 @@ if (req->header_list) {
 
 ---
 
-## High Priority Issues ⚠️
+## High Priority Issues [!]
 
 ### 4. No Response Body Size Limit for Async HTTP (src/loki_core.c:2221)
 
@@ -248,11 +248,11 @@ size_t output_len = 4 * ((len + 2) / 3);
 
 ---
 
-## Medium Priority Issues 📋
+## Medium Priority Issues [list]
 
 ### 7. Memory Management in Lua C API
 
-**Status:** ✅ MOSTLY GOOD
+**Status:** [x] MOSTLY GOOD
 
 **Review:**
 - Lua stack management appears correct with proper `lua_settop()` calls
@@ -263,7 +263,7 @@ size_t output_len = 4 * ((len + 2) / 3);
 
 ### 8. Async HTTP Thread Safety
 
-**Status:** ⚠️ NEEDS REVIEW
+**Status:** [!] NEEDS REVIEW
 
 **Issue:**
 - `pending_requests` array is not protected by mutex
@@ -275,7 +275,7 @@ Document that async HTTP is NOT thread-safe and must only be called from main th
 
 ### 9. Signal Handler Documentation
 
-**Status:** ✅ GOOD
+**Status:** [x] GOOD
 
 ```c
 static volatile sig_atomic_t winsize_changed = 0;
@@ -291,7 +291,7 @@ This is correctly implemented as async-signal-safe. Previous kilo versions had b
 
 ---
 
-## Low Priority Issues / Code Quality 📝
+## Low Priority Issues / Code Quality [note]
 
 ### 10. Magic Numbers
 
@@ -309,9 +309,9 @@ Currently error messages from Lua callbacks are displayed in status bar, which m
 
 ---
 
-## Security Review 🔒
+## Security Review 
 
-### Positive Findings ✅
+### Positive Findings [x]
 
 1. **No use of unsafe string functions** - No `strcpy`, `strcat`, `sprintf`, `gets`
 2. **All `snprintf` calls** are bounds-checked
@@ -321,7 +321,7 @@ Currently error messages from Lua callbacks are displayed in status bar, which m
 6. **NULL checks after most malloc/realloc** calls
 7. **SSL/TLS verification enabled** for HTTPS (line 2314-2315)
 
-### Security Concerns ⚠️
+### Security Concerns [!]
 
 1. **CA bundle hardcoded** to macOS path (line 2318) - won't work on Linux
 2. **No input validation** on Lua code executed via REPL
@@ -332,9 +332,9 @@ Currently error messages from Lua callbacks are displayed in status bar, which m
 
 ---
 
-## Build System Review 🔨
+## Build System Review 
 
-### CMake Configuration ✅ GOOD
+### CMake Configuration [x] GOOD
 
 **Strengths:**
 - Proper dependency finding with fallback for Homebrew readline
@@ -365,15 +365,15 @@ add_test(NAME basic_edit_test COMMAND ...)
 
 ---
 
-## Performance Considerations ⚡
+## Performance Considerations 
 
-### Efficient Areas ✅
+### Efficient Areas [x]
 
 1. **VT100 escape batching** via append buffer minimizes terminal I/O
 2. **Lazy syntax highlighting** only updates changed rows
 3. **Non-blocking async HTTP** doesn't block editor
 
-### Performance Issues 🐌
+### Performance Issues 
 
 1. **O(n) search** for available async request slot (line 2265-2274) - should use bitmap or linked list
 2. **Full screen refresh** on every keypress - could optimize for cursor-only movement
@@ -383,7 +383,7 @@ None of these are critical given the expected file sizes and usage patterns.
 
 ---
 
-## Testing Recommendations 🧪
+## Testing Recommendations 
 
 ### Current Test Coverage
 
@@ -433,7 +433,7 @@ tests/
 
 ---
 
-## Feature Recommendations 💡
+## Feature Recommendations 
 
 Based on code review and architecture analysis, these enhancements would provide high value:
 
@@ -489,42 +489,42 @@ Based on code review and architecture analysis, these enhancements would provide
 | Aspect | Before (kilo.c) | After (libloki) | Improvement |
 |--------|-----------------|-----------------|-------------|
 | **Lines of Code** | 1,308 | 3,735 + 455 | +220% (added REPL) |
-| **Architecture** | Monolithic | Modular library | ✅ Better |
-| **Reusability** | None | High (libloki) | ✅ Major improvement |
-| **Memory Safety** | Good | Good | ↔️ Maintained |
-| **CLI Consistency** | N/A | Inconsistent | ⚠️ Regression |
-| **Build System** | Make | CMake + Make | ✅ Better |
-| **Dependencies** | 0 external | Lua, curl, (readline) | ⚠️ Trade-off |
-| **Features** | Editor only | Editor + REPL + AI | ✅ Major expansion |
-| **Test Coverage** | None | Minimal | ⚠️ Needs work |
+| **Architecture** | Monolithic | Modular library | [x] Better |
+| **Reusability** | None | High (libloki) | [x] Major improvement |
+| **Memory Safety** | Good | Good | ↔ Maintained |
+| **CLI Consistency** | N/A | Inconsistent | [!] Regression |
+| **Build System** | Make | CMake + Make | [x] Better |
+| **Dependencies** | 0 external | Lua, curl, (readline) | [!] Trade-off |
+| **Features** | Editor only | Editor + REPL + AI | [x] Major expansion |
+| **Test Coverage** | None | Minimal | [!] Needs work |
 
 ---
 
-## Code Quality Metrics 📊
+## Code Quality Metrics 
 
-### Positive Indicators ✅
+### Positive Indicators [x]
 
-- ✅ Compiles with `-Wall -Wextra -pedantic` with zero warnings
-- ✅ C99 standard compliance
-- ✅ Consistent naming conventions
-- ✅ Good function decomposition
-- ✅ Clear separation of concerns
-- ✅ Most allocations have NULL checks
-- ✅ Signal handlers are safe
-- ✅ No unsafe string functions
+- [x] Compiles with `-Wall -Wextra -pedantic` with zero warnings
+- [x] C99 standard compliance
+- [x] Consistent naming conventions
+- [x] Good function decomposition
+- [x] Clear separation of concerns
+- [x] Most allocations have NULL checks
+- [x] Signal handlers are safe
+- [x] No unsafe string functions
 
-### Areas for Improvement ⚠️
+### Areas for Improvement [!]
 
-- ⚠️ Global state prevents multiple editor instances
-- ⚠️ Limited error recovery (mostly exit on failure)
-- ⚠️ No unit tests
-- ⚠️ Magic numbers not defined as constants
-- ⚠️ Some memory leak potential in error paths
-- ⚠️ Documentation sparse in implementation
+- [!] Global state prevents multiple editor instances
+- [!] Limited error recovery (mostly exit on failure)
+- [!] No unit tests
+- [!] Magic numbers not defined as constants
+- [!] Some memory leak potential in error paths
+- [!] Documentation sparse in implementation
 
 ---
 
-## Priority Fixes 🎯
+## Priority Fixes 
 
 If I had to recommend **top 5 fixes** to implement immediately:
 
@@ -555,7 +555,7 @@ If I had to recommend **top 5 fixes** to implement immediately:
 
 ---
 
-## Conclusion 🎓
+## Conclusion 
 
 The Loki editor has successfully transitioned from a minimal single-file editor to a robust, extensible platform with Lua scripting and async HTTP capabilities. The code quality is high, with most critical safety issues addressed from the original codebase.
 

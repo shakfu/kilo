@@ -14,7 +14,8 @@ A lightweight, Lua-powered text editor built on antirez's [loki](https://github.
 ### Lua Scripting Engine
 - **Lua/LuaJIT**: Full Lua environment for extensibility
 - **Project-local config**: `.loki/init.lua` overrides `~/.loki/init.lua`
-- **Interactive console**: Press `Ctrl-L` to execute Lua commands
+- **Interactive console**: Toggle the collapsible Lua REPL with `Ctrl-L`
+- **Built-in helpers**: `help`, `history`, `clear`, `clear-history`, `exit`
 - **Full standard library**: io, os, math, string, table, etc.
 
 ### Async HTTP Integration
@@ -36,15 +37,25 @@ A lightweight, Lua-powered text editor built on antirez's [loki](https://github.
 
 ```bash
 brew install lua curl  # or: brew install luajit curl
+# Optional: brew install readline  # enables enhanced CLI history/highlighting
 ```
 
 ### Compile
 
 ```bash
-make
+# Build the editor (build/loki-editor)
+make editor
+
+# Build the REPL (build/loki-repl)
+make repl
+
+# Build everything (library + both binaries)
+make all
 ```
 
-The Makefile automatically detects Homebrew-installed Lua/LuaJIT and libcurl.
+The Makefile is a thin wrapper over CMake and drops artifacts under `build/`. Use `make lib` if you only need `libloki`.
+
+Prefer direct CMake invocations? Run `cmake -S . -B build` once, then `cmake --build build --target <target>`. Available targets match the Makefile aliases (`libloki`, `loki-editor`, `loki-repl`, `show-config`).
 
 Requires: C99 compiler, POSIX system (Linux, macOS, BSD)
 
@@ -53,7 +64,7 @@ Requires: C99 compiler, POSIX system (Linux, macOS, BSD)
 ### Interactive Mode
 
 ```bash
-./loki <filename>
+./build/loki-editor <filename>
 ```
 
 Opens the file in the interactive editor.
@@ -62,25 +73,56 @@ Opens the file in the interactive editor.
 
 ```bash
 # Run AI completion on a file and save the result
-./loki --complete <filename>
+./build/loki-editor --complete <filename>
 
 # Run AI explanation on a file and print to stdout
-./loki --explain <filename>
+./build/loki-editor --explain <filename>
 
 # Show help
-./loki --help
+./build/loki-editor --help
 ```
 
 **Requirements for AI commands:**
 - Set `OPENAI_API_KEY` environment variable
 - Configure `.loki/init.lua` or `~/.loki/init.lua` with AI functions (see `.loki.example/`)
 
+### Standalone REPL
+
+```bash
+./build/loki-repl            # Interactive shell
+./build/loki-repl script.lua # Execute a Lua script and exit
+```
+
+- Shares the same Lua bootstrap/config loader as the editor.
+- Use `--trace-http` to mirror `KILO_DEBUG` logging for async HTTP calls.
+- Command history is persisted to `.loki/repl_history` when available.
+- Type `help` (or `:help`) to list built-in commands.
+- Uses GNU Readline/libedit when available (history, emacs keybindings, inline syntax colour); falls back to a minimal line editor otherwise.
+- Lines are re-rendered with Lua-aware syntax highlighting as you execute them.
+
+The REPL loads the same Lua modules as the editor and exposes a higher-level namespace:
+
+```lua
+ai.prompt "call the project bot" -- sends an async HTTP request via loki.async_http
+
+-- Provide explicit options
+ai.prompt("summarise README", {
+  model = "gpt-5-nano",
+  callback = "ai_response_handler", -- Lua function name
+  url = os.getenv("LOKI_AI_URL"),
+})
+
+-- Use the editor namespace helpers
+editor.status.set("hello from the repl")
+print(editor.buffer.line_count())
+```
+
 ### Keybindings (Interactive Mode)
 
 - `CTRL-S`: Save file
 - `CTRL-Q`: Quit (with unsaved changes warning)
 - `CTRL-F`: Find string in file (ESC to exit, arrows to navigate)
-- `CTRL-L`: Execute Lua command (interactive prompt)
+- `CTRL-L`: Toggle Lua REPL (collapsed by default, type `help` for commands)
 
 ## Lua Scripting
 
@@ -106,13 +148,25 @@ vim .loki/init.lua
 
 ### Interactive Lua Console
 
-Press `Ctrl-L` to open the Lua command prompt. Type any Lua expression:
+Press `Ctrl-L` to toggle the Lua REPL docked below the status bar. The panel stays hidden when idle, so the editor keeps its full height until you need it.
+
+- Type any expression at the `>> ` prompt and press `Enter` to evaluate it.
+- Results (or errors) stream into the log above the prompt; `clear` wipes the log.
+- Use `Up`/`Down` to browse command history, `Ctrl-U` to clear the current line, and `clear-history` to drop past entries.
+- Built-in commands:`help`, `history`, `clear`, `clear-history`, `exit`.
+- Press `Esc`, `Ctrl-C`, `Ctrl-L`, or type `exit` to return to normal editing.
 
 ```lua
-count_lines()              -- Show line count
-insert_timestamp()         -- Insert current date/time
-loki.status("Hello!")      -- Set status message
+>> count_lines()              -- Show line count
+= 421
+>> insert_timestamp()         -- Insert current date/time
+>> loki.status("Hello!")      -- Set status message
 ```
+
+#### Extending the REPL
+
+- Call `loki.repl.register(name, description[, example])` inside `.loki/init.lua` to surface project-specific helpers in the REPL `help` output.
+- See `docs/REPL_EXTENSION.md` for practical recipes and integration patterns.
 
 ### Lua API
 
