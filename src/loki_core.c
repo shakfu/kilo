@@ -122,6 +122,14 @@ typedef struct t_lua_repl {
     char *log[LUA_REPL_LOG_MAX];
 } t_lua_repl;
 
+/* Editor modes (vim-like modal editing) */
+typedef enum {
+    MODE_NORMAL,
+    MODE_INSERT,
+    MODE_VISUAL,
+    MODE_COMMAND
+} EditorMode;
+
 struct t_editor_config {
     int cx,cy;  /* Cursor x and y position in characters */
     int rowoff;     /* Offset of row displayed. */
@@ -138,6 +146,7 @@ struct t_editor_config {
     time_t statusmsg_time;
     struct t_editor_syntax *syntax;    /* Current syntax highlight, or NULL. */
     lua_State *L;   /* Lua interpreter state */
+    EditorMode mode; /* Current editor mode (normal/insert/visual/command) */
     int word_wrap;  /* Word wrap enabled flag */
     int sel_active; /* Selection active flag */
     int sel_start_x, sel_start_y; /* Selection start position */
@@ -192,6 +201,11 @@ static int lua_repl_handle_builtin(const char *cmd, size_t len);
 static void editor_update_repl_layout(void);
 static void lua_repl_emit_registered_help(void);
 static int lua_loki_repl_register(lua_State *L);
+
+/* Modal editing functions */
+static void process_normal_mode(int fd, int c);
+static void process_insert_mode(int fd, int c);
+static void process_visual_mode(int fd, int c);
 
 enum KEY_ACTION{
         KEY_NULL = 0,       /* NULL */
@@ -1902,8 +1916,18 @@ void editor_refresh_screen(void) {
     ab_append(&ab,"\x1b[0K",4);
     ab_append(&ab,"\x1b[7m",4);
     char status[80], rstatus[80];
-    int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
-        E.filename, E.numrows, E.dirty ? "(modified)" : "");
+
+    /* Get mode indicator */
+    const char *mode_str = "";
+    switch(E.mode) {
+        case MODE_NORMAL: mode_str = "NORMAL"; break;
+        case MODE_INSERT: mode_str = "INSERT"; break;
+        case MODE_VISUAL: mode_str = "VISUAL"; break;
+        case MODE_COMMAND: mode_str = "COMMAND"; break;
+    }
+
+    int len = snprintf(status, sizeof(status), " %s  %.20s - %d lines %s",
+        mode_str, E.filename, E.numrows, E.dirty ? "(modified)" : "");
     int rlen = snprintf(rstatus, sizeof(rstatus),
         "%d/%d",E.rowoff+E.cy+1,E.numrows);
     if (len > E.screencols) len = E.screencols;
@@ -2188,6 +2212,335 @@ void editor_move_cursor(int key) {
     }
 }
 
+/* ========================= Modal Editing ================================= */
+
+/* Helper: Check if a line is empty (blank or whitespace only) */
+static int is_empty_line(int row) {
+    if (row < 0 || row >= E.numrows) return 1;
+    t_erow *line = &E.row[row];
+    for (int i = 0; i < line->size; i++) {
+        if (line->chars[i] != ' ' && line->chars[i] != '\t') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* Helper: Move to next empty line (paragraph forward) */
+static void move_to_next_empty_line(void) {
+    int filerow = E.rowoff + E.cy;
+
+    /* Skip current paragraph (non-empty lines) */
+    int row = filerow + 1;
+    while (row < E.numrows && !is_empty_line(row)) {
+        row++;
+    }
+
+    /* Skip empty lines to find start of next paragraph or stay at first empty */
+    if (row < E.numrows) {
+        /* Found an empty line - this is where we stop */
+        filerow = row;
+    } else {
+        /* No empty line found, go to end of file */
+        filerow = E.numrows - 1;
+    }
+
+    /* Update cursor position */
+    if (filerow < E.rowoff) {
+        E.rowoff = filerow;
+        E.cy = 0;
+    } else if (filerow >= E.rowoff + E.screenrows) {
+        E.rowoff = filerow - E.screenrows + 1;
+        E.cy = E.screenrows - 1;
+    } else {
+        E.cy = filerow - E.rowoff;
+    }
+
+    /* Move to start of line */
+    E.cx = 0;
+    E.coloff = 0;
+}
+
+/* Helper: Move to previous empty line (paragraph backward) */
+static void move_to_prev_empty_line(void) {
+    int filerow = E.rowoff + E.cy;
+
+    /* Skip current paragraph (non-empty lines) going backward */
+    int row = filerow - 1;
+    while (row >= 0 && !is_empty_line(row)) {
+        row--;
+    }
+
+    /* Found an empty line - this is where we stop */
+    if (row >= 0) {
+        filerow = row;
+    } else {
+        /* No empty line found, go to start of file */
+        filerow = 0;
+    }
+
+    /* Update cursor position */
+    if (filerow < E.rowoff) {
+        E.rowoff = filerow;
+        E.cy = 0;
+    } else if (filerow >= E.rowoff + E.screenrows) {
+        E.rowoff = filerow - E.screenrows + 1;
+        E.cy = E.screenrows - 1;
+    } else {
+        E.cy = filerow - E.rowoff;
+    }
+
+    /* Move to start of line */
+    E.cx = 0;
+    E.coloff = 0;
+}
+
+/* Process normal mode keypresses */
+static void process_normal_mode(int fd, int c) {
+    switch(c) {
+        case 'h': editor_move_cursor(ARROW_LEFT); break;
+        case 'j': editor_move_cursor(ARROW_DOWN); break;
+        case 'k': editor_move_cursor(ARROW_UP); break;
+        case 'l': editor_move_cursor(ARROW_RIGHT); break;
+
+        /* Paragraph motion */
+        case '{':
+            move_to_prev_empty_line();
+            break;
+        case '}':
+            move_to_next_empty_line();
+            break;
+
+        /* Enter insert mode */
+        case 'i': E.mode = MODE_INSERT; break;
+        case 'a':
+            editor_move_cursor(ARROW_RIGHT);
+            E.mode = MODE_INSERT;
+            break;
+        case 'o':
+            /* Insert line below and enter insert mode */
+            E.cx = E.row[E.rowoff + E.cy].size; /* Move to end of line */
+            editor_insert_newline();
+            E.mode = MODE_INSERT;
+            break;
+        case 'O':
+            /* Insert line above and enter insert mode */
+            E.cx = 0; /* Move to start of line */
+            editor_insert_newline();
+            editor_move_cursor(ARROW_UP);
+            E.mode = MODE_INSERT;
+            break;
+
+        /* Enter visual mode */
+        case 'v':
+            E.mode = MODE_VISUAL;
+            E.sel_active = 1;
+            E.sel_start_x = E.cx;
+            E.sel_start_y = E.cy;
+            E.sel_end_x = E.cx;
+            E.sel_end_y = E.cy;
+            break;
+
+        /* Delete character */
+        case 'x':
+            editor_del_char();
+            break;
+
+        /* Global commands (work in all modes) */
+        case CTRL_S: editor_save(); break;
+        case CTRL_F: editor_find(fd); break;
+        case CTRL_L:
+            if (E.L) {
+                exec_lua_command(fd);
+            } else {
+                editor_set_status_msg("Lua not available");
+            }
+            break;
+        case CTRL_Q:
+            /* Handle quit in main function for consistency */
+            break;
+
+        /* Arrow keys */
+        case ARROW_UP:
+        case ARROW_DOWN:
+        case ARROW_LEFT:
+        case ARROW_RIGHT:
+            editor_move_cursor(c);
+            break;
+
+        default:
+            /* Try to call Lua command handler */
+            if (E.L) {
+                lua_getglobal(E.L, "loki_process_normal_key");
+                if (lua_isfunction(E.L, -1)) {
+                    lua_pushinteger(E.L, c);
+                    if (lua_pcall(E.L, 1, 1, 0) == LUA_OK) {
+                        int handled = lua_toboolean(E.L, -1);
+                        lua_pop(E.L, 1);
+                        if (handled) break;
+                    } else {
+                        lua_pop(E.L, 1);
+                    }
+                } else {
+                    lua_pop(E.L, 1);
+                }
+            }
+            /* Beep or show message for unknown command */
+            editor_set_status_msg("Unknown command");
+            break;
+    }
+}
+
+/* Process insert mode keypresses */
+static void process_insert_mode(int fd, int c) {
+    switch(c) {
+        case ESC:
+            E.mode = MODE_NORMAL;
+            /* Move cursor left if not at start of line */
+            if (E.cx > 0 || E.coloff > 0) {
+                editor_move_cursor(ARROW_LEFT);
+            }
+            break;
+
+        case ENTER:
+            editor_insert_newline();
+            break;
+
+        case BACKSPACE:
+        case CTRL_H:
+        case DEL_KEY:
+            editor_del_char();
+            break;
+
+        case ARROW_UP:
+        case ARROW_DOWN:
+        case ARROW_LEFT:
+        case ARROW_RIGHT:
+            editor_move_cursor(c);
+            break;
+
+        /* Global commands */
+        case CTRL_S: editor_save(); break;
+        case CTRL_F: editor_find(fd); break;
+        case CTRL_W:
+            E.word_wrap = !E.word_wrap;
+            editor_set_status_msg("Word wrap %s", E.word_wrap ? "enabled" : "disabled");
+            break;
+        case CTRL_L:
+            if (E.L) {
+                exec_lua_command(fd);
+            } else {
+                editor_set_status_msg("Lua not available");
+            }
+            break;
+        case CTRL_C:
+            copy_selection_to_clipboard();
+            break;
+
+        case PAGE_UP:
+        case PAGE_DOWN:
+            if (c == PAGE_UP && E.cy != 0)
+                E.cy = 0;
+            else if (c == PAGE_DOWN && E.cy != E.screenrows-1)
+                E.cy = E.screenrows-1;
+            {
+                int times = E.screenrows;
+                while(times--)
+                    editor_move_cursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
+            }
+            break;
+
+        case SHIFT_ARROW_UP:
+        case SHIFT_ARROW_DOWN:
+        case SHIFT_ARROW_LEFT:
+        case SHIFT_ARROW_RIGHT:
+            if (!E.sel_active) {
+                E.sel_active = 1;
+                E.sel_start_x = E.cx;
+                E.sel_start_y = E.cy;
+            }
+            if (c == SHIFT_ARROW_UP) editor_move_cursor(ARROW_UP);
+            else if (c == SHIFT_ARROW_DOWN) editor_move_cursor(ARROW_DOWN);
+            else if (c == SHIFT_ARROW_LEFT) editor_move_cursor(ARROW_LEFT);
+            else if (c == SHIFT_ARROW_RIGHT) editor_move_cursor(ARROW_RIGHT);
+            E.sel_end_x = E.cx;
+            E.sel_end_y = E.cy;
+            break;
+
+        default:
+            editor_insert_char(c);
+            break;
+    }
+}
+
+/* Process visual mode keypresses */
+static void process_visual_mode(int fd, int c) {
+    switch(c) {
+        case ESC:
+            E.mode = MODE_NORMAL;
+            E.sel_active = 0;
+            break;
+
+        /* Movement extends selection */
+        case 'h':
+        case ARROW_LEFT:
+            editor_move_cursor(ARROW_LEFT);
+            E.sel_end_x = E.cx;
+            E.sel_end_y = E.cy;
+            break;
+
+        case 'j':
+        case ARROW_DOWN:
+            editor_move_cursor(ARROW_DOWN);
+            E.sel_end_x = E.cx;
+            E.sel_end_y = E.cy;
+            break;
+
+        case 'k':
+        case ARROW_UP:
+            editor_move_cursor(ARROW_UP);
+            E.sel_end_x = E.cx;
+            E.sel_end_y = E.cy;
+            break;
+
+        case 'l':
+        case ARROW_RIGHT:
+            editor_move_cursor(ARROW_RIGHT);
+            E.sel_end_x = E.cx;
+            E.sel_end_y = E.cy;
+            break;
+
+        /* Copy selection */
+        case 'y':
+            copy_selection_to_clipboard();
+            E.mode = MODE_NORMAL;
+            E.sel_active = 0;
+            editor_set_status_msg("Yanked selection");
+            break;
+
+        /* Delete selection (without undo for now) */
+        case 'd':
+        case 'x':
+            copy_selection_to_clipboard(); /* Save to clipboard first */
+            /* TODO: delete selection - need to implement this */
+            editor_set_status_msg("Delete not implemented yet");
+            E.mode = MODE_NORMAL;
+            E.sel_active = 0;
+            break;
+
+        /* Global commands */
+        case CTRL_C:
+            copy_selection_to_clipboard();
+            break;
+
+        default:
+            /* Unknown command - beep */
+            editor_set_status_msg("Unknown visual command");
+            break;
+    }
+    (void)fd; /* Unused */
+}
+
 /* Process events arriving from the standard input, which is, the user
  * is typing stuff on the terminal. */
 #define KILO_QUIT_TIMES 3
@@ -2203,16 +2556,8 @@ void editor_process_keypress(int fd) {
         return;
     }
 
-    switch(c) {
-    case ENTER:         /* Enter */
-        editor_insert_newline();
-        break;
-    case CTRL_C:        /* Ctrl-c */
-        /* Copy selection to clipboard */
-        copy_selection_to_clipboard();
-        break;
-    case CTRL_Q:        /* Ctrl-q */
-        /* Quit if the file was already saved. */
+    /* Handle quit globally (works in all modes) */
+    if (c == CTRL_Q) {
         if (E.dirty && quit_times) {
             editor_set_status_msg("WARNING!!! File has unsaved changes. "
                 "Press Ctrl-Q %d more times to quit.", quit_times);
@@ -2220,77 +2565,22 @@ void editor_process_keypress(int fd) {
             return;
         }
         exit(0);
-        break;
-    case CTRL_S:        /* Ctrl-s */
-        editor_save();
-        break;
-    case CTRL_F:
-        editor_find(fd);
-        break;
-    case CTRL_W:        /* Ctrl-w */
-        E.word_wrap = !E.word_wrap;
-        editor_set_status_msg("Word wrap %s", E.word_wrap ? "enabled" : "disabled");
-        break;
-    case BACKSPACE:     /* Backspace */
-    case CTRL_H:        /* Ctrl-h */
-    case DEL_KEY:
-        editor_del_char();
-        break;
-    case PAGE_UP:
-    case PAGE_DOWN:
-        if (c == PAGE_UP && E.cy != 0)
-            E.cy = 0;
-        else if (c == PAGE_DOWN && E.cy != E.screenrows-1)
-            E.cy = E.screenrows-1;
-        {
-        int times = E.screenrows;
-        while(times--)
-            editor_move_cursor(c == PAGE_UP ? ARROW_UP:
-                                            ARROW_DOWN);
-        }
-        break;
+    }
 
-    case SHIFT_ARROW_UP:
-    case SHIFT_ARROW_DOWN:
-    case SHIFT_ARROW_LEFT:
-    case SHIFT_ARROW_RIGHT:
-        /* Start selection if not active */
-        if (!E.sel_active) {
-            E.sel_active = 1;
-            E.sel_start_x = E.cx;
-            E.sel_start_y = E.cy;
-        }
-        /* Move cursor */
-        if (c == SHIFT_ARROW_UP) editor_move_cursor(ARROW_UP);
-        else if (c == SHIFT_ARROW_DOWN) editor_move_cursor(ARROW_DOWN);
-        else if (c == SHIFT_ARROW_LEFT) editor_move_cursor(ARROW_LEFT);
-        else if (c == SHIFT_ARROW_RIGHT) editor_move_cursor(ARROW_RIGHT);
-        /* Update selection end */
-        E.sel_end_x = E.cx;
-        E.sel_end_y = E.cy;
-        break;
-
-    case ARROW_UP:
-    case ARROW_DOWN:
-    case ARROW_LEFT:
-    case ARROW_RIGHT:
-        /* Clear selection on normal arrow movement */
-        E.sel_active = 0;
-        editor_move_cursor(c);
-        break;
-    case CTRL_L: /* ctrl+l, execute Lua command */
-        if (E.L) {
-            exec_lua_command(fd);
-        } else {
-            editor_set_status_msg("Lua not available");
-        }
-        break;
-    case ESC:
-        /* Nothing to do for ESC in this mode. */
-        break;
-    default:
-        editor_insert_char(c);
-        break;
+    /* Dispatch to mode-specific handler */
+    switch(E.mode) {
+        case MODE_NORMAL:
+            process_normal_mode(fd, c);
+            break;
+        case MODE_INSERT:
+            process_insert_mode(fd, c);
+            break;
+        case MODE_VISUAL:
+            process_visual_mode(fd, c);
+            break;
+        case MODE_COMMAND:
+            /* TODO: implement command mode */
+            break;
     }
 
     quit_times = KILO_QUIT_TIMES; /* Reset it to the original value. */
@@ -2799,6 +3089,74 @@ static int lua_loki_set_theme(lua_State *L) {
     return 0;
 }
 
+/* =========================== Modal System Lua API =========================== */
+
+/* Lua API: loki.get_mode() - Get current editor mode */
+static int lua_loki_get_mode(lua_State *L) {
+    const char *mode_str = "";
+    switch(E.mode) {
+        case MODE_NORMAL: mode_str = "normal"; break;
+        case MODE_INSERT: mode_str = "insert"; break;
+        case MODE_VISUAL: mode_str = "visual"; break;
+        case MODE_COMMAND: mode_str = "command"; break;
+    }
+    lua_pushstring(L, mode_str);
+    return 1;
+}
+
+/* Lua API: loki.set_mode(mode) - Set editor mode */
+static int lua_loki_set_mode(lua_State *L) {
+    const char *mode_str = luaL_checkstring(L, 1);
+
+    EditorMode new_mode = E.mode;
+    if (strcasecmp(mode_str, "normal") == 0) {
+        new_mode = MODE_NORMAL;
+    } else if (strcasecmp(mode_str, "insert") == 0) {
+        new_mode = MODE_INSERT;
+    } else if (strcasecmp(mode_str, "visual") == 0) {
+        new_mode = MODE_VISUAL;
+        /* Activate selection */
+        E.sel_active = 1;
+        E.sel_start_x = E.cx;
+        E.sel_start_y = E.cy;
+        E.sel_end_x = E.cx;
+        E.sel_end_y = E.cy;
+    } else if (strcasecmp(mode_str, "command") == 0) {
+        new_mode = MODE_COMMAND;
+    } else {
+        return luaL_error(L, "Invalid mode: %s", mode_str);
+    }
+
+    E.mode = new_mode;
+    return 0;
+}
+
+/* Lua API: loki.register_command(key, callback) - Register normal mode command */
+static int lua_loki_register_command(lua_State *L) {
+    /* This just stores commands in a Lua table for now */
+    /* The actual dispatching is done by loki_process_normal_key in Lua */
+
+    /* Get or create global command registry table */
+    lua_getglobal(L, "_loki_commands");
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 1);
+        lua_newtable(L);
+        lua_pushvalue(L, -1); /* Duplicate table */
+        lua_setglobal(L, "_loki_commands");
+    }
+
+    /* Register command: _loki_commands[key] = callback */
+    const char *key = luaL_checkstring(L, 1);
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+
+    lua_pushstring(L, key);
+    lua_pushvalue(L, 2); /* Push the callback function */
+    lua_settable(L, -3);
+
+    lua_pop(L, 1); /* Pop the registry table */
+    return 0;
+}
+
 /* Lua API: loki.async_http(url, method, body, headers, callback) - Async HTTP request */
 static int lua_loki_async_http(lua_State *L) {
     const char *url = luaL_checkstring(L, 1);
@@ -3191,6 +3549,16 @@ void loki_lua_bind_editor(lua_State *L) {
 
     lua_pushcfunction(L, lua_loki_set_theme);
     lua_setfield(L, -2, "set_theme");
+
+    /* Modal system functions */
+    lua_pushcfunction(L, lua_loki_get_mode);
+    lua_setfield(L, -2, "get_mode");
+
+    lua_pushcfunction(L, lua_loki_set_mode);
+    lua_setfield(L, -2, "set_mode");
+
+    lua_pushcfunction(L, lua_loki_register_command);
+    lua_setfield(L, -2, "register_command");
 
     lua_pushcfunction(L, lua_loki_async_http);
     lua_setfield(L, -2, "async_http");
@@ -4095,6 +4463,7 @@ void init_editor(void) {
     E.dirty = 0;
     E.filename = NULL;
     E.syntax = NULL;
+    E.mode = MODE_NORMAL;  /* Start in normal mode (vim-like) */
     E.word_wrap = 1;  /* Word wrap enabled by default */
     E.sel_active = 0;
     E.sel_start_x = E.sel_start_y = 0;

@@ -100,6 +100,24 @@ end
 -- })
 
 -- ==============================================================================
+-- Modal Editing (Optional - Vim-like modes)
+-- ==============================================================================
+
+-- Load modal module (vim-like editing enabled by default)
+if MODE == "editor" then
+    modal = require("modal")
+
+    -- Modal editing starts in NORMAL mode by default (vim-like)
+    -- To start in INSERT mode instead (traditional editor behavior):
+    -- modal.disable()
+
+    -- Available commands:
+    -- modal.enable()  - Switch to normal mode (vim-like)
+    -- modal.disable() - Switch to insert mode (traditional)
+    -- modal.help()    - Show modal commands
+end
+
+-- ==============================================================================
 -- Startup Message
 -- ==============================================================================
 
@@ -110,6 +128,7 @@ else
 end
 
 print("Loki configuration loaded successfully")
-print("Available modules: editor, ai, test, theme, languages, markdown")
+print("Available modules: editor, ai, test, theme, languages, markdown, modal")
 print("")
 print("Type :help in REPL for available commands")
+print("Type modal.help() to see modal editing commands (vim-like)")
