@@ -231,4 +231,10 @@ void modal_process_normal_mode_key(editor_ctx_t *ctx, int fd, int c);
 void modal_process_insert_mode_key(editor_ctx_t *ctx, int fd, int c);
 void modal_process_visual_mode_key(editor_ctx_t *ctx, int fd, int c);
 
+/* Syntax highlighting test functions - for testing only
+ * These functions expose internal syntax highlighting for unit testing.
+ * They should not be used in production code. */
+void editor_update_syntax(editor_ctx_t *ctx, t_erow *row);
+void editor_update_row(editor_ctx_t *ctx, t_erow *row);
+
 #endif /* LOKI_INTERNAL_H */

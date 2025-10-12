@@ -477,53 +477,53 @@ loki.async_http("https://api.com", "GET", nil, headers, "callback")
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ loki.async_http(url, method, body, headers, callback)      │
+│ loki.async_http(url, method, body, headers, callback)       │
 └───────────────────────┬─────────────────────────────────────┘
                         │
                         ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ start_async_http_request()                                  │
-│                                                               │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ 1. validate_http_url(url)                           │   │
-│  │    ├─ Check scheme (http/https only)                │   │
-│  │    ├─ Check length (≤2048 chars)                    │   │
-│  │    ├─ Check for null bytes                          │   │
-│  │    └─ Check for control characters                  │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                        │ PASS                                │
-│                        ▼                                     │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ 2. check_rate_limit()                               │   │
-│  │    ├─ Check window (60 seconds)                     │   │
-│  │    ├─ Check count (≤100 requests)                   │   │
-│  │    └─ Increment counter                             │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                        │ PASS                                │
-│                        ▼                                     │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ 3. validate_request_body(body)                      │   │
-│  │    └─ Check size (≤5MB)                             │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                        │ PASS                                │
-│                        ▼                                     │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ 4. validate_headers(headers)                        │   │
-│  │    ├─ Check count (≤100)                            │   │
-│  │    ├─ Check size (each ≤1KB, total ≤8KB)           │   │
-│  │    ├─ Check for null bytes                          │   │
-│  │    └─ Check for control characters                  │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                        │ PASS                                │
-│                        ▼                                     │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ 5. Create CURL request                              │   │
-│  │    ├─ SSL/TLS verification (default enabled)        │   │
-│  │    ├─ Response size limit (10MB)                    │   │
-│  │    ├─ Timeout (60 seconds total, 10s connect)       │   │
-│  │    └─ Add to multi handle (max 10 concurrent)       │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                               │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ 1. validate_http_url(url)                           │    │
+│  │    ├─ Check scheme (http/https only)                │    │
+│  │    ├─ Check length (≤2048 chars)                    │    │
+│  │    ├─ Check for null bytes                          │    │
+│  │    └─ Check for control characters                  │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                        │ PASS                               │
+│                        ▼                                    │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ 2. check_rate_limit()                               │    │
+│  │    ├─ Check window (60 seconds)                     │    │
+│  │    ├─ Check count (≤100 requests)                   │    │
+│  │    └─ Increment counter                             │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                        │ PASS                               │
+│                        ▼                                    │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ 3. validate_request_body(body)                      │    │
+│  │    └─ Check size (≤5MB)                             │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                        │ PASS                               │
+│                        ▼                                    │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ 4. validate_headers(headers)                        │    │
+│  │    ├─ Check count (≤100)                            │    │
+│  │    ├─ Check size (each ≤1KB, total ≤8KB)            │    │
+│  │    ├─ Check for null bytes                          │    │
+│  │    └─ Check for control characters                  │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                        │ PASS                               │
+│                        ▼                                    │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ 5. Create CURL request                              │    │
+│  │    ├─ SSL/TLS verification (default enabled)        │    │
+│  │    ├─ Response size limit (10MB)                    │    │
+│  │    ├─ Timeout (60 seconds total, 10s connect)       │    │
+│  │    └─ Add to multi handle (max 10 concurrent)       │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
 └───────────────────────┬─────────────────────────────────────┘
                         │
                         ▼

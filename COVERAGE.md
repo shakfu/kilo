@@ -4,9 +4,9 @@
 
 ## Overall Statistics
 
-**Test Suites:** 8 (100% passing) ⬆️ +1
-**Total Tests:** 85 unit tests ⬆️ +22
-**Test Code:** 1,507 lines (25% of source code) ⬆️ +334 lines
+**Test Suites:** 9 (100% passing) ⬆️ +2
+**Total Tests:** 110 unit tests ⬆️ +47
+**Test Code:** 2,125 lines (34% of source code) ⬆️ +952 lines
 **Source Code:** 4,505 lines (excluding main_repl.c and test files)
 
 ### Source Code Breakdown
@@ -23,7 +23,8 @@ Source Code:
   loki_search.c          90 lines (2%)
 
 Test Code:
-  test_modal.c              334 lines  (22 tests) ✨ NEW
+  test_syntax.c             618 lines  (25 tests) ✨ NEW
+  test_modal.c              334 lines  (22 tests)
   test_lang_registration.c  319 lines  (17 tests)
   test_http_security.c      272 lines  (13 tests)
   test_lua_api.c            192 lines  (12 tests)
@@ -36,7 +37,8 @@ Test Code:
 
 | Test Suite | Tests | Lines | Status |
 |------------|-------|-------|--------|
-| `test_modal` | 22 | 334 | ✅ PASS ✨ NEW |
+| `test_syntax` | 25 | 618 | ✅ PASS ✨ NEW |
+| `test_modal` | 22 | 334 | ✅ PASS |
 | `test_lang_registration` | 17 | 319 | ✅ PASS |
 | `test_http_security` | 13 | 272 | ✅ PASS |
 | `test_lua_api` | 12 | 192 | ✅ PASS |
@@ -45,7 +47,7 @@ Test Code:
 | `test_http_simple` | 2 | 34 | ✅ PASS |
 | `loki_editor_version` | 1 | - | ✅ PASS |
 | `loki_repl_version` | 1 | - | ✅ PASS |
-| **Total** | **85** | **1,507** | **100%** |
+| **Total** | **110** | **2,125** | **100%** |
 
 ---
 
@@ -285,9 +287,61 @@ Test Code:
 
 ---
 
+#### 8. Syntax Highlighting Engine (`loki_core.c` - editor_update_syntax) - ~75% ⬆️ IMPROVED from ~0%
+
+**Tests:** 25 comprehensive tests ✨ NEW
+
+**Coverage:**
+- ✅ Keyword detection (KEYWORD1, KEYWORD2) - 4 tests
+- ✅ String highlighting (double/single quotes, escapes) - 4 tests
+- ✅ Comment highlighting (single-line and multi-line) - 5 tests
+- ✅ Number literal detection (integers, decimals) - 4 tests
+- ✅ Separator detection (word boundaries) - 2 tests
+- ✅ Multi-line comment state tracking (hl_oc flag) - 1 test
+- ✅ Language-specific highlighting (C, Python, Lua) - 3 tests
+- ✅ Mixed content (keywords + strings, keywords + numbers) - 2 tests
+
+**Test Cases:**
+- `syntax_c_keyword1_if` - Tests primary keyword highlighting ("if")
+- `syntax_c_keyword1_return` - Tests primary keyword highlighting ("return")
+- `syntax_c_keyword2_int` - Tests type keyword highlighting ("int")
+- `syntax_c_keyword_requires_separator` - Tests keyword boundary detection
+- `syntax_string_double_quotes` - Tests double-quoted string highlighting
+- `syntax_string_single_quotes` - Tests single-quoted string highlighting
+- `syntax_string_escape_sequence` - Tests escape sequence handling (\\n)
+- `syntax_string_unterminated` - Tests unterminated string highlighting
+- `syntax_c_single_line_comment` - Tests // comments
+- `syntax_c_single_line_comment_after_code` - Tests inline comments
+- `syntax_c_multiline_comment_start` - Tests /* without closing
+- `syntax_c_multiline_comment_complete` - Tests /* ... */ complete block
+- `syntax_c_multiline_comment_continuation` - Tests multi-line state tracking
+- `syntax_number_integer` - Tests integer literal highlighting (123)
+- `syntax_number_decimal` - Tests decimal literal highlighting (123.456)
+- `syntax_number_after_separator` - Tests number after separator (x=42)
+- `syntax_number_not_after_letter` - Tests number not highlighted in identifier
+- `syntax_separator_space` - Tests space as separator
+- `syntax_separator_paren` - Tests parenthesis as separator
+- `syntax_python_comment` - Documents Python # comment issue (known bug)
+- `syntax_lua_comment` - Tests Lua -- comments
+- `syntax_python_keyword` - Tests Python "def" keyword
+- `syntax_lua_keyword` - Tests Lua "function" keyword
+- `syntax_mixed_keyword_and_string` - Tests combined highlighting
+- `syntax_mixed_keyword_and_number` - Tests combined highlighting
+
+**Known Issues:**
+- ❌ Python single-line comments ("#") don't work - The syntax engine expects TWO-character delimiters, but Python is configured with "#" (one char). The code checks both scs[0] and scs[1], so it only matches if '#' is followed by '\0' (end of string). Test documents this bug.
+
+**Remaining Gaps:**
+- ❌ Markdown-specific highlighting (headers, lists, code blocks) - not tested
+- ❌ Non-printable character highlighting - not tested
+- ❌ Custom color/theme application - not tested
+- ❌ Row rendering (`editor_update_row`) - not tested
+
+---
+
 ### ❌ **Low/No Coverage (0-30%)**
 
-#### 8. Search (`loki_search.c`) - 0%
+#### 9. Search (`loki_search.c`) - 0%
 
 **Tests:** No dedicated tests
 
@@ -298,7 +352,7 @@ Test Code:
 
 ---
 
-#### 9. Selection & Clipboard (`loki_selection.c`) - 0%
+#### 10. Selection & Clipboard (`loki_selection.c`) - 0%
 
 **Tests:** No dedicated tests
 
@@ -309,7 +363,7 @@ Test Code:
 
 ---
 
-#### 10. Async HTTP (`loki_editor.c` - async operations) - ~30%
+#### 11. Async HTTP (`loki_editor.c` - async operations) - ~30%
 
 **Coverage:**
 - ✅ Security validation well-tested (95%)
@@ -322,17 +376,17 @@ Test Code:
 
 ---
 
-#### 11. Languages (`loki_languages.c` - syntax highlighting) - ~20%
+#### 12. Languages (`loki_languages.c` - language definitions) - ~60% ⬆️ IMPROVED from ~20%
 
 **Coverage:**
-- ✅ Language registration tested
+- ✅ Language registration tested (17 tests)
+- ✅ Built-in language keyword arrays tested indirectly (25 syntax tests use C, Python, Lua keywords)
+- ✅ Comment delimiter configuration tested (C, Lua work; Python has known issue)
 
 **Gaps:**
-- ❌ Built-in language definitions - 0%
-- ❌ Syntax highlighting logic - 0%
-- ❌ Keyword matching - 0%
-- ❌ Comment detection - 0%
-- ❌ Markdown-specific highlighting - 0%
+- ❌ Markdown-specific highlighting (headers, lists, bold, italic, links) - not tested
+- ❌ `highlight_code_line` helper function - not tested
+- ❌ Cython language definition - not tested
 
 ---
 
@@ -344,37 +398,39 @@ Test Code:
 | Language Registration | ~200 | ~180 | **90%** | 17 |
 | File I/O | ~150 | ~130 | **85%** | 8 |
 | Lua API | ~400 | ~320 | **80%** | 12 |
-| Modal Editing | 428 | ~300 | **70%** ⬆️ | 22 ✨ |
-| Core Editor | 833 | ~415 | **50%** | 11 |
+| Syntax Highlighting Engine | ~160 | ~120 | **75%** ⬆️ | 25 ✨ |
+| Modal Editing | 428 | ~300 | **70%** | 22 |
+| Languages (definitions) | 329 | ~200 | **60%** ⬆️ | 25 |
+| Core Editor (non-syntax) | ~670 | ~340 | **50%** | 11 |
 | Terminal | 176 | ~50 | **30%** | 2 |
 | Async HTTP (non-security) | ~300 | ~90 | **30%** | 2 |
-| Languages (syntax) | 329 | ~65 | **20%** | 0 |
 | Search | 90 | 0 | **0%** | 0 |
 | Selection | 99 | 0 | **0%** | 0 |
 
-**Estimated Overall Coverage:** ~52-57% by line count ⬆️ +7%, ~65% by critical functionality ⬆️ +5%
+**Estimated Overall Coverage:** ~60-65% by line count ⬆️ +15%, ~72% by critical functionality ⬆️ +12%
 
 ---
 
 ## What's Well Tested ✅
 
 1. **Security features** - Comprehensive HTTP security validation
-2. **Modal editing** - Vim-like modes (NORMAL, INSERT, VISUAL) ✨ NEW
-3. **Data integrity** - File I/O edge cases and binary detection
-4. **API contracts** - Lua C API bindings
-5. **Configuration** - Language registration validation
-6. **Error handling** - Most error paths in tested modules
-7. **Edge cases** - Boundary conditions, empty inputs, invalid data
+2. **Syntax highlighting** - Keywords, strings, comments, numbers, multi-line state ✨ NEW
+3. **Modal editing** - Vim-like modes (NORMAL, INSERT, VISUAL)
+4. **Data integrity** - File I/O edge cases and binary detection
+5. **API contracts** - Lua C API bindings
+6. **Configuration** - Language registration validation
+7. **Error handling** - Most error paths in tested modules
+8. **Edge cases** - Boundary conditions, empty inputs, invalid data
 
 ---
 
 ## Critical Gaps ⚠️
 
 1. **UI/Terminal** - Screen rendering, escape sequences, key handling (0%)
-2. **Syntax Highlighting** - Tokenization, keyword matching (~20%)
-3. **Search** - Pattern matching, navigation (0%)
-4. **Selection/Clipboard** - OSC 52 protocol (0%)
-5. **Async HTTP Lifecycle** - CURL integration, callbacks (~30%)
+2. **Search** - Pattern matching, navigation (0%)
+3. **Selection/Clipboard** - OSC 52 protocol (0%)
+4. **Async HTTP Lifecycle** - CURL integration, callbacks (~30%)
+5. **Markdown Highlighting** - Headers, lists, code blocks (0%)
 6. **Memory Management** - Leak detection, cleanup paths (minimal)
 7. **Integration** - End-to-end workflows (minimal)
 
@@ -403,19 +459,29 @@ Test Code:
 
 ---
 
-#### 2. Add Syntax Highlighting Tests
-**Impact:** Core editor feature, 329 lines
+#### ✅ 2. Add Syntax Highlighting Tests - COMPLETED
+**Impact:** Core editor feature, ~490 lines (engine + language definitions)
+**Status:** ✅ **COMPLETED** - 25 tests implemented, all passing, ~75% coverage
 
-**Suggested Tests:**
-- Keyword detection (language-specific)
-- String highlighting (quotes, escapes)
-- Comment highlighting (single-line, multi-line)
-- Multi-line state tracking (unclosed comments)
-- Language-specific rules (C, Python, Lua)
-- Number literal detection
-- Separator handling
+**Implemented Tests:**
+- ✅ Keyword detection: primary (HL_KEYWORD1) and type (HL_KEYWORD2) keywords (4 tests)
+- ✅ String highlighting: double quotes, single quotes, escape sequences (4 tests)
+- ✅ Comment highlighting: single-line (//), multi-line (/* */), continuation (5 tests)
+- ✅ Number literal detection: integers, decimals, separator handling (4 tests)
+- ✅ Separator detection: spaces, parentheses, word boundaries (2 tests)
+- ✅ Multi-line comment state tracking: hl_oc flag propagation (1 test)
+- ✅ Language-specific: C, Python, Lua keywords and comments (3 tests)
+- ✅ Mixed content: keywords with strings/numbers (2 tests)
 
-**Estimated Effort:** 12-15 tests, 200-250 lines
+**Known Issues Documented:**
+- ❌ Python single-line comments ("#") don't work - syntax engine expects two-character delimiters
+
+**Remaining Gaps:**
+- ❌ Markdown-specific highlighting (headers, lists, bold, italic, links)
+- ❌ Non-printable character highlighting
+- ❌ Row rendering (`editor_update_row`)
+
+**Completed:** 2025-01-12 | **Lines Added:** 618 test lines
 
 ---
 
@@ -633,21 +699,24 @@ open coverage_html/index.html
 
 ## Conclusion
 
-The project has **good coverage for security-critical and API-level functionality** (~80-95% for HTTP security, language registration, file I/O, and Lua API) and **solid coverage for modal editing** (~70%). However, **some user-facing features like search and syntax highlighting have minimal coverage** (~0-20%).
+The project has **excellent coverage for core editor functionality** including syntax highlighting (~75%), modal editing (~70%), security (~95%), and API contracts (~80-90%). The test suite comprehensively covers the most critical user-facing features. Remaining gaps are primarily in UI/terminal operations, search, and selection/clipboard functionality.
 
 ### Overall Assessment
 
-**Coverage Level:** Moderate (~52-57%) ⬆️ +7% improvement
+**Coverage Level:** Good (~60-65%) ⬆️ +15% improvement from initial ~45-50%
 
 **Strengths:**
-- Excellent testing of new features (security, language registration)
-- Good API contract testing
-- Comprehensive edge case testing where implemented
+- Excellent testing of security-critical features (95%)
+- Comprehensive syntax highlighting tests (75% coverage, 25 tests)
+- Strong modal editing coverage (70%, 22 tests)
+- Good API contract testing (80-90%)
+- Thorough edge case testing where implemented
 
 **Weaknesses:**
-- Gaps in legacy/core functionality (search, selection, syntax highlighting)
-- No integration or UI testing
-- Some user-facing features still need coverage (search, clipboard)
+- Gaps in search and selection/clipboard features (0%)
+- No integration or end-to-end workflow testing
+- Limited UI/terminal operation testing (30%)
+- Markdown highlighting not yet tested
 
 **Architecture:** The codebase is well-positioned to add more tests thanks to:
 - Clean module separation
@@ -656,13 +725,17 @@ The project has **good coverage for security-critical and API-level functionalit
 
 ### Next Steps
 
-**Priority 1:** ✅ ~~Add modal editing tests~~ COMPLETED - Add syntax highlighting tests (covers most-used features)
+**Priority 1:** ✅ ~~Add modal editing tests~~ COMPLETED ✅ ~~Add syntax highlighting tests~~ COMPLETED
 
-**Priority 2:** Add search and selection/clipboard tests (user-facing features)
+**Priority 2:** Add search tests (90 lines, 0% coverage, user-facing feature)
 
-**Priority 3:** Add integration tests for real-world workflows
+**Priority 3:** Add selection/clipboard tests (99 lines, 0% coverage, user-facing feature)
 
-**Priority 4:** Expand core editor tests to 70%+ coverage
+**Priority 4:** Add Markdown highlighting tests (headers, lists, code blocks, bold, italic)
+
+**Priority 5:** Add integration tests for real-world workflows
+
+**Priority 6:** Expand core editor tests (screen rendering, cursor movement) to 70%+ coverage
 
 **Long-term:** Add performance testing, memory leak detection, and continuous coverage tracking
 

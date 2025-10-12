@@ -226,3 +226,14 @@ target_include_directories(test_modal PRIVATE
 )
 target_link_libraries(test_modal PRIVATE libloki test_framework)
 add_test(NAME test_modal COMMAND test_modal)
+
+# Unit tests for syntax highlighting
+add_executable(test_syntax tests/test_syntax.c)
+target_include_directories(test_syntax PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
+    ${LUA_INCLUDE_DIR}
+)
+target_link_libraries(test_syntax PRIVATE libloki test_framework)
+add_test(NAME test_syntax COMMAND test_syntax)
