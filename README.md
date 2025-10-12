@@ -347,7 +347,7 @@ This is a fork with enhancements:
 
 ## Credits
 
-Original loki editor by Salvatore Sanfilippo (antirez).
-Lua integration and enhancements added 2025.
+Original [kilo](https://github.com/antirez/kilo) editor by Salvatore Sanfilippo (antirez).
+Lua integration and enhancements added 2025
 
 Released under the BSD 2 clause license.
