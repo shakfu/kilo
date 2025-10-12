@@ -32,6 +32,11 @@ static editor_ctx_t *signal_context = NULL;
 void terminal_disable_raw_mode(editor_ctx_t *ctx, int fd) {
     /* Don't even check the return value as it's too late. */
     if (ctx && ctx->rawmode) {
+        /* Exit alternate screen buffer (restores original terminal content)
+         * Only if stdout is a terminal (not a pipe or file) */
+        if (isatty(STDOUT_FILENO)) {
+            (void)write(STDOUT_FILENO, "\x1b[?1049l", 8);
+        }
         tcsetattr(fd, TCSAFLUSH, &orig_termios);
         ctx->rawmode = 0;
     }
@@ -64,6 +69,12 @@ int terminal_enable_raw_mode(editor_ctx_t *ctx, int fd) {
     /* put terminal in raw mode after flushing */
     if (tcsetattr(fd, TCSAFLUSH, &raw) < 0) goto fatal;
     ctx->rawmode = 1;
+
+    /* Enter alternate screen buffer (saves current screen, gives clean slate)
+     * Only if stdout is a terminal (not a pipe or file) */
+    if (isatty(STDOUT_FILENO)) {
+        (void)write(STDOUT_FILENO, "\x1b[?1049h", 8);
+    }
 
     /* Register this context for signal handling */
     signal_context = ctx;
