@@ -224,4 +224,11 @@ void editor_process_keypress(editor_ctx_t *ctx, int fd);
 /* Cursor movement */
 void editor_move_cursor(editor_ctx_t *ctx, int key);
 
+/* Modal editing test functions - for testing only
+ * These functions expose the internal mode handlers for unit testing.
+ * They should not be used in production code. */
+void modal_process_normal_mode_key(editor_ctx_t *ctx, int fd, int c);
+void modal_process_insert_mode_key(editor_ctx_t *ctx, int fd, int c);
+void modal_process_visual_mode_key(editor_ctx_t *ctx, int fd, int c);
+
 #endif /* LOKI_INTERNAL_H */

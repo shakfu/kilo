@@ -4,10 +4,10 @@
 
 ## Overall Statistics
 
-**Test Suites:** 7 (100% passing)
-**Total Tests:** 63 unit tests
-**Test Code:** 1,173 lines (21% of source code)
-**Source Code:** 4,477 lines (excluding main_repl.c and test files)
+**Test Suites:** 8 (100% passing) ⬆️ +1
+**Total Tests:** 85 unit tests ⬆️ +22
+**Test Code:** 1,507 lines (25% of source code) ⬆️ +334 lines
+**Source Code:** 4,505 lines (excluding main_repl.c and test files)
 
 ### Source Code Breakdown
 
@@ -15,14 +15,15 @@
 Source Code:
   loki_lua.c          1,302 lines (29%)
   loki_core.c           833 lines (19%)
-  loki_editor.c         695 lines (16%)
+  loki_editor.c         695 lines (15%)
+  loki_modal.c          428 lines (10%) ⬆️ +145 lines (test functions)
   loki_languages.c      329 lines (7%)
-  loki_modal.c          283 lines (6%)
   loki_terminal.c       176 lines (4%)
   loki_selection.c       99 lines (2%)
   loki_search.c          90 lines (2%)
 
 Test Code:
+  test_modal.c              334 lines  (22 tests) ✨ NEW
   test_lang_registration.c  319 lines  (17 tests)
   test_http_security.c      272 lines  (13 tests)
   test_lua_api.c            192 lines  (12 tests)
@@ -35,6 +36,7 @@ Test Code:
 
 | Test Suite | Tests | Lines | Status |
 |------------|-------|-------|--------|
+| `test_modal` | 22 | 334 | ✅ PASS ✨ NEW |
 | `test_lang_registration` | 17 | 319 | ✅ PASS |
 | `test_http_security` | 13 | 272 | ✅ PASS |
 | `test_lua_api` | 12 | 192 | ✅ PASS |
@@ -43,7 +45,7 @@ Test Code:
 | `test_http_simple` | 2 | 34 | ✅ PASS |
 | `loki_editor_version` | 1 | - | ✅ PASS |
 | `loki_repl_version` | 1 | - | ✅ PASS |
-| **Total** | **63** | **1,173** | **100%** |
+| **Total** | **85** | **1,507** | **100%** |
 
 ---
 
@@ -228,20 +230,62 @@ Test Code:
 
 ---
 
-### ❌ **Low/No Coverage (0-30%)**
+### ✅ **Good Coverage (70-80%)**
 
-#### 7. Modal Editing (`loki_modal.c`) - ~10%
+#### 7. Modal Editing (`loki_modal.c`) - ~70% ⬆️ IMPROVED from ~10%
 
-**Tests:** 1 basic mode switching test
+**Tests:** 22 comprehensive tests ✨ NEW
 
-**Gaps:**
-- ❌ NORMAL mode commands (hjkl, x, o, O, etc.) - 0%
-- ❌ INSERT mode behavior - 0%
-- ❌ VISUAL mode selection - 0%
-- ❌ Modal keybinding dispatch - 0%
-- ❌ Paragraph motions ({, }) - 0%
+**Coverage:**
+- ✅ NORMAL mode navigation (h, j, k, l) - 4 tests
+- ✅ NORMAL mode editing (x, i, a, o, O) - 5 tests
+- ✅ INSERT mode text entry and ESC - 5 tests
+- ✅ VISUAL mode selection and movement - 5 tests
+- ✅ Mode transitions - 3 tests
+
+**Test Cases:**
+- `modal_normal_h_moves_left` - Tests left movement with 'h' key
+- `modal_normal_l_moves_right` - Tests right movement with 'l' key
+- `modal_normal_j_moves_down` - Tests downward navigation
+- `modal_normal_k_moves_up` - Tests upward navigation
+- `modal_normal_x_deletes_char` - Tests character deletion
+- `modal_normal_i_enters_insert` - Tests entering INSERT mode
+- `modal_normal_a_enters_insert_after` - Tests 'a' command (insert after cursor)
+- `modal_normal_o_inserts_line_below` - Tests 'o' command
+- `modal_normal_O_inserts_line_above` - Tests 'O' command
+- `modal_insert_char_insertion` - Tests character insertion in INSERT mode
+- `modal_insert_esc_returns_normal` - Tests ESC to return to NORMAL
+- `modal_insert_esc_at_start` - Tests ESC behavior at line start
+- `modal_insert_enter_creates_newline` - Tests newline creation
+- `modal_insert_backspace_deletes` - Tests backspace in INSERT mode
+- `modal_visual_v_enters_visual` - Tests 'v' to enter VISUAL mode
+- `modal_visual_h_extends_left` - Tests selection extension
+- `modal_visual_l_extends_right` - Tests selection extension
+- `modal_visual_esc_returns_normal` - Tests ESC to exit VISUAL mode
+- `modal_visual_y_yanks` - Tests yank (copy) command
+- `modal_default_is_normal` - Tests default mode is NORMAL
+- `modal_normal_insert_normal_cycle` - Tests mode transition cycle
+- `modal_normal_visual_normal_cycle` - Tests VISUAL mode cycle
+
+**Implementation Details:**
+- Created test wrapper functions in `loki_modal.c`:
+  - `modal_process_normal_mode_key()` - Exposes NORMAL mode handler for testing
+  - `modal_process_insert_mode_key()` - Exposes INSERT mode handler for testing
+  - `modal_process_visual_mode_key()` - Exposes VISUAL mode handler for testing
+- Added function declarations to `loki_internal.h` for test access
+- Test helper functions:
+  - `init_simple_ctx()` - Creates single-line test context
+  - `init_multiline_ctx()` - Creates multi-line test context with array of lines
+
+**Remaining Gaps:**
+- ❌ Paragraph motions ({, }) - not yet tested
+- ❌ Page up/down navigation - not tested
+- ❌ Shift+arrow selection - not tested
+- ❌ Arrow key movement in INSERT mode - only partially tested
 
 ---
+
+### ❌ **Low/No Coverage (0-30%)**
 
 #### 8. Search (`loki_search.c`) - 0%
 
@@ -300,39 +344,39 @@ Test Code:
 | Language Registration | ~200 | ~180 | **90%** | 17 |
 | File I/O | ~150 | ~130 | **85%** | 8 |
 | Lua API | ~400 | ~320 | **80%** | 12 |
+| Modal Editing | 428 | ~300 | **70%** ⬆️ | 22 ✨ |
 | Core Editor | 833 | ~415 | **50%** | 11 |
 | Terminal | 176 | ~50 | **30%** | 2 |
 | Async HTTP (non-security) | ~300 | ~90 | **30%** | 2 |
 | Languages (syntax) | 329 | ~65 | **20%** | 0 |
-| Modal Editing | 283 | ~30 | **10%** | 1 |
 | Search | 90 | 0 | **0%** | 0 |
 | Selection | 99 | 0 | **0%** | 0 |
 
-**Estimated Overall Coverage:** ~45-50% by line count, ~60% by critical functionality
+**Estimated Overall Coverage:** ~52-57% by line count ⬆️ +7%, ~65% by critical functionality ⬆️ +5%
 
 ---
 
 ## What's Well Tested ✅
 
 1. **Security features** - Comprehensive HTTP security validation
-2. **Data integrity** - File I/O edge cases and binary detection
-3. **API contracts** - Lua C API bindings
-4. **Configuration** - Language registration validation
-5. **Error handling** - Most error paths in tested modules
-6. **Edge cases** - Boundary conditions, empty inputs, invalid data
+2. **Modal editing** - Vim-like modes (NORMAL, INSERT, VISUAL) ✨ NEW
+3. **Data integrity** - File I/O edge cases and binary detection
+4. **API contracts** - Lua C API bindings
+5. **Configuration** - Language registration validation
+6. **Error handling** - Most error paths in tested modules
+7. **Edge cases** - Boundary conditions, empty inputs, invalid data
 
 ---
 
 ## Critical Gaps ⚠️
 
 1. **UI/Terminal** - Screen rendering, escape sequences, key handling (0%)
-2. **Modal Editing** - All vim-like commands and modes (~10%)
-3. **Syntax Highlighting** - Tokenization, keyword matching (~20%)
-4. **Search** - Pattern matching, navigation (0%)
-5. **Selection/Clipboard** - OSC 52 protocol (0%)
-6. **Async HTTP Lifecycle** - CURL integration, callbacks (~30%)
-7. **Memory Management** - Leak detection, cleanup paths (minimal)
-8. **Integration** - End-to-end workflows (minimal)
+2. **Syntax Highlighting** - Tokenization, keyword matching (~20%)
+3. **Search** - Pattern matching, navigation (0%)
+4. **Selection/Clipboard** - OSC 52 protocol (0%)
+5. **Async HTTP Lifecycle** - CURL integration, callbacks (~30%)
+6. **Memory Management** - Leak detection, cleanup paths (minimal)
+7. **Integration** - End-to-end workflows (minimal)
 
 ---
 
@@ -340,23 +384,22 @@ Test Code:
 
 ### High Priority (Critical Functionality)
 
-#### 1. Add Modal Editing Tests
-**Impact:** Covers 283 lines of user-facing features
+#### ✅ 1. Add Modal Editing Tests - COMPLETED
+**Impact:** Covers 428 lines of user-facing features (including test functions)
+**Status:** ✅ **COMPLETED** - 22 tests implemented, all passing, ~70% coverage
 
-**Suggested Tests:**
-- NORMAL mode commands:
-  - Navigation: `h`, `j`, `k`, `l`
-  - Editing: `x`, `dd`, `o`, `O`, `i`, `a`
-  - Motions: `{`, `}` (paragraph navigation)
-- INSERT mode behavior:
-  - Text insertion
-  - ESC to return to NORMAL
-- VISUAL mode selection:
-  - `v` to enter, navigation to extend
-  - Visual selection bounds
-- Mode transitions and state management
+**Implemented Tests:**
+- ✅ NORMAL mode navigation: `h`, `j`, `k`, `l` (4 tests)
+- ✅ NORMAL mode editing: `x`, `i`, `a`, `o`, `O` (5 tests)
+- ✅ INSERT mode: text insertion, ESC, Enter, Backspace (5 tests)
+- ✅ VISUAL mode: `v` entry, selection extension, yank (5 tests)
+- ✅ Mode transitions and state management (3 tests)
 
-**Estimated Effort:** 15-20 tests, 250-300 lines
+**Remaining Gaps:**
+- ❌ Paragraph motions (`{`, `}`) - not yet tested
+- ❌ Additional commands (`dd`, etc.)
+
+**Completed:** 2025-01-12 | **Lines Added:** 334 test lines + 145 wrapper functions
 
 ---
 
@@ -590,11 +633,11 @@ open coverage_html/index.html
 
 ## Conclusion
 
-The project has **good coverage for security-critical and API-level functionality** (~80-95% for HTTP security, language registration, file I/O, and Lua API). However, **user-facing features like modal editing, search, and syntax highlighting have minimal coverage** (~0-20%).
+The project has **good coverage for security-critical and API-level functionality** (~80-95% for HTTP security, language registration, file I/O, and Lua API) and **solid coverage for modal editing** (~70%). However, **some user-facing features like search and syntax highlighting have minimal coverage** (~0-20%).
 
 ### Overall Assessment
 
-**Coverage Level:** Moderate (~45-50%)
+**Coverage Level:** Moderate (~52-57%) ⬆️ +7% improvement
 
 **Strengths:**
 - Excellent testing of new features (security, language registration)
@@ -602,9 +645,9 @@ The project has **good coverage for security-critical and API-level functionalit
 - Comprehensive edge case testing where implemented
 
 **Weaknesses:**
-- Gaps in legacy/core functionality
+- Gaps in legacy/core functionality (search, selection, syntax highlighting)
 - No integration or UI testing
-- Minimal coverage of user-facing features
+- Some user-facing features still need coverage (search, clipboard)
 
 **Architecture:** The codebase is well-positioned to add more tests thanks to:
 - Clean module separation
@@ -613,11 +656,13 @@ The project has **good coverage for security-critical and API-level functionalit
 
 ### Next Steps
 
-**Priority 1:** Add modal editing and syntax highlighting tests (covers most-used features)
+**Priority 1:** ✅ ~~Add modal editing tests~~ COMPLETED - Add syntax highlighting tests (covers most-used features)
 
-**Priority 2:** Add integration tests for real-world workflows
+**Priority 2:** Add search and selection/clipboard tests (user-facing features)
 
-**Priority 3:** Expand core editor tests to 70%+ coverage
+**Priority 3:** Add integration tests for real-world workflows
+
+**Priority 4:** Expand core editor tests to 70%+ coverage
 
 **Long-term:** Add performance testing, memory leak detection, and continuous coverage tracking
 

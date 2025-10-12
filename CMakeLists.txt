@@ -215,3 +215,14 @@ target_include_directories(test_http_security PRIVATE
 )
 target_link_libraries(test_http_security PRIVATE libloki test_framework)
 add_test(NAME test_http_security COMMAND test_http_security)
+
+# Unit tests for modal editing (vim-like modes)
+add_executable(test_modal tests/test_modal.c)
+target_include_directories(test_modal PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
+    ${LUA_INCLUDE_DIR}
+)
+target_link_libraries(test_modal PRIVATE libloki test_framework)
+add_test(NAME test_modal COMMAND test_modal)

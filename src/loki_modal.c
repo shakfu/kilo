@@ -406,3 +406,22 @@ void modal_process_keypress(editor_ctx_t *ctx, int fd) {
 
     quit_times = KILO_QUIT_TIMES; /* Reset it to the original value. */
 }
+
+/* ============================================================================
+ * Test Functions - For unit testing only
+ * ============================================================================
+ * These functions expose the internal mode handlers for unit testing.
+ * They should not be used in production code - only in tests.
+ */
+
+void modal_process_normal_mode_key(editor_ctx_t *ctx, int fd, int c) {
+    process_normal_mode(ctx, fd, c);
+}
+
+void modal_process_insert_mode_key(editor_ctx_t *ctx, int fd, int c) {
+    process_insert_mode(ctx, fd, c);
+}
+
+void modal_process_visual_mode_key(editor_ctx_t *ctx, int fd, int c) {
+    process_visual_mode(ctx, fd, c);
+}
