@@ -1,15 +1,17 @@
 # loki -- a minimal lua-powered text editor with builtin async http
 
-A lightweight, Lua-powered text editor built on antirez's [kilo](https://github.com/antirez/kilo) (~1K lines). Features async HTTP for AI completions, lua scripting, and zero configuration needed - just compile and run.
+A lightweight, modular text editor built on antirez's [kilo](https://github.com/antirez/kilo). Features vim-like modal editing, async HTTP for AI completions, Lua scripting, and clean separation between core (1.3K lines) and features (1.2K lines). Zero configuration needed - just compile and run.
 
 ## Features
 
 ### Core Editor
-- **Minimalist**: ~1.5K lines of C99 code
+- **Minimalist**: ~2.5K lines of C99 code organized into focused modules
+- **Modular**: Core (1.3K lines) + features separated into dedicated modules
 - **Fast**: Direct VT100 escape sequences, no curses overhead
 - **Robust**: All critical bugs fixed (buffer overflows, NULL checks, signal safety)
 - **Safe**: Binary file detection, proper error handling
 - **Syntax highlighting**: C/C++ built-in, extensible via Lua
+- **Modal editing**: Vim-like modes (NORMAL/INSERT/VISUAL) with h/j/k/l navigation
 
 ### Lua Scripting Engine
 - **Lua/LuaJIT**: Full Lua environment for extensibility
@@ -30,6 +32,53 @@ A lightweight, Lua-powered text editor built on antirez's [kilo](https://github.
 - **Local override**: Project-specific `.loki/` config takes precedence
 - **Zero-config**: Works out of the box with sensible defaults
 - **Example configs**: Complete AI integration examples included
+
+## Architecture
+
+Loki uses a **modular architecture** with a minimal core and feature modules:
+
+```
+src/
+├── loki_core.c          (1,336 lines) - Minimal editor core
+│   ├── Terminal I/O and raw mode
+│   ├── Buffer and row management
+│   ├── Syntax highlighting infrastructure
+│   ├── Screen rendering (VT100 sequences)
+│   ├── File I/O operations
+│   ├── Cursor movement primitives
+│   └── Basic editing operations
+│
+├── loki_languages.c     (494 lines) - Language support
+│   ├── Built-in language definitions (C, Python, Lua, Markdown)
+│   ├── Dynamic language registration via Lua
+│   └── Syntax highlighting rules
+│
+├── loki_modal.c         (407 lines) - Modal editing
+│   ├── NORMAL mode (navigation, commands)
+│   ├── INSERT mode (text insertion)
+│   ├── VISUAL mode (text selection)
+│   └── Vim-like keybindings (h/j/k/l, i/a/o/v)
+│
+├── loki_selection.c     (156 lines) - Selection & clipboard
+│   ├── Selection tracking and highlighting
+│   ├── OSC 52 clipboard protocol (SSH-compatible)
+│   └── Base64 encoding for terminal clipboard
+│
+├── loki_search.c        (128 lines) - Search functionality
+│   ├── Incremental search with live preview
+│   ├── Forward/backward navigation
+│   └── Match highlighting
+│
+├── loki_editor.c        - Main editor loop & Lua integration
+├── loki_lua.c           - Lua C API bindings
+└── main_editor.c        - Entry point
+```
+
+**Benefits:**
+- **Maintainability**: Each module has single, well-defined responsibility
+- **Testability**: Features can be tested in isolation
+- **Extensibility**: New features don't bloat the core
+- **Clarity**: Core editor logic separate from feature implementations
 
 ## Building
 
@@ -119,10 +168,47 @@ print(editor.buffer.line_count())
 
 ### Keybindings (Interactive Mode)
 
+**Global Commands (work in all modes):**
 - `CTRL-S`: Save file
 - `CTRL-Q`: Quit (with unsaved changes warning)
 - `CTRL-F`: Find string in file (ESC to exit, arrows to navigate)
 - `CTRL-L`: Toggle Lua REPL (collapsed by default, type `help` for commands)
+
+**Modal Editing (Vim-like):**
+
+Loki starts in **NORMAL mode** by default. Press `i` to enter INSERT mode and start typing.
+
+**NORMAL Mode** (navigation and commands):
+- `h/j/k/l` - Move cursor left/down/up/right
+- `i` - Enter INSERT mode before cursor
+- `a` - Enter INSERT mode after cursor
+- `o` - Insert new line below and enter INSERT mode
+- `O` - Insert new line above and enter INSERT mode
+- `v` - Enter VISUAL mode (text selection)
+- `x` - Delete character under cursor
+- `{` / `}` - Jump to previous/next empty line (paragraph motion)
+- Arrow keys also work for navigation
+
+**INSERT Mode** (text editing):
+- Type normally to insert text
+- `ESC` - Return to NORMAL mode
+- Arrow keys move cursor
+- `SHIFT+Arrow` - Start/extend selection
+- `CTRL-C` - Copy selection to clipboard (OSC 52)
+
+**VISUAL Mode** (text selection):
+- `h/j/k/l` or Arrow keys - Extend selection
+- `y` - Yank (copy) selection and return to NORMAL mode
+- `ESC` - Return to NORMAL mode
+
+**Disable modal editing** (optional):
+Add to `.loki/init.lua`:
+```lua
+-- Start in INSERT mode instead (traditional editor)
+modal.disable()
+```
+
+See `docs/modal_editing.md` for complete documentation.
 
 ## Lua Scripting
 
@@ -237,13 +323,20 @@ Style strings map to constants exposed under `loki.hl` (`match`, `string`,
 ## Project Status
 
 This is a fork with enhancements:
-- [x] All critical bugs fixed (buffer overflows, NULL checks, signal safety)
-- [x] Lua/LuaJIT scripting (via Homebrew, dynamically linked)
-- [x] Async HTTP support (non-blocking, libcurl-based)
-- [x] AI integration examples (OpenAI, compatible APIs)
-- [x] Project-local configuration (`.loki/` override)
-- [x] Binary file protection
-- [x] Improved error handling
+- [x] **Modular architecture** - Minimal core (1.3K lines) + feature modules (1.2K lines)
+- [x] **Modal editing** - Vim-like NORMAL/INSERT/VISUAL modes with h/j/k/l navigation
+- [x] **All critical bugs fixed** - Buffer overflows, NULL checks, signal safety
+- [x] **Lua/LuaJIT scripting** - Via Homebrew, dynamically linked
+- [x] **Async HTTP support** - Non-blocking, libcurl-based
+- [x] **AI integration examples** - OpenAI, compatible APIs
+- [x] **Project-local configuration** - `.loki/` override
+- [x] **Binary file protection** - Detects and refuses to open binary files
+- [x] **Improved error handling** - Comprehensive error checking throughout
+
+**Architecture:**
+- Core: 1,336 lines (terminal I/O, buffers, rendering, syntax infrastructure)
+- Features: 1,185 lines across 4 modules (languages, modal, selection, search)
+- Total: ~2.5K lines of clean, modular C99 code
 
 **Dependencies (via Homebrew):**
 - Lua or LuaJIT

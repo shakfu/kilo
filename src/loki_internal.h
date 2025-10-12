@@ -219,4 +219,7 @@ int editor_read_key(int fd);
 void handle_windows_resize(editor_ctx_t *ctx);
 void editor_process_keypress(editor_ctx_t *ctx, int fd);
 
+/* Cursor movement */
+void editor_move_cursor(editor_ctx_t *ctx, int key);
+
 #endif /* LOKI_INTERNAL_H */

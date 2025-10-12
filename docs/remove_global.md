@@ -6,8 +6,8 @@
 **Purpose:** Enable split windows and proper multi-buffer support
 
 **Progress:**
-- ✅ Phase 1: Context structure and helper functions (COMPLETE)
-- ⏸️ Phase 2-6: Migration of existing code (NOT STARTED)
+- [x] Phase 1: Context structure and helper functions (COMPLETE)
+- ⏸ Phase 2-6: Migration of existing code (NOT STARTED)
 
 ---
 
@@ -472,15 +472,15 @@ editor_open(&editor2, "file2.c");
 
 ## Migration Strategy
 
-### Phase 1: Create Context Structure (1-2 hours) ✅ COMPLETED
+### Phase 1: Create Context Structure (1-2 hours) [x] COMPLETED
 
 **Status:** Complete (2025-10-11)
 
 **Steps:**
-1. ✅ Created `editor_ctx_t` in `src/loki_internal.h` (lines 161-184)
-2. ✅ Copied all fields from `struct loki_editor_instance`
-3. ✅ Kept global `E` for gradual migration
-4. ✅ Added initialization functions and declarations
+1. [x] Created `editor_ctx_t` in `src/loki_internal.h` (lines 161-184)
+2. [x] Copied all fields from `struct loki_editor_instance`
+3. [x] Kept global `E` for gradual migration
+4. [x] Added initialization functions and declarations
 
 **Implementation:**
 ```c
@@ -525,9 +525,9 @@ void editor_ctx_free(editor_ctx_t *ctx);
 - `editor_ctx_free()`: Free all allocated memory in context
 
 **Verification:**
-- ✅ Compiles cleanly with `make`
-- ✅ No new warnings or errors
-- ✅ All fields properly copied in both directions
+- [x] Compiles cleanly with `make`
+- [x] No new warnings or errors
+- [x] All fields properly copied in both directions
 
 ### Phase 2: Update loki_core.c (~1000 sites, 4-6 hours)
 
@@ -840,7 +840,7 @@ void test_context_init(void) {
     assert(ctx.row == NULL);
     assert(ctx.mode == MODE_NORMAL);
 
-    printf("✓ Context initialization\n");
+    printf("[x] Context initialization\n");
 }
 
 void test_multiple_contexts(void) {
@@ -859,7 +859,7 @@ void test_multiple_contexts(void) {
     editor_ctx_free(&ctx1);
     editor_ctx_free(&ctx2);
 
-    printf("✓ Multiple independent contexts\n");
+    printf("[x] Multiple independent contexts\n");
 }
 
 void test_context_isolation(void) {
@@ -880,7 +880,7 @@ void test_context_isolation(void) {
     editor_ctx_free(&ctx1);
     editor_ctx_free(&ctx2);
 
-    printf("✓ Context isolation\n");
+    printf("[x] Context isolation\n");
 }
 ```
 

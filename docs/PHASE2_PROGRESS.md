@@ -4,7 +4,7 @@
 **Date:** 2025-10-11
 **Estimated Remaining:** 2-3 hours
 
-## Completed ✅
+## Completed [x]
 
 ### Type System (100%)
 - Made `loki_editor_instance` a typedef of `editor_ctx_t`
@@ -63,7 +63,7 @@ Current errors (8 total):
 /Users/sa/projects/loki/src/loki_core.c:2444:33: error: too few arguments to function call
 ```
 
-## Not Started ❌
+## Not Started [X]
 
 ### Remaining loki_core.c Functions
 These functions still use global E and need ctx parameter:
@@ -77,7 +77,7 @@ These functions still use global E and need ctx parameter:
 
 2. **Rendering** (37 E. references)
    - `editor_refresh_screen()` - Line 1759 (37 E. references)
-   - Calls `editor_format_color()` - already updated ✅
+   - Calls `editor_format_color()` - already updated [x]
 
 3. **Utility Functions** (~30 E. references total)
    - `init_editor()` - Line 2561 (14 E. references)

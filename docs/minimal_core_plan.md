@@ -21,16 +21,16 @@
 
 | Section | Lines | Status | Notes |
 |---------|-------|--------|-------|
-| Context Management | 54 | ✅ Keep | Essential state management |
-| Terminal handling | 193 | ✅ Keep | Raw mode, window size, key reading |
-| Editor rows | 357 | ✅ Keep | Buffer manipulation core |
-| Terminal rendering | 286 | ✅ Keep | Screen updates, VT100 sequences |
-| Cursor movement | 173 | ⚠️ Partial | Basic movement (keep), find (extract) |
-| Syntax highlighting | 236 | ⚠️ Partial | Core infrastructure (keep), dynamic lang (extract) |
-| **Modal editing** | **543** | ❌ Extract | Feature layer, not essential |
-| **Selection & Clipboard** | **127** | ❌ Extract | Feature code, OSC 52 utilities |
-| **Dynamic lang registration** | **57** | ❌ Extract | Belongs in loki_languages.c |
-| **Search/Find** | **~100** | ❌ Extract | Feature tool, not core |
+| Context Management | 54 | [x] Keep | Essential state management |
+| Terminal handling | 193 | [x] Keep | Raw mode, window size, key reading |
+| Editor rows | 357 | [x] Keep | Buffer manipulation core |
+| Terminal rendering | 286 | [x] Keep | Screen updates, VT100 sequences |
+| Cursor movement | 173 | [!] Partial | Basic movement (keep), find (extract) |
+| Syntax highlighting | 236 | [!] Partial | Core infrastructure (keep), dynamic lang (extract) |
+| **Modal editing** | **543** | [X] Extract | Feature layer, not essential |
+| **Selection & Clipboard** | **127** | [X] Extract | Feature code, OSC 52 utilities |
+| **Dynamic lang registration** | **57** | [X] Extract | Belongs in loki_languages.c |
+| **Search/Find** | **~100** | [X] Extract | Feature tool, not core |
 
 ### Core Essentials (Keep)
 

@@ -17,6 +17,76 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.4.5]
+
+### Changed
+
+- **Minimal Core Refactoring**: Extracted feature code from loki_core.c into dedicated modules
+  - **Phase 1 - Dynamic Language Registration**:
+    - Extracted dynamic language registry to `src/loki_languages.c` (77 lines)
+    - Functions moved: `add_dynamic_language()`, `free_dynamic_language()`, `cleanup_dynamic_languages()`
+    - Added getter functions: `get_dynamic_language(index)`, `get_dynamic_language_count()`
+    - Updated `editor_select_syntax_highlight()` to use getters instead of direct array access
+    - Made HLDB_dynamic array static (encapsulated within languages module)
+    - Result: 61 lines removed from loki_core.c
+  - **Phase 2 - Selection & Clipboard**:
+    - Created `src/loki_selection.c` (156 lines) and `src/loki_selection.h`
+    - Functions moved: `is_selected()`, `base64_encode()`, `copy_selection_to_clipboard()`
+    - Isolated OSC 52 clipboard protocol implementation for SSH-compatible copy/paste
+    - Result: 127 lines removed from loki_core.c
+  - **Phase 3 - Search Functionality**:
+    - Created `src/loki_search.c` (128 lines) and `src/loki_search.h`
+    - Extracted `editor_find()` with complete incremental search implementation
+    - Moved `KILO_QUERY_LEN` constant to search module
+    - Added `editor_read_key()` declaration to `loki_internal.h` for module access
+    - Result: 100 lines removed from loki_core.c
+  - **Phase 4 - Modal Editing**:
+    - Created `src/loki_modal.c` (407 lines) and `src/loki_modal.h`
+    - Functions moved:
+      - `is_empty_line()` - Check if line is blank/whitespace only
+      - `move_to_next_empty_line()` - Paragraph motion (})
+      - `move_to_prev_empty_line()` - Paragraph motion ({)
+      - `process_normal_mode()` - NORMAL mode keypress handling
+      - `process_insert_mode()` - INSERT mode keypress handling
+      - `process_visual_mode()` - VISUAL mode keypress handling
+      - `modal_process_keypress()` - Main entry point with mode dispatching
+    - Replaced `editor_process_keypress()` implementation with delegation to modal module
+    - Moved `KILO_QUIT_TIMES` constant to modal module
+    - Added `editor_move_cursor()` declaration to `loki_internal.h`
+    - Result: 369 lines removed from loki_core.c
+  - **Overall Architecture Impact**:
+    - **Total reduction**: 1,993 → 1,336 lines in loki_core.c (657 lines removed, 33% reduction)
+    - **Module breakdown**:
+      - `loki_core.c`: 1,336 lines (core functionality only)
+      - `loki_languages.c`: 494 lines (language definitions + dynamic registry)
+      - `loki_selection.c`: 156 lines (selection + OSC 52 clipboard)
+      - `loki_search.c`: 128 lines (incremental search)
+      - `loki_modal.c`: 407 lines (vim-like modal editing)
+      - Total: 2,521 lines (organized into focused modules)
+    - **Core now contains only**:
+      - Terminal I/O and raw mode management
+      - Buffer and row data structures
+      - Syntax highlighting infrastructure
+      - Screen rendering with VT100 sequences
+      - File I/O operations
+      - Cursor movement primitives
+      - Basic editing operations (insert/delete char, newline)
+    - **Feature modules** (cleanly separated):
+      - Language support (syntax definitions + dynamic registration)
+      - Selection and clipboard (OSC 52 protocol)
+      - Search functionality (incremental find)
+      - Modal editing (vim-like modes and keybindings)
+  - **Benefits**:
+    - **Maintainability**: Each module has single, well-defined responsibility
+    - **Testability**: Features can be tested in isolation
+    - **Extensibility**: New features don't bloat core
+    - **Clarity**: Core editor logic no longer mixed with feature implementations
+    - **Modularity**: Features can be enhanced independently without touching core
+  - **Files Modified**:
+    - Added: `src/loki_modal.c`, `src/loki_modal.h`, `src/loki_selection.c`, `src/loki_selection.h`, `src/loki_search.c`, `src/loki_search.h`
+    - Modified: `src/loki_core.c`, `src/loki_internal.h`, `src/loki_languages.c`, `src/loki_languages.h`, `CMakeLists.txt`
+    - All tests passing (2/2), clean compilation
+
 ## [0.4.4]
 
 ### Changed
