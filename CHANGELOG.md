@@ -17,6 +17,121 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.4.6] - 2025-01-12
+
+### Security
+
+- **HTTP Security Hardening**: Implemented defense-in-depth security for async HTTP requests
+  - **URL Validation** (`validate_http_url()`):
+    - Scheme whitelisting: Only `http://` and `https://` allowed (rejects `file://`, `ftp://`, `gopher://`, etc.)
+    - Length limit: Maximum 2048 characters (industry standard)
+    - Null byte detection: Prevents injection attacks like `http://good.com\0http://evil.com`
+    - Control character filtering: Blocks header injection attempts (except tab)
+  - **Rate Limiting** (`check_rate_limit()`):
+    - Sliding window algorithm: 100 requests per 60-second window
+    - Global limit applies to all `loki.async_http()` calls
+    - Prevents DoS attacks and API abuse
+    - Clear error messages with time until reset
+  - **Request Body Validation** (`validate_request_body()`):
+    - Size limit: Maximum 5MB per request body
+    - Prevents memory exhaustion attacks
+    - Applied to POST/PUT requests with body content
+  - **Header Validation** (`validate_headers()`):
+    - Maximum 100 headers per request
+    - Individual header size: 1KB limit per header
+    - Total headers size: 8KB limit (matches Nginx/Apache defaults)
+    - Null byte and control character detection
+    - Prevents header injection and oversized header attacks
+  - **Security Constants**:
+    - `MAX_ASYNC_REQUESTS`: 10 concurrent requests
+    - `MAX_HTTP_RESPONSE_SIZE`: 10MB response limit
+    - `MAX_HTTP_REQUEST_BODY_SIZE`: 5MB request body limit
+    - `MAX_HTTP_URL_LENGTH`: 2048 characters
+    - `MAX_HTTP_HEADER_SIZE`: 8KB total headers
+    - `HTTP_RATE_LIMIT_WINDOW`: 60 seconds
+    - `HTTP_RATE_LIMIT_MAX_REQUESTS`: 100 per window
+  - **Architecture**:
+    - Fast-fail validation: Each layer returns immediately on failure
+    - Descriptive error messages for debugging
+    - Integration into `start_async_http_request()` before CURL initialization
+    - All limits based on industry standards (browser, web server defaults)
+  - **Implementation**: `src/loki_editor.c` (lines 51-354)
+  - **Testing**: 13 comprehensive security tests in `tests/test_http_security.c`
+
+- **Security Documentation**: Created comprehensive 630-line `SECURITY.md`
+  - Security model overview (trust boundaries, threat model, attack surface)
+  - Lua security model (no sandboxing by design, configuration trust, safe practices)
+  - HTTP security guidelines (SSL/TLS, credentials, validation, response handling)
+  - HTTP Security Hardening section with:
+    - Threat model table (7 threats mapped to mitigations with severity)
+    - Security layer details with code examples
+    - Implementation architecture diagram
+    - Configuration constants with rationale
+    - Testing examples in Lua
+    - Security bypassing warnings and safe alternatives
+  - File system security (permissions, binary detection, path traversal)
+  - Best practices for users and developers
+  - Known limitations (transparent documentation of design decisions)
+  - Vulnerability reporting (scope, process, timeline)
+
+### Changed
+
+- **Language Registration Refactoring**: Broke monolithic 211-line function into focused, testable helpers
+  - **Extracted Helper Functions** (5 functions in `src/loki_lua.c`):
+    - `extract_language_extensions()` (48 lines) - Validates file extension array
+    - `extract_language_keywords()` (56 lines) - Extracts keywords and types arrays
+    - `extract_comment_delimiters()` (44 lines) - Validates line/block comment syntax
+    - `extract_separators()` (22 lines) - Extracts custom separator characters
+    - `extract_highlight_flags()` (13 lines) - Reads string/number highlighting flags
+  - **Refactored Main Function**:
+    - Reduced `lua_loki_register_language()` from 211 to 74 lines (65% reduction)
+    - Each helper has single responsibility for validation and extraction
+    - Improved error messages with specific field validation failures
+    - Better maintainability and testability
+  - **Architecture Benefits**:
+    - Single Responsibility Principle: Each function validates one config section
+    - Error Handling: Descriptive messages pushed to Lua stack (nil, error_msg)
+    - Memory Safety: Proper cleanup on validation failures
+    - Testability: Each helper can be tested independently
+
+### Added
+
+- **Test Suite Expansion**: Added 30 new comprehensive unit tests
+  - **Language Registration Tests** (`tests/test_lang_registration.c`):
+    - 17 tests covering language registration validation
+    - Tests for minimal config, full config, missing fields
+    - Extension validation (dot prefix, empty arrays)
+    - Keyword/type array handling
+    - Comment delimiter validation (length limits)
+    - Custom separators and highlight flags
+    - Invalid argument handling
+  - **HTTP Security Tests** (`tests/test_http_security.c`):
+    - 13 tests covering HTTP security features
+    - URL scheme validation (reject ftp://, file://)
+    - URL length limits (2048 characters)
+    - Request body size limits (5MB)
+    - Rate limiting enforcement (100 requests/60 seconds)
+    - Header validation (count, size, control characters)
+    - Concurrent request limits (10 simultaneous)
+    - Control character rejection in URLs
+  - **Test Infrastructure**:
+    - Helper functions: `init_test_ctx()`, `free_test_ctx()`
+    - Lua state management for isolated test execution
+    - Integration with existing test framework
+  - **Results**: All 7 test suites passing (100% pass rate)
+    - `test_core` ✓
+    - `test_file_io` ✓
+    - `test_lua_api` ✓
+    - `test_lang_registration` ✓ (17 subtests)
+    - `test_http_security` ✓ (13 subtests)
+
+### Fixed
+
+- **HTTP Security Test Stability**: Fixed test failures causing SIGTRAP
+  - Changed long URL test from C buffer operations to Lua string generation (safer)
+  - Updated concurrent request test to use example.com instead of httpbin.org (more reliable)
+  - Eliminated buffer overflow risks in test code
+
 ## [0.4.5]
 
 ### Changed

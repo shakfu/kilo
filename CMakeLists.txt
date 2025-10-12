@@ -204,3 +204,14 @@ target_include_directories(test_lang_registration PRIVATE
 )
 target_link_libraries(test_lang_registration PRIVATE libloki test_framework)
 add_test(NAME test_lang_registration COMMAND test_lang_registration)
+
+# Unit tests for HTTP security features
+add_executable(test_http_security tests/test_http_security.c)
+target_include_directories(test_http_security PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
+    ${LUA_INCLUDE_DIR}
+)
+target_link_libraries(test_http_security PRIVATE libloki test_framework)
+add_test(NAME test_http_security COMMAND test_http_security)

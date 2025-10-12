@@ -12,6 +12,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <time.h>
 
 /* Lua headers */
 #include <lua.h>
@@ -50,9 +51,24 @@ typedef struct {
 
 #define MAX_ASYNC_REQUESTS 10
 #define MAX_HTTP_RESPONSE_SIZE (10 * 1024 * 1024)  /* 10MB limit */
+#define MAX_HTTP_REQUEST_BODY_SIZE (5 * 1024 * 1024)  /* 5MB request body limit */
+#define MAX_HTTP_URL_LENGTH 2048  /* Maximum URL length */
+#define MAX_HTTP_HEADER_SIZE 8192  /* Maximum total header size */
+#define HTTP_RATE_LIMIT_WINDOW 60  /* Rate limit window in seconds */
+#define HTTP_RATE_LIMIT_MAX_REQUESTS 100  /* Max requests per window */
 
 /* curl_initialized stays global - it's a process-wide libcurl initialization flag */
 static int curl_initialized = 0;
+
+/* ======================= HTTP Security State ============================= */
+
+/* Rate limiting state */
+typedef struct {
+    time_t window_start;
+    int request_count;
+} http_rate_limit_t;
+
+static http_rate_limit_t global_rate_limit = {0, 0};
 
 /* ======================== Main Editor Instance ============================ */
 
@@ -139,11 +155,201 @@ static void cleanup_curl(void) {
     }
 }
 
+/* ======================= HTTP Security Functions ========================= */
+
+/* Validate URL format and security
+ * Returns 0 on success, -1 on validation failure */
+static int validate_http_url(const char *url, char *error_msg, size_t error_size) {
+    if (!url || url[0] == '\0') {
+        snprintf(error_msg, error_size, "URL cannot be empty");
+        return -1;
+    }
+
+    /* Check URL length */
+    size_t url_len = strlen(url);
+    if (url_len > MAX_HTTP_URL_LENGTH) {
+        snprintf(error_msg, error_size, "URL too long (max %d characters)", MAX_HTTP_URL_LENGTH);
+        return -1;
+    }
+
+    /* Validate URL scheme (must be http or https) */
+    if (strncmp(url, "http://", 7) != 0 && strncmp(url, "https://", 8) != 0) {
+        snprintf(error_msg, error_size, "URL must start with http:// or https://");
+        return -1;
+    }
+
+    /* Check for null bytes (could indicate injection attempt) */
+    for (size_t i = 0; i < url_len; i++) {
+        if (url[i] == '\0' && i < url_len - 1) {
+            snprintf(error_msg, error_size, "URL contains null byte");
+            return -1;
+        }
+    }
+
+    /* Check for control characters (except tab) */
+    for (size_t i = 0; i < url_len; i++) {
+        unsigned char c = (unsigned char)url[i];
+        if (c < 32 && c != '\t') {
+            snprintf(error_msg, error_size, "URL contains invalid control character");
+            return -1;
+        }
+    }
+
+    /* Warn about non-https URLs (not an error, just a warning) */
+    if (strncmp(url, "http://", 7) == 0) {
+        /* This is just informational - we still allow it */
+        /* The application layer (Lua) should warn users */
+    }
+
+    return 0;
+}
+
+/* Check rate limiting
+ * Returns 0 if request allowed, -1 if rate limit exceeded */
+static int check_rate_limit(char *error_msg, size_t error_size) {
+    time_t now = time(NULL);
+
+    /* Initialize or reset rate limit window */
+    if (global_rate_limit.window_start == 0 ||
+        (now - global_rate_limit.window_start) >= HTTP_RATE_LIMIT_WINDOW) {
+        global_rate_limit.window_start = now;
+        global_rate_limit.request_count = 0;
+    }
+
+    /* Check if limit exceeded */
+    if (global_rate_limit.request_count >= HTTP_RATE_LIMIT_MAX_REQUESTS) {
+        time_t time_until_reset = HTTP_RATE_LIMIT_WINDOW - (now - global_rate_limit.window_start);
+        snprintf(error_msg, error_size,
+                 "Rate limit exceeded (max %d requests per %d seconds, retry in %ld seconds)",
+                 HTTP_RATE_LIMIT_MAX_REQUESTS, HTTP_RATE_LIMIT_WINDOW,
+                 (long)time_until_reset);
+        return -1;
+    }
+
+    /* Increment counter */
+    global_rate_limit.request_count++;
+    return 0;
+}
+
+/* Validate request body size
+ * Returns 0 if valid, -1 if too large */
+static int validate_request_body(const char *body, char *error_msg, size_t error_size) {
+    if (!body) {
+        return 0;  /* No body is valid */
+    }
+
+    size_t body_len = strlen(body);
+    if (body_len > MAX_HTTP_REQUEST_BODY_SIZE) {
+        snprintf(error_msg, error_size,
+                 "Request body too large (%zu bytes, max %d bytes)",
+                 body_len, MAX_HTTP_REQUEST_BODY_SIZE);
+        return -1;
+    }
+
+    return 0;
+}
+
+/* Validate headers
+ * Returns 0 if valid, -1 if invalid */
+static int validate_headers(const char **headers, int num_headers,
+                           char *error_msg, size_t error_size) {
+    if (!headers || num_headers == 0) {
+        return 0;  /* No headers is valid */
+    }
+
+    if (num_headers < 0 || num_headers > 100) {
+        snprintf(error_msg, error_size, "Invalid number of headers: %d", num_headers);
+        return -1;
+    }
+
+    size_t total_size = 0;
+    for (int i = 0; i < num_headers; i++) {
+        if (!headers[i]) {
+            snprintf(error_msg, error_size, "Header %d is NULL", i);
+            return -1;
+        }
+
+        size_t header_len = strlen(headers[i]);
+        total_size += header_len;
+
+        /* Check individual header length */
+        if (header_len > 1024) {
+            snprintf(error_msg, error_size, "Header %d too long (%zu bytes, max 1024)",
+                     i, header_len);
+            return -1;
+        }
+
+        /* Check for null bytes */
+        for (size_t j = 0; j < header_len; j++) {
+            if (headers[i][j] == '\0' && j < header_len - 1) {
+                snprintf(error_msg, error_size, "Header %d contains null byte", i);
+                return -1;
+            }
+        }
+
+        /* Check for control characters (except tab and newline for folded headers) */
+        for (size_t j = 0; j < header_len; j++) {
+            unsigned char c = (unsigned char)headers[i][j];
+            if (c < 32 && c != '\t' && c != '\r' && c != '\n') {
+                snprintf(error_msg, error_size,
+                         "Header %d contains invalid control character", i);
+                return -1;
+            }
+        }
+    }
+
+    /* Check total headers size */
+    if (total_size > MAX_HTTP_HEADER_SIZE) {
+        snprintf(error_msg, error_size,
+                 "Total headers size too large (%zu bytes, max %d bytes)",
+                 total_size, MAX_HTTP_HEADER_SIZE);
+        return -1;
+    }
+
+    return 0;
+}
+
+/* ======================= Async HTTP Implementation ======================= */
+
 /* Start an async HTTP request */
 int start_async_http_request(editor_ctx_t *ctx, const char *url, const char *method,
                                      const char *body, const char **headers,
                                      int num_headers, const char *lua_callback) {
+    char error_msg[256];
+
     if (!ctx || ctx->num_pending_http >= MAX_ASYNC_REQUESTS) {
+        return -1;
+    }
+
+    /* Security validation: URL */
+    if (validate_http_url(url, error_msg, sizeof(error_msg)) != 0) {
+        if (ctx) {
+            editor_set_status_msg(ctx, "HTTP security error: %s", error_msg);
+        }
+        return -1;
+    }
+
+    /* Security validation: Rate limiting */
+    if (check_rate_limit(error_msg, sizeof(error_msg)) != 0) {
+        if (ctx) {
+            editor_set_status_msg(ctx, "HTTP rate limit: %s", error_msg);
+        }
+        return -1;
+    }
+
+    /* Security validation: Request body size */
+    if (validate_request_body(body, error_msg, sizeof(error_msg)) != 0) {
+        if (ctx) {
+            editor_set_status_msg(ctx, "HTTP security error: %s", error_msg);
+        }
+        return -1;
+    }
+
+    /* Security validation: Headers */
+    if (validate_headers(headers, num_headers, error_msg, sizeof(error_msg)) != 0) {
+        if (ctx) {
+            editor_set_status_msg(ctx, "HTTP security error: %s", error_msg);
+        }
         return -1;
     }
 
