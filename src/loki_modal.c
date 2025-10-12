@@ -33,6 +33,7 @@
 #include "loki_internal.h"
 #include "loki_selection.h"
 #include "loki_search.h"
+#include "loki_terminal.h"
 #include <stdlib.h>
 
 /* Number of times CTRL-Q must be pressed before actually quitting */
@@ -368,7 +369,7 @@ void modal_process_keypress(editor_ctx_t *ctx, int fd) {
      * before actually quitting. */
     static int quit_times = KILO_QUIT_TIMES;
 
-    int c = editor_read_key(fd);
+    int c = terminal_read_key(fd);
 
     /* REPL keypress handling */
     if (ctx->repl.active) {

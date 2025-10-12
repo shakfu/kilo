@@ -24,6 +24,7 @@
 #include "loki/core.h"
 #include "loki/lua.h"
 #include "loki_internal.h"
+#include "loki_terminal.h"
 
 /* libcurl for async HTTP */
 #include <curl/curl.h>
@@ -721,12 +722,12 @@ int loki_editor_main(int argc, char **argv) {
     lua_repl_init(&E.repl);
 
     /* Enable terminal raw mode and start main loop */
-    enable_raw_mode(&E, STDIN_FILENO);
+    terminal_enable_raw_mode(&E, STDIN_FILENO);
     editor_set_status_msg(&E,
         "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-W = wrap | Ctrl-L = repl | Ctrl-C = copy");
 
     while(1) {
-        handle_windows_resize(&E);
+        terminal_handle_resize(&E);
 
         /* Process any pending async HTTP requests */
         if (E.L) {

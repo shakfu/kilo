@@ -94,6 +94,7 @@ add_library(libloki ${LOKI_LIBRARY_TYPE}
     src/loki_selection.c
     src/loki_search.c
     src/loki_modal.c
+    src/loki_terminal.c
 )
 
 target_include_directories(libloki

@@ -29,6 +29,7 @@
 #include "loki/core.h"
 #include "loki/lua.h"
 #include "loki_internal.h"  /* Internal structures and functions */
+#include "loki_terminal.h"  /* Terminal functions */
 #include "loki_languages.h"  /* Language definitions and dynamic registration */
 
 /* ======================= Lua API bindings ================================ */
@@ -1101,7 +1102,7 @@ static int lua_repl_handle_builtin(editor_ctx_t *ctx, const char *cmd, size_t le
 void lua_repl_render(editor_ctx_t *ctx, struct abuf *ab) {
     if (!ctx || !ctx->repl.active) return;
 
-    ab_append(ab,"\r\n",2);
+    terminal_buffer_append(ab,"\r\n",2);
 
     int start = ctx->repl.log_len - LUA_REPL_OUTPUT_ROWS;
     if (start < 0) start = 0;
@@ -1111,19 +1112,19 @@ void lua_repl_render(editor_ctx_t *ctx, struct abuf *ab) {
         const char *line = ctx->repl.log[i] ? ctx->repl.log[i] : "";
         int take = (int)strlen(line);
         if (take > ctx->screencols) take = ctx->screencols;
-        ab_append(ab,"\x1b[0K",4);
-        if (take > 0) ab_append(ab,line,take);
-        ab_append(ab,"\r\n",2);
+        terminal_buffer_append(ab,"\x1b[0K",4);
+        if (take > 0) terminal_buffer_append(ab,line,take);
+        terminal_buffer_append(ab,"\r\n",2);
         rendered++;
     }
 
     while (rendered < LUA_REPL_OUTPUT_ROWS) {
-        ab_append(ab,"\x1b[0K\r\n",6);
+        terminal_buffer_append(ab,"\x1b[0K\r\n",6);
         rendered++;
     }
 
-    ab_append(ab,"\x1b[0K",4);
-    ab_append(ab,LUA_REPL_PROMPT,strlen(LUA_REPL_PROMPT));
+    terminal_buffer_append(ab,"\x1b[0K",4);
+    terminal_buffer_append(ab,LUA_REPL_PROMPT,strlen(LUA_REPL_PROMPT));
 
     int prompt_len = (int)strlen(LUA_REPL_PROMPT);
     int available = ctx->screencols - prompt_len;
@@ -1131,7 +1132,7 @@ void lua_repl_render(editor_ctx_t *ctx, struct abuf *ab) {
     if (available > 0 && ctx->repl.input_len > 0) {
         int shown = ctx->repl.input_len;
         if (shown > available) shown = available;
-        ab_append(ab,ctx->repl.input,shown);
+        terminal_buffer_append(ab,ctx->repl.input,shown);
     }
 }
 

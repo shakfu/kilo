@@ -38,12 +38,10 @@ see LICENSE.
 #include "loki_selection.h"
 #include "loki_search.h"
 #include "loki_modal.h"
+#include "loki_terminal.h"
 
 /* libcurl for async HTTP */
 #include <curl/curl.h>
-
-/* Flag to indicate window size change (set by signal handler) */
-static volatile sig_atomic_t winsize_changed = 0;
 
 /* ======================= Async HTTP Infrastructure ======================== */
 
@@ -142,18 +140,6 @@ void editor_ctx_free(editor_ctx_t *ctx) {
 
 #include "loki_languages.h"
 
-/* ======================= Low level terminal handling ====================== */
-
-static struct termios orig_termios; /* In order to restore at exit.*/
-
-void disable_raw_mode(editor_ctx_t *ctx, int fd) {
-    /* Don't even check the return value as it's too late. */
-    if (ctx && ctx->rawmode) {
-        tcsetattr(fd,TCSAFLUSH,&orig_termios);
-        ctx->rawmode = 0;
-    }
-}
-
 /* Static pointer to editor context for atexit cleanup.
  * Set by init_editor() before registering atexit handler. */
 static editor_ctx_t *editor_for_atexit = NULL;
@@ -161,178 +147,10 @@ static editor_ctx_t *editor_for_atexit = NULL;
 /* Called at exit to avoid remaining in raw mode. */
 void editor_atexit(void) {
     if (editor_for_atexit) {
-        disable_raw_mode(editor_for_atexit, STDIN_FILENO);
+        terminal_disable_raw_mode(editor_for_atexit, STDIN_FILENO);
         editor_cleanup_resources(editor_for_atexit);
     }
     cleanup_dynamic_languages();
-}
-
-/* Raw mode: 1960 magic shit. */
-int enable_raw_mode(editor_ctx_t *ctx, int fd) {
-    struct termios raw;
-
-    if (!ctx) return -1; /* Need valid context */
-    if (ctx->rawmode) return 0; /* Already enabled. */
-    if (!isatty(STDIN_FILENO)) goto fatal;
-    if (tcgetattr(fd,&orig_termios) == -1) goto fatal;
-
-    raw = orig_termios;  /* modify the original mode */
-    /* input modes: no break, no CR to NL, no parity check, no strip char,
-     * no start/stop output control. */
-    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-    /* output modes - disable post processing */
-    raw.c_oflag &= ~(OPOST);
-    /* control modes - set 8 bit chars */
-    raw.c_cflag |= (CS8);
-    /* local modes - choing off, canonical off, no extended functions,
-     * no signal chars (^Z,^C) */
-    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-    /* control chars - set return condition: min number of bytes and timer. */
-    raw.c_cc[VMIN] = 0; /* Return each byte, or zero for timeout. */
-    raw.c_cc[VTIME] = 1; /* 100 ms timeout (unit is tens of second). */
-
-    /* put terminal in raw mode after flushing */
-    if (tcsetattr(fd,TCSAFLUSH,&raw) < 0) goto fatal;
-    ctx->rawmode = 1;
-    return 0;
-
-fatal:
-    errno = ENOTTY;
-    return -1;
-}
-
-/* Read a key from the terminal put in raw mode, trying to handle
- * escape sequences. */
-int editor_read_key(int fd) {
-    int nread;
-    char c, seq[6];
-    int retries = 0;
-    /* Wait for input with timeout. If we get too many consecutive
-     * zero-byte reads, stdin may be closed. */
-    while ((nread = read(fd,&c,1)) == 0) {
-        if (++retries > 1000) {
-            /* After ~100 seconds of no input, assume stdin is closed */
-            fprintf(stderr, "\nNo input received, exiting.\n");
-            exit(0);
-        }
-    }
-    if (nread == -1) exit(1);
-
-    while(1) {
-        switch(c) {
-        case ESC:    /* escape sequence */
-            /* If this is just an ESC, we'll timeout here. */
-            if (read(fd,seq,1) == 0) return ESC;
-            if (read(fd,seq+1,1) == 0) return ESC;
-
-            /* ESC [ sequences. */
-            if (seq[0] == '[') {
-                if (seq[1] >= '0' && seq[1] <= '9') {
-                    /* Extended escape, read additional byte. */
-                    if (read(fd,seq+2,1) == 0) return ESC;
-                    if (seq[2] == '~') {
-                        switch(seq[1]) {
-                        case '3': return DEL_KEY;
-                        case '5': return PAGE_UP;
-                        case '6': return PAGE_DOWN;
-                        }
-                    } else if (seq[2] == ';') {
-                        /* ESC[1;2X for Shift+Arrow */
-                        if (read(fd,seq+3,1) == 0) return ESC;
-                        if (read(fd,seq+4,1) == 0) return ESC;
-                        if (seq[1] == '1' && seq[3] == '2') {
-                            switch(seq[4]) {
-                            case 'A': return SHIFT_ARROW_UP;
-                            case 'B': return SHIFT_ARROW_DOWN;
-                            case 'C': return SHIFT_ARROW_RIGHT;
-                            case 'D': return SHIFT_ARROW_LEFT;
-                            }
-                        }
-                    }
-                } else {
-                    switch(seq[1]) {
-                    case 'A': return ARROW_UP;
-                    case 'B': return ARROW_DOWN;
-                    case 'C': return ARROW_RIGHT;
-                    case 'D': return ARROW_LEFT;
-                    case 'H': return HOME_KEY;
-                    case 'F': return END_KEY;
-                    }
-                }
-            }
-
-            /* ESC O sequences. */
-            else if (seq[0] == 'O') {
-                switch(seq[1]) {
-                case 'H': return HOME_KEY;
-                case 'F': return END_KEY;
-                }
-            }
-            break;
-        default:
-            return c;
-        }
-    }
-}
-
-/* Use the ESC [6n escape sequence to query the horizontal cursor position
- * and return it. On error -1 is returned, on success the position of the
- * cursor is stored at *rows and *cols and 0 is returned. */
-int get_cursor_position(int ifd, int ofd, int *rows, int *cols) {
-    char buf[32];
-    unsigned int i = 0;
-
-    /* Report cursor location */
-    if (write(ofd, "\x1b[6n", 4) != 4) return -1;
-
-    /* Read the response: ESC [ rows ; cols R */
-    while (i < sizeof(buf)-1) {
-        if (read(ifd,buf+i,1) != 1) break;
-        if (buf[i] == 'R') break;
-        i++;
-    }
-    buf[i] = '\0';
-
-    /* Parse it. */
-    if (buf[0] != ESC || buf[1] != '[') return -1;
-    if (sscanf(buf+2,"%d;%d",rows,cols) != 2) return -1;
-    return 0;
-}
-
-/* Try to get the number of columns in the current terminal. If the ioctl()
- * call fails the function will try to query the terminal itself.
- * Returns 0 on success, -1 on error. */
-int get_window_size(int ifd, int ofd, int *rows, int *cols) {
-    struct winsize ws;
-
-    if (ioctl(1, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
-        /* ioctl() failed. Try to query the terminal itself. */
-        int orig_row, orig_col, retval;
-
-        /* Get the initial position so we can restore it later. */
-        retval = get_cursor_position(ifd,ofd,&orig_row,&orig_col);
-        if (retval == -1) goto failed;
-
-        /* Go to right/bottom margin and get position. */
-        if (write(ofd,"\x1b[999C\x1b[999B",12) != 12) goto failed;
-        retval = get_cursor_position(ifd,ofd,rows,cols);
-        if (retval == -1) goto failed;
-
-        /* Restore position. */
-        char seq[32];
-        snprintf(seq,32,"\x1b[%d;%dH",orig_row,orig_col);
-        if (write(ofd,seq,strlen(seq)) == -1) {
-            /* Can't recover... */
-        }
-        return 0;
-    } else {
-        *cols = ws.ws_col;
-        *rows = ws.ws_row;
-        return 0;
-    }
-
-failed:
-    return -1;
 }
 
 /* ====================== Syntax highlight color scheme  ==================== */
@@ -933,30 +751,7 @@ writeerr:
 
 /* ============================= Terminal update ============================ */
 
-/* We define a very simple "append buffer" structure, that is an heap
- * allocated string where we can append to. This is useful in order to
- * write all the escape sequences in a buffer and flush them to the standard
- * output in a single call, to avoid flickering effects. */
-/* Note: struct abuf is now defined in loki_internal.h */
-
-void ab_append(struct abuf *ab, const char *s, int len) {
-    char *new = realloc(ab->b,ab->len+len);
-
-    if (new == NULL) {
-        /* Out of memory - attempt to restore terminal and exit cleanly */
-        write(STDOUT_FILENO, "\x1b[2J", 4);  /* Clear screen */
-        write(STDOUT_FILENO, "\x1b[H", 3);   /* Go home */
-        perror("Out of memory during screen refresh");
-        exit(1);
-    }
-    memcpy(new+ab->len,s,len);
-    ab->b = new;
-    ab->len += len;
-}
-
-void ab_free(struct abuf *ab) {
-    free(ab->b);
-}
+/* Screen buffer functions are now in loki_terminal.c */
 
 /* This function writes the whole screen using VT100 escape characters
  * starting from the logical state of the editor in the global state 'E'. */
@@ -966,8 +761,8 @@ void editor_refresh_screen(editor_ctx_t *ctx) {
     char buf[32];
     struct abuf ab = ABUF_INIT;
 
-    ab_append(&ab,"\x1b[?25l",6); /* Hide cursor. */
-    ab_append(&ab,"\x1b[H",3); /* Go home. */
+    terminal_buffer_append(&ab,"\x1b[?25l",6); /* Hide cursor. */
+    terminal_buffer_append(&ab,"\x1b[H",3); /* Go home. */
     for (y = 0; y < ctx->screenrows; y++) {
         int filerow = ctx->rowoff+y;
 
@@ -978,13 +773,13 @@ void editor_refresh_screen(editor_ctx_t *ctx) {
                     "Kilo editor -- version %s\x1b[0K\r\n", LOKI_VERSION);
                 int padding = (ctx->screencols-welcomelen)/2;
                 if (padding) {
-                    ab_append(&ab,"~",1);
+                    terminal_buffer_append(&ab,"~",1);
                     padding--;
                 }
-                while(padding--) ab_append(&ab," ",1);
-                ab_append(&ab,welcome,welcomelen);
+                while(padding--) terminal_buffer_append(&ab," ",1);
+                terminal_buffer_append(&ab,welcome,welcomelen);
             } else {
-                ab_append(&ab,"~\x1b[0K\r\n",7);
+                terminal_buffer_append(&ab,"~\x1b[0K\r\n",7);
             }
             continue;
         }
@@ -1019,31 +814,31 @@ void editor_refresh_screen(editor_ctx_t *ctx) {
 
                 /* Apply selection background */
                 if (selected) {
-                    ab_append(&ab,"\x1b[7m",4); /* Reverse video */
+                    terminal_buffer_append(&ab,"\x1b[7m",4); /* Reverse video */
                 }
 
                 if (hl[j] == HL_NONPRINT) {
                     char sym;
-                    if (!selected) ab_append(&ab,"\x1b[7m",4);
+                    if (!selected) terminal_buffer_append(&ab,"\x1b[7m",4);
                     if (c[j] <= 26)
                         sym = '@'+c[j];
                     else
                         sym = '?';
-                    ab_append(&ab,&sym,1);
-                    ab_append(&ab,"\x1b[0m",4);
+                    terminal_buffer_append(&ab,&sym,1);
+                    terminal_buffer_append(&ab,"\x1b[0m",4);
                     if (current_color != -1) {
                         char buf[32];
                         int clen = editor_format_color(ctx, current_color, buf, sizeof(buf));
-                        ab_append(&ab,buf,clen);
+                        terminal_buffer_append(&ab,buf,clen);
                     }
                 } else if (hl[j] == HL_NORMAL) {
                     if (current_color != -1) {
-                        ab_append(&ab,"\x1b[39m",5);
+                        terminal_buffer_append(&ab,"\x1b[39m",5);
                         current_color = -1;
                     }
-                    ab_append(&ab,c+j,1);
+                    terminal_buffer_append(&ab,c+j,1);
                     if (selected) {
-                        ab_append(&ab,"\x1b[0m",4); /* Reset */
+                        terminal_buffer_append(&ab,"\x1b[0m",4); /* Reset */
                     }
                 } else {
                     int color = hl[j];
@@ -1051,28 +846,28 @@ void editor_refresh_screen(editor_ctx_t *ctx) {
                         char buf[32];
                         int clen = editor_format_color(ctx, color, buf, sizeof(buf));
                         current_color = color;
-                        ab_append(&ab,buf,clen);
+                        terminal_buffer_append(&ab,buf,clen);
                     }
-                    ab_append(&ab,c+j,1);
+                    terminal_buffer_append(&ab,c+j,1);
                     if (selected) {
-                        ab_append(&ab,"\x1b[0m",4); /* Reset */
+                        terminal_buffer_append(&ab,"\x1b[0m",4); /* Reset */
                         if (current_color != -1) {
                             char buf[32];
                             int clen = editor_format_color(ctx, current_color, buf, sizeof(buf));
-                            ab_append(&ab,buf,clen);
+                            terminal_buffer_append(&ab,buf,clen);
                         }
                     }
                 }
             }
         }
-        ab_append(&ab,"\x1b[39m",5);
-        ab_append(&ab,"\x1b[0K",4);
-        ab_append(&ab,"\r\n",2);
+        terminal_buffer_append(&ab,"\x1b[39m",5);
+        terminal_buffer_append(&ab,"\x1b[0K",4);
+        terminal_buffer_append(&ab,"\r\n",2);
     }
 
     /* Create a two rows status. First row: */
-    ab_append(&ab,"\x1b[0K",4);
-    ab_append(&ab,"\x1b[7m",4);
+    terminal_buffer_append(&ab,"\x1b[0K",4);
+    terminal_buffer_append(&ab,"\x1b[7m",4);
     char status[80], rstatus[80];
 
     /* Get mode indicator */
@@ -1089,23 +884,23 @@ void editor_refresh_screen(editor_ctx_t *ctx) {
     int rlen = snprintf(rstatus, sizeof(rstatus),
         "%d/%d",ctx->rowoff+ctx->cy+1,ctx->numrows);
     if (len > ctx->screencols) len = ctx->screencols;
-    ab_append(&ab,status,len);
+    terminal_buffer_append(&ab,status,len);
     while(len < ctx->screencols) {
         if (ctx->screencols - len == rlen) {
-            ab_append(&ab,rstatus,rlen);
+            terminal_buffer_append(&ab,rstatus,rlen);
             break;
         } else {
-            ab_append(&ab," ",1);
+            terminal_buffer_append(&ab," ",1);
             len++;
         }
     }
-    ab_append(&ab,"\x1b[0m\r\n",6);
+    terminal_buffer_append(&ab,"\x1b[0m\r\n",6);
 
     /* Second row depends on ctx->statusmsg and the status message update time. */
-    ab_append(&ab,"\x1b[0K",4);
+    terminal_buffer_append(&ab,"\x1b[0K",4);
     int msglen = strlen(ctx->statusmsg);
     if (msglen && time(NULL)-ctx->statusmsg_time < 5)
-        ab_append(&ab,ctx->statusmsg,msglen <= ctx->screencols ? msglen : ctx->screencols);
+        terminal_buffer_append(&ab,ctx->statusmsg,msglen <= ctx->screencols ? msglen : ctx->screencols);
 
     /* Render REPL if active */
     if (ctx->repl.active) lua_repl_render(ctx, &ab);
@@ -1146,10 +941,10 @@ void editor_refresh_screen(editor_ctx_t *ctx) {
     }
 
     snprintf(buf,sizeof(buf),"\x1b[%d;%dH",cursor_row,cursor_col);
-    ab_append(&ab,buf,strlen(buf));
-    ab_append(&ab,"\x1b[?25h",6); /* Show cursor. */
+    terminal_buffer_append(&ab,buf,strlen(buf));
+    terminal_buffer_append(&ab,"\x1b[?25h",6); /* Show cursor. */
     write(STDOUT_FILENO,ab.b,ab.len);
-    ab_free(&ab);
+    terminal_buffer_free(&ab);
 }
 
 /* REPL layout management, toggle function, and status reporter are in loki_editor.c */
@@ -1178,39 +973,7 @@ void init_default_colors(editor_ctx_t *ctx) {
     ctx->colors[8].r = 100; ctx->colors[8].g = 150; ctx->colors[8].b = 220;
 }
 
-/* Update window size and adjust screen layout */
-void update_window_size(editor_ctx_t *ctx) {
-    int rows, cols;
-    if (get_window_size(STDIN_FILENO,STDOUT_FILENO,
-                      &rows,&cols) == -1) {
-        /* If we can't get terminal size (e.g., non-interactive mode), use defaults */
-        rows = 24;
-        cols = 80;
-    }
-    ctx->screencols = cols;
-    rows -= STATUS_ROWS;
-    if (rows < 1) rows = 1;
-    ctx->screenrows_total = rows;
-    /* REPL layout update (editor_update_repl_layout) is in loki_editor.c */
-    ctx->screenrows = ctx->screenrows_total; /* Without REPL, use all available rows */
-}
-
-/* Signal handler for window size changes */
-void handle_sig_win_ch(int unused __attribute__((unused))) {
-    /* Signal handler must be async-signal-safe.
-     * Just set a flag and handle resize in main loop. */
-    winsize_changed = 1;
-}
-
-/* Check and handle window resize */
-void handle_windows_resize(editor_ctx_t *ctx) {
-    if (winsize_changed) {
-        winsize_changed = 0;
-        update_window_size(ctx);
-        if (ctx->cy > ctx->screenrows) ctx->cy = ctx->screenrows - 1;
-        if (ctx->cx > ctx->screencols) ctx->cx = ctx->screencols - 1;
-    }
-}
+/* Window size functions are now in loki_terminal.c */
 
 /* ========================= Editor events handling  ======================== */
 
@@ -1313,8 +1076,8 @@ void init_editor(editor_ctx_t *ctx) {
     ctx->sel_end_x = ctx->sel_end_y = 0;
     init_default_colors(ctx);
     /* Lua REPL init and Lua initialization are in loki_editor.c */
-    update_window_size(ctx);
-    signal(SIGWINCH, handle_sig_win_ch);
+    terminal_update_window_size(ctx);
+    signal(SIGWINCH, terminal_sig_winch_handler);
 
     /* Set static pointer for atexit cleanup */
     editor_for_atexit = ctx;

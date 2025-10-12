@@ -22,6 +22,7 @@
 
 #include "loki_search.h"
 #include "loki_internal.h"
+#include "loki_terminal.h"
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -55,7 +56,7 @@ void editor_find(editor_ctx_t *ctx, int fd) {
             "Search: %s (Use ESC/Arrows/Enter)", query);
         editor_refresh_screen(ctx);
 
-        int c = editor_read_key(fd);
+        int c = terminal_read_key(fd);
         if (c == DEL_KEY || c == CTRL_H || c == BACKSPACE) {
             if (qlen != 0) query[--qlen] = '\0';
             last_match = -1;

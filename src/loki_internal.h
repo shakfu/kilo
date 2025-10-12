@@ -171,8 +171,7 @@ struct abuf {
 
 #define ABUF_INIT {NULL,0}
 
-void ab_append(struct abuf *ab, const char *s, int len);
-void ab_free(struct abuf *ab);
+/* Screen buffer functions are now in loki_terminal.h */
 
 /* ======================= Function Declarations ============================ */
 
@@ -212,11 +211,7 @@ void editor_cleanup_resources(editor_ctx_t *ctx);
 int hl_name_to_code(const char *name);
 int is_separator(int c, char *separators);
 
-/* Terminal and input */
-int enable_raw_mode(editor_ctx_t *ctx, int fd);
-void disable_raw_mode(editor_ctx_t *ctx, int fd);
-int editor_read_key(int fd);
-void handle_windows_resize(editor_ctx_t *ctx);
+/* Terminal and input functions are now in loki_terminal.h */
 void editor_process_keypress(editor_ctx_t *ctx, int fd);
 
 /* Cursor movement */
