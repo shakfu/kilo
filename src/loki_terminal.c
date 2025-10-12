@@ -20,8 +20,12 @@
 /* Original terminal state (saved before entering raw mode) */
 static struct termios orig_termios;
 
-/* Flag set by signal handler when window size changes */
-static volatile sig_atomic_t winsize_changed = 0;
+/* Global pointer to current editor context for signal handler access.
+ * POSIX signal handlers cannot reliably access per-context data, so we
+ * maintain a global pointer to the "active" context. This means only one
+ * editor instance can properly handle window resize signals at a time.
+ * For most use cases (single editor instance), this is not a limitation. */
+static editor_ctx_t *signal_context = NULL;
 
 /* ======================= Terminal Mode Management ========================= */
 
@@ -60,6 +64,10 @@ int terminal_enable_raw_mode(editor_ctx_t *ctx, int fd) {
     /* put terminal in raw mode after flushing */
     if (tcsetattr(fd, TCSAFLUSH, &raw) < 0) goto fatal;
     ctx->rawmode = 1;
+
+    /* Register this context for signal handling */
+    signal_context = ctx;
+
     return 0;
 
 fatal:
@@ -227,14 +235,18 @@ void terminal_update_window_size(editor_ctx_t *ctx) {
 /* Signal handler for window size changes */
 void terminal_sig_winch_handler(int unused __attribute__((unused))) {
     /* Signal handler must be async-signal-safe.
-     * Just set a flag and handle resize in main loop. */
-    winsize_changed = 1;
+     * Just set a flag in the registered context for main loop to handle. */
+    if (signal_context) {
+        signal_context->winsize_changed = 1;
+    }
 }
 
 /* Check and handle window resize */
 void terminal_handle_resize(editor_ctx_t *ctx) {
-    if (winsize_changed) {
-        winsize_changed = 0;
+    if (!ctx) return;
+
+    if (ctx->winsize_changed) {
+        ctx->winsize_changed = 0;
         terminal_update_window_size(ctx);
         if (ctx->cy > ctx->screenrows) ctx->cy = ctx->screenrows - 1;
         if (ctx->cx > ctx->screencols) ctx->cx = ctx->screencols - 1;

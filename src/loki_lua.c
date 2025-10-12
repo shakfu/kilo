@@ -361,7 +361,7 @@ static int lua_loki_async_http(lua_State *L) {
     const char *callback = luaL_checkstring(L, 5);
 
     /* Start async request */
-    int req_id = start_async_http_request(url, method, body, headers, num_headers, callback);
+    int req_id = start_async_http_request(ctx, url, method, body, headers, num_headers, callback);
 
     /* Free headers */
     if (headers) {

@@ -51,8 +51,7 @@ typedef struct {
 #define MAX_ASYNC_REQUESTS 10
 #define MAX_HTTP_RESPONSE_SIZE (10 * 1024 * 1024)  /* 10MB limit */
 
-static async_http_request *pending_requests[MAX_ASYNC_REQUESTS] = {0};
-static int num_pending = 0;
+/* curl_initialized stays global - it's a process-wide libcurl initialization flag */
 static int curl_initialized = 0;
 
 /* ======================== Main Editor Instance ============================ */
@@ -141,12 +140,10 @@ static void cleanup_curl(void) {
 }
 
 /* Start an async HTTP request */
-int start_async_http_request(const char *url, const char *method,
+int start_async_http_request(editor_ctx_t *ctx, const char *url, const char *method,
                                      const char *body, const char **headers,
                                      int num_headers, const char *lua_callback) {
-    if (num_pending >= MAX_ASYNC_REQUESTS) {
-        /* Note: Cannot set status message here as we don't have editor context.
-         * Caller (lua_loki_async_http) will set error message if needed. */
+    if (!ctx || ctx->num_pending_http >= MAX_ASYNC_REQUESTS) {
         return -1;
     }
 
@@ -155,7 +152,7 @@ int start_async_http_request(const char *url, const char *method,
     /* Find free slot */
     int slot = -1;
     for (int i = 0; i < MAX_ASYNC_REQUESTS; i++) {
-        if (!pending_requests[i]) {
+        if (!ctx->pending_http_requests[i]) {
             slot = i;
             break;
         }
@@ -245,16 +242,18 @@ int start_async_http_request(const char *url, const char *method,
     curl_multi_add_handle(req->multi_handle, req->easy_handle);
 
     /* Store in pending requests */
-    pending_requests[slot] = req;
-    num_pending++;
+    ctx->pending_http_requests[slot] = req;
+    ctx->num_pending_http++;
 
     return slot;
 }
 
 /* Check and process completed async HTTP requests */
 void check_async_requests(editor_ctx_t *ctx, lua_State *L) {
+    if (!ctx) return;
+
     for (int i = 0; i < MAX_ASYNC_REQUESTS; i++) {
-        async_http_request *req = pending_requests[i];
+        async_http_request *req = (async_http_request *)ctx->pending_http_requests[i];
         if (!req) continue;
 
         /* Perform non-blocking work */
@@ -372,8 +371,8 @@ void check_async_requests(editor_ctx_t *ctx, lua_State *L) {
             free(req->lua_callback);
             free(req);
 
-            pending_requests[i] = NULL;
-            num_pending--;
+            ctx->pending_http_requests[i] = NULL;
+            ctx->num_pending_http--;
         }
     }
 }

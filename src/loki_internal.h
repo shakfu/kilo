@@ -155,6 +155,13 @@ struct editor_ctx {
     int sel_start_x, sel_start_y; /* Selection start position */
     int sel_end_x, sel_end_y;     /* Selection end position */
     t_hlcolor colors[9]; /* Syntax highlight colors: indexed by HL_* constants */
+
+    /* Async HTTP state (opaque pointers to avoid exposing curl details) */
+    void *pending_http_requests[10]; /* Array of async_http_request* (max 10 concurrent) */
+    int num_pending_http; /* Number of pending HTTP requests */
+
+    /* Window resize state (checked in main loop, set by signal handler) */
+    volatile sig_atomic_t winsize_changed; /* Non-zero if window size changed */
 };
 
 /* Legacy type name for compatibility during migration.
@@ -191,7 +198,7 @@ void editor_del_char(editor_ctx_t *ctx);
 void editor_refresh_screen(editor_ctx_t *ctx);
 
 /* Async HTTP requests */
-int start_async_http_request(const char *url, const char *method,
+int start_async_http_request(editor_ctx_t *ctx, const char *url, const char *method,
                              const char *body, const char **headers,
                              int num_headers, const char *lua_callback);
 void check_async_requests(editor_ctx_t *ctx, lua_State *L);

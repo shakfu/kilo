@@ -108,6 +108,10 @@ void editor_ctx_init(editor_ctx_t *ctx) {
     ctx->sel_start_y = 0;
     ctx->sel_end_x = 0;
     ctx->sel_end_y = 0;
+    /* Async HTTP state - already zeroed by memset above */
+    ctx->num_pending_http = 0;
+    /* Window resize flag - already zeroed by memset above */
+    ctx->winsize_changed = 0;
     memset(ctx->colors, 0, sizeof(ctx->colors));
 }
 
