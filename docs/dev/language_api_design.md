@@ -19,6 +19,7 @@ This document describes the Lua-based language registration API for loki, implem
 Registers a new language for syntax highlighting.
 
 **Parameters:**
+
 - `config` (table): Language configuration with the following fields:
 
 | Field | Type | Required | Description |
@@ -35,6 +36,7 @@ Registers a new language for syntax highlighting.
 | `highlight_numbers` | boolean | No | Enable number highlighting (default: true) |
 
 **Returns:**
+
 - `true` on success
 - `nil, error_message` on failure
 
@@ -66,6 +68,7 @@ loki.register_language({
 Returns a list of all registered languages.
 
 **Returns:**
+
 - Table of language names (e.g., `{"C", "Python", "Lua", "Markdown"}`)
 
 **Example:**
@@ -81,7 +84,7 @@ end
 
 Language definitions can be stored in `.loki/languages/`:
 
-```
+```text
 .loki/
 ├── init.lua                    # Main config (loads languages)
 └── languages/
@@ -138,6 +141,7 @@ end
 **Current approach**: Static `HLDB[]` array with fixed entries.
 
 **New approach**:
+
 1. Keep static HLDB for built-in languages
 2. Add dynamic `HLDB_dynamic[]` array that grows as needed
 3. `editor_select_syntax_highlight()` checks both arrays
@@ -147,11 +151,13 @@ end
 ### Data Structure Changes
 
 **Option A: Minimal changes** (recommended)
+
 - Keep existing `struct t_editor_syntax`
 - Allocate copies of strings passed from Lua
 - Store in separate dynamic array
 
 **Option B: Unified dynamic array**
+
 - Convert HLDB to `struct t_editor_syntax **HLDB`
 - Allocate all entries dynamically
 - More flexible but requires refactoring
@@ -159,6 +165,7 @@ end
 ### Keyword Storage
 
 Keywords are currently stored as:
+
 ```c
 char *C_HL_keywords[] = {
     "if", "else", "while", ..., "int|", "long|", ..., NULL
@@ -168,6 +175,7 @@ char *C_HL_keywords[] = {
 **Type keywords** end with `|` to distinguish them from regular keywords.
 
 **New approach**:
+
 - Allocate keyword array dynamically
 - Copy strings from Lua table
 - Append `|` to type keywords
@@ -184,18 +192,21 @@ char *C_HL_keywords[] = {
 ## Implementation Plan
 
 ### Phase 1: C Infrastructure (150 lines)
+
 1. Add `HLDB_dynamic` array with realloc logic
 2. Implement `loki_register_language()` C function
 3. Modify `editor_select_syntax_highlight()` to check both arrays
 4. Add cleanup function for dynamic allocations
 
 ### Phase 2: Lua Binding (50 lines)
+
 1. Register `loki.register_language` function
 2. Add Lua table parsing logic
 3. Validate input and provide error messages
 4. Add `loki.list_languages()` helper
 
 ### Phase 3: Port Existing Languages (100 lines Lua)
+
 1. Create `.loki/languages/` directory
 2. Port C/Python/Lua/Cython to Lua format
 3. Update `init.lua` to auto-load language files
@@ -239,12 +250,13 @@ return loki.register_language({
 })
 ```
 
-3. Restart loki or reload config
-4. Go files now have syntax highlighting
+1. Restart loki or reload config
+2. Go files now have syntax highlighting
 
 ## Error Handling
 
 **Validation checks:**
+
 - `name` must be non-empty string
 - `extensions` must be non-empty table
 - Extension strings must start with `.`
@@ -252,6 +264,7 @@ return loki.register_language({
 - Keywords/types must be strings
 
 **Error messages:**
+
 ```lua
 -- Missing required field
 "Error: 'name' field is required"

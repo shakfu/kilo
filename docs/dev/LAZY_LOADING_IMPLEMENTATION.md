@@ -13,6 +13,7 @@
 Replaced eager loading with on-demand language loading:
 
 **Key Features:**
+
 - **Extension registry**: Maps file extensions → language files
 - **Load on demand**: Languages loaded only when opening matching files
 - **Caching**: Once loaded, languages reused for all subsequent files
@@ -21,6 +22,7 @@ Replaced eager loading with on-demand language loading:
 - **Multiple search paths**: `.loki/languages/` and `~/.loki/languages/`
 
 **API:**
+
 ```lua
 languages.init()                    -- Set up lazy loading (call at startup)
 languages.load(name)                 -- Load specific language
@@ -37,11 +39,13 @@ languages.load_all()                 -- Backwards compat: eager loading
 Changed from eager to lazy loading:
 
 **Before:**
+
 ```lua
 local lang_count = languages.load_all()  -- Loads ALL languages at startup
 ```
 
 **After:**
+
 ```lua
 languages = require("languages")        -- Global for REPL access
 local ext_count = languages.init()      -- Just scans, doesn't load
@@ -66,10 +70,12 @@ loki.register_language({
 ### Performance Improvements
 
 **Startup Time:**
+
 - **Before (Eager)**: Load all languages ~10-15ms
 - **After (Lazy)**: Scan extensions ~2-3ms (**60% faster!**)
 
 **Memory Usage (7 languages available):**
+
 - **Initial**: 1 language loaded (markdown)
 - **After opening .py**: 2 languages loaded
 - **Savings**: 5 languages unloaded = ~150KB saved
@@ -113,12 +119,14 @@ Loaded: 2  ✅
 **Effort:** 2-3 hours
 
 Currently, these languages exist in BOTH C and Lua (duplication):
+
 - ❌ Python (`src/loki_languages.c:52` + `.loki/languages/python.lua`)
 - ❌ Lua (`src/loki_languages.c:67` + `.loki/languages/lua.lua`)
 - ❌ JavaScript (`src/loki_languages.c:109` + `.loki/languages/javascript.lua`)
 - ❌ Rust (`src/loki_languages.c` + `.loki/languages/rust.lua`)
 
 **Action Required:**
+
 ```c
 // src/loki_languages.c - DELETE these sections:
 // - Lines 50-63: Python definition
@@ -128,6 +136,7 @@ Currently, these languages exist in BOTH C and Lua (duplication):
 ```
 
 **Verification:**
+
 ```bash
 # After removal, test that languages still work via Lua:
 ./build/loki-editor test.py   # Should load python.lua on-demand
@@ -144,9 +153,11 @@ Currently, these languages exist in BOTH C and Lua (duplication):
 These languages only exist in C (need Lua equivalents):
 
 **Essential (keep as C emergency fallback):**
+
 - C/C++ - ⚠️ Keep minimal C version for editing loki source
 
 **Should move to Lua:**
+
 - Cython (`.pyx`, `.pxd`, `.pxi`)
 - TypeScript (`.ts`, `.tsx`)
 - Swift (`.swift`)
@@ -154,6 +165,7 @@ These languages only exist in C (need Lua equivalents):
 - Shell (`.sh`, `.bash`)
 
 **Action Required:**
+
 1. Create `.loki/languages/c.lua` (from C definition)
 2. Create `.loki/languages/cython.lua` (from C definition)
 3. Create `.loki/languages/typescript.lua` (from C definition)
@@ -162,6 +174,7 @@ These languages only exist in C (need Lua equivalents):
 6. Create `.loki/languages/shell.lua` (from C definition)
 
 **Template:**
+
 ```lua
 -- .loki/languages/typescript.lua
 return loki.register_language({
@@ -218,22 +231,26 @@ struct t_editor_syntax HLDB[] = {
 ## Benefits Achieved ✅
 
 ### 1. Performance ✅
+
 - **60% faster startup** (2-3ms vs 10-15ms)
 - **Lower memory footprint** (only loaded languages in RAM)
 - **Instant file opening** (no language loading delay)
 
 ### 2. User Experience ✅
+
 - **Partial installs work** (missing Go? No problem, just no .go highlighting)
 - **Graceful degradation** (editor works even if `.loki/languages/` missing)
 - **Faster perceived performance** (editor ready immediately)
 
 ### 3. Architecture ✅
+
 - **Single source of truth** (all languages in `.loki/languages/*.lua`)
 - **No duplication** (when C definitions removed)
 - **User-extensible** (add languages without recompilation)
 - **Lua-powered** (aligns with project vision)
 
 ### 4. Maintainability ✅
+
 - **Easier to add languages** (just drop in `.lua` file)
 - **Easier to modify** (edit `.lua`, no recompilation)
 - **No sync issues** (one definition per language)
@@ -244,17 +261,20 @@ struct t_editor_syntax HLDB[] = {
 ## Documentation Updates Needed 📝
 
 ### CLAUDE.md ✅
+
 - [x] Document lazy loading behavior
 - [ ] Update language registration section
 - [ ] Explain extension registry
 - [ ] Document C fallback strategy
 
 ### README.md 🚧
+
 - [ ] Explain lazy loading in features section
 - [ ] Update installation (`.loki/languages/` required)
 - [ ] Document language statistics commands
 
 ### New Guides 🚧
+
 - [ ] `.loki/languages/README.md` - How to add languages
 - [ ] Migration guide for users with custom languages
 
@@ -270,15 +290,15 @@ struct t_editor_syntax HLDB[] = {
 
 ### Short Term (Next Week)
 
-4. 🚧 **Create missing Lua files** - c.lua, typescript.lua, etc.
-5. 🚧 **Clean up C code** - Reduce to minimal emergency fallback
-6. 🚧 **Update documentation** - CLAUDE.md, README.md
+1. 🚧 **Create missing Lua files** - c.lua, typescript.lua, etc.
+2. 🚧 **Clean up C code** - Reduce to minimal emergency fallback
+3. 🚧 **Update documentation** - CLAUDE.md, README.md
 
 ### Validation
 
-7. 🚧 **Run all tests** - `make test` should pass
-8. 🚧 **Test each language** - Open files with each extension
-9. 🚧 **Performance benchmark** - Measure startup time improvement
+1. 🚧 **Run all tests** - `make test` should pass
+2. 🚧 **Test each language** - Open files with each extension
+3. 🚧 **Performance benchmark** - Measure startup time improvement
 
 ---
 
@@ -287,6 +307,7 @@ struct t_editor_syntax HLDB[] = {
 ### For Users
 
 **Default behavior** (lazy loading):
+
 ```bash
 # Startup is instant - no languages loaded except markdown
 ./build/loki-editor test.py
@@ -296,6 +317,7 @@ struct t_editor_syntax HLDB[] = {
 ```
 
 **Eager loading** (if preferred):
+
 ```lua
 -- .loki/init.lua
 languages = require("languages")
@@ -303,6 +325,7 @@ languages.load_all()  -- Load everything at startup (backwards compat)
 ```
 
 **Check what's loaded**:
+
 ```lua
 -- In REPL or script
 stats = languages.stats()
@@ -312,6 +335,7 @@ print(string.format("Loaded: %d/%d", stats.loaded, stats.extensions))
 ### For Developers
 
 **Add a new language:**
+
 ```bash
 # 1. Create language file
 cat > .loki/languages/kotlin.lua << 'EOF'
@@ -336,6 +360,7 @@ EOF
 ```
 
 **Hot-reload a language** (no restart needed):
+
 ```lua
 -- Edit .loki/languages/python.lua
 -- Then in REPL:
@@ -375,6 +400,7 @@ languages.reload("python")
 **Lazy loading is now fully implemented and tested!** ✅
 
 **Key Achievements:**
+
 - ✅ 60% faster startup
 - ✅ Lower memory footprint
 - ✅ Single source of truth (Lua)
@@ -382,6 +408,7 @@ languages.reload("python")
 - ✅ Graceful degradation
 
 **Remaining Work:**
+
 - 🚧 Remove C duplicates (2-3 hours)
 - 🚧 Create missing Lua files (3-4 hours)
 - 🚧 Update documentation (2-3 hours)

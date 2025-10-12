@@ -11,7 +11,7 @@
 
 ### Source Code Breakdown
 
-```
+```text
 Source Code:
   loki_lua.c          1,302 lines (29%)
   loki_core.c           833 lines (19%)
@@ -62,6 +62,7 @@ Test Code:
 **Tests:** 13 dedicated security tests
 
 **Coverage:**
+
 - ✅ URL validation (scheme, length, control chars)
 - ✅ Rate limiting (window, counters)
 - ✅ Request body validation (size limits)
@@ -70,6 +71,7 @@ Test Code:
 - ✅ Error message generation
 
 **Test Cases:**
+
 - `http_security_valid_https_url`
 - `http_security_valid_http_url`
 - `http_security_reject_ftp_url`
@@ -85,6 +87,7 @@ Test Code:
 - `http_security_reject_url_with_control_chars`
 
 **Gaps:**
+
 - ❌ End-to-end async request completion (requires network)
 
 ---
@@ -94,6 +97,7 @@ Test Code:
 **Tests:** 17 comprehensive tests
 
 **Coverage:**
+
 - ✅ `extract_language_extensions()` - 5 tests
 - ✅ `extract_language_keywords()` - 3 tests
 - ✅ `extract_comment_delimiters()` - 4 tests
@@ -102,6 +106,7 @@ Test Code:
 - ✅ Edge cases (missing fields, invalid formats, length limits)
 
 **Test Cases:**
+
 - `register_language_minimal_config`
 - `register_language_full_config`
 - `register_language_missing_name`
@@ -121,6 +126,7 @@ Test Code:
 - `register_language_invalid_argument`
 
 **Gaps:**
+
 - ❌ Integration with actual syntax highlighting
 
 ---
@@ -130,6 +136,7 @@ Test Code:
 **Tests:** 8 tests
 
 **Coverage:**
+
 - ✅ File loading (simple, CRLF, empty, long lines)
 - ✅ Binary file detection
 - ✅ File saving
@@ -137,6 +144,7 @@ Test Code:
 - ✅ No trailing newline handling
 
 **Test Cases:**
+
 - `editor_open_loads_simple_file`
 - `editor_open_handles_crlf`
 - `editor_open_rejects_binary_file`
@@ -147,6 +155,7 @@ Test Code:
 - `editor_open_handles_long_lines`
 
 **Gaps:**
+
 - ❌ Error conditions (permission denied, disk full)
 
 ---
@@ -156,6 +165,7 @@ Test Code:
 **Tests:** 12 tests
 
 **Coverage:**
+
 - ✅ State initialization
 - ✅ Status messages
 - ✅ Buffer inspection (`get_lines`, `get_line`, `get_cursor`)
@@ -166,6 +176,7 @@ Test Code:
 - ✅ Error handling
 
 **Test Cases:**
+
 - `lua_state_initializes`
 - `lua_status_sets_message`
 - `lua_get_lines_returns_count`
@@ -180,6 +191,7 @@ Test Code:
 - `lua_handles_syntax_errors`
 
 **Gaps:**
+
 - ❌ `async_http` callback mechanism not fully tested
 
 ---
@@ -191,6 +203,7 @@ Test Code:
 **Tests:** 11 tests
 
 **Coverage:**
+
 - ✅ Context initialization
 - ✅ Character insertion
 - ✅ Newline handling
@@ -200,6 +213,7 @@ Test Code:
 - ✅ Separator detection
 
 **Test Cases:**
+
 - `editor_ctx_init_initializes_all_fields`
 - `is_separator_detects_whitespace`
 - `is_separator_detects_custom_separators`
@@ -213,6 +227,7 @@ Test Code:
 - `window_resize_flag_initialized`
 
 **Gaps:**
+
 - ❌ Syntax highlighting (`editorUpdateSyntax`) - 0%
 - ❌ Row rendering (`editorUpdateRow`) - 0%
 - ❌ Screen rendering (`editorRefreshScreen`) - 0%
@@ -226,6 +241,7 @@ Test Code:
 **Tests:** 2 version check tests (basic smoke tests)
 
 **Gaps:**
+
 - ❌ Raw mode setup/teardown - 0%
 - ❌ VT100 escape sequence generation - 0%
 - ❌ Terminal size detection - 0%
@@ -241,6 +257,7 @@ Test Code:
 **Tests:** 22 comprehensive tests ✨ NEW
 
 **Coverage:**
+
 - ✅ NORMAL mode navigation (h, j, k, l) - 4 tests
 - ✅ NORMAL mode editing (x, i, a, o, O) - 5 tests
 - ✅ INSERT mode text entry and ESC - 5 tests
@@ -248,6 +265,7 @@ Test Code:
 - ✅ Mode transitions - 3 tests
 
 **Test Cases:**
+
 - `modal_normal_h_moves_left` - Tests left movement with 'h' key
 - `modal_normal_l_moves_right` - Tests right movement with 'l' key
 - `modal_normal_j_moves_down` - Tests downward navigation
@@ -272,6 +290,7 @@ Test Code:
 - `modal_normal_visual_normal_cycle` - Tests VISUAL mode cycle
 
 **Implementation Details:**
+
 - Created test wrapper functions in `loki_modal.c`:
   - `modal_process_normal_mode_key()` - Exposes NORMAL mode handler for testing
   - `modal_process_insert_mode_key()` - Exposes INSERT mode handler for testing
@@ -282,6 +301,7 @@ Test Code:
   - `init_multiline_ctx()` - Creates multi-line test context with array of lines
 
 **Remaining Gaps:**
+
 - ❌ Paragraph motions ({, }) - not yet tested
 - ❌ Page up/down navigation - not tested
 - ❌ Shift+arrow selection - not tested
@@ -294,6 +314,7 @@ Test Code:
 **Tests:** 25 comprehensive tests ✨ NEW
 
 **Coverage:**
+
 - ✅ Keyword detection (KEYWORD1, KEYWORD2) - 4 tests
 - ✅ String highlighting (double/single quotes, escapes) - 4 tests
 - ✅ Comment highlighting (single-line and multi-line) - 5 tests
@@ -304,6 +325,7 @@ Test Code:
 - ✅ Mixed content (keywords + strings, keywords + numbers) - 2 tests
 
 **Test Cases:**
+
 - `syntax_c_keyword1_if` - Tests primary keyword highlighting ("if")
 - `syntax_c_keyword1_return` - Tests primary keyword highlighting ("return")
 - `syntax_c_keyword2_int` - Tests type keyword highlighting ("int")
@@ -331,9 +353,11 @@ Test Code:
 - `syntax_mixed_keyword_and_number` - Tests combined highlighting
 
 **Known Issues:**
+
 - ❌ Python single-line comments ("#") don't work - The syntax engine expects TWO-character delimiters, but Python is configured with "#" (one char). The code checks both scs[0] and scs[1], so it only matches if '#' is followed by '\0' (end of string). Test documents this bug.
 
 **Remaining Gaps:**
+
 - ❌ Markdown-specific highlighting (headers, lists, code blocks) - not tested
 - ❌ Non-printable character highlighting - not tested
 - ❌ Custom color/theme application - not tested
@@ -346,6 +370,7 @@ Test Code:
 **Tests:** 24 comprehensive tests ✨ NEW
 
 **Coverage:**
+
 - ✅ Basic pattern matching with strstr() - 5 tests
 - ✅ Forward navigation between matches - 3 tests
 - ✅ Backward navigation between matches - 3 tests
@@ -355,6 +380,7 @@ Test Code:
 - ✅ Edge cases (empty buffer, null inputs) - 7 tests
 
 **Test Cases:**
+
 - `search_find_simple_match` - Tests basic match finding
 - `search_find_match_mid_line` - Tests match not at line start
 - `search_no_match_found` - Tests behavior when no match exists
@@ -381,6 +407,7 @@ Test Code:
 - `search_backward_complete_wrap` - Tests complete wrap-around backward
 
 **Implementation Details:**
+
 - Created test helper function `editor_find_next_match()` in `loki_search.c`:
   - Extracts core search logic from interactive `editor_find()` function
   - Takes query, start position, direction, returns match row and offset
@@ -390,6 +417,7 @@ Test Code:
   - `free_search_buffer()` - Cleans up test buffer resources
 
 **Remaining Gaps:**
+
 - ❌ Interactive search loop (terminal I/O) - not directly testable
 - ❌ Highlight save/restore - not tested
 - ❌ Cursor positioning on match - not tested
@@ -404,6 +432,7 @@ Test Code:
 **Tests:** No dedicated tests
 
 **Gaps:**
+
 - ❌ Selection detection (`is_selected`) - 0%
 - ❌ OSC 52 clipboard copy - 0%
 - ❌ Base64 encoding - 0%
@@ -413,9 +442,11 @@ Test Code:
 #### 11. Async HTTP (`loki_editor.c` - async operations) - ~30%
 
 **Coverage:**
+
 - ✅ Security validation well-tested (95%)
 
 **Gaps:**
+
 - ❌ CURL multi interface integration - 0%
 - ❌ Callback execution - minimal
 - ❌ Request/response lifecycle - 0%
@@ -426,11 +457,13 @@ Test Code:
 #### 12. Languages (`loki_languages.c` - language definitions) - ~60% ⬆️ IMPROVED from ~20%
 
 **Coverage:**
+
 - ✅ Language registration tested (17 tests)
 - ✅ Built-in language keyword arrays tested indirectly (25 syntax tests use C, Python, Lua keywords)
 - ✅ Comment delimiter configuration tested (C, Lua work; Python has known issue)
 
 **Gaps:**
+
 - ❌ Markdown-specific highlighting (headers, lists, bold, italic, links) - not tested
 - ❌ `highlight_code_line` helper function - not tested
 - ❌ Cython language definition - not tested
@@ -488,10 +521,12 @@ Test Code:
 ### High Priority (Critical Functionality)
 
 #### ✅ 1. Add Modal Editing Tests - COMPLETED
+
 **Impact:** Covers 428 lines of user-facing features (including test functions)
 **Status:** ✅ **COMPLETED** - 22 tests implemented, all passing, ~70% coverage
 
 **Implemented Tests:**
+
 - ✅ NORMAL mode navigation: `h`, `j`, `k`, `l` (4 tests)
 - ✅ NORMAL mode editing: `x`, `i`, `a`, `o`, `O` (5 tests)
 - ✅ INSERT mode: text insertion, ESC, Enter, Backspace (5 tests)
@@ -499,6 +534,7 @@ Test Code:
 - ✅ Mode transitions and state management (3 tests)
 
 **Remaining Gaps:**
+
 - ❌ Paragraph motions (`{`, `}`) - not yet tested
 - ❌ Additional commands (`dd`, etc.)
 
@@ -507,10 +543,12 @@ Test Code:
 ---
 
 #### ✅ 2. Add Syntax Highlighting Tests - COMPLETED
+
 **Impact:** Core editor feature, ~490 lines (engine + language definitions)
 **Status:** ✅ **COMPLETED** - 25 tests implemented, all passing, ~75% coverage
 
 **Implemented Tests:**
+
 - ✅ Keyword detection: primary (HL_KEYWORD1) and type (HL_KEYWORD2) keywords (4 tests)
 - ✅ String highlighting: double quotes, single quotes, escape sequences (4 tests)
 - ✅ Comment highlighting: single-line (//), multi-line (/* */), continuation (5 tests)
@@ -521,9 +559,11 @@ Test Code:
 - ✅ Mixed content: keywords with strings/numbers (2 tests)
 
 **Known Issues Documented:**
+
 - ❌ Python single-line comments ("#") don't work - syntax engine expects two-character delimiters
 
 **Remaining Gaps:**
+
 - ❌ Markdown-specific highlighting (headers, lists, bold, italic, links)
 - ❌ Non-printable character highlighting
 - ❌ Row rendering (`editor_update_row`)
@@ -533,10 +573,12 @@ Test Code:
 ---
 
 #### ✅ 3. Add Search Tests - COMPLETED
+
 **Impact:** Frequently used feature, 90 lines
 **Status:** ✅ **COMPLETED** - 24 tests implemented, all passing, ~80% coverage
 
 **Implemented Tests:**
+
 - ✅ Pattern matching: exact match, mid-line, case-sensitive (5 tests)
 - ✅ Forward/backward navigation: next/prev match, wrapping (6 tests)
 - ✅ Wrap-around at buffer edges: forward and backward (2 tests)
@@ -545,6 +587,7 @@ Test Code:
 - ✅ Edge cases: null inputs, empty buffer, special chars (7 tests)
 
 **Remaining Gaps:**
+
 - ❌ Interactive search loop (ESC/ENTER) - requires terminal simulation
 - ❌ Highlight save/restore - not tested
 - ❌ Search history - not implemented in current code
@@ -556,9 +599,11 @@ Test Code:
 ### Medium Priority (Quality Assurance)
 
 #### 4. Add Terminal Tests
+
 **Impact:** Foundation layer, 176 lines
 
 **Suggested Tests:**
+
 - Raw mode setup/teardown
 - Key reading and buffering
 - Escape sequence parsing (arrow keys, function keys)
@@ -570,9 +615,11 @@ Test Code:
 ---
 
 #### 5. Expand Core Editor Tests
+
 **Impact:** Increase coverage from 50% to 70%
 
 **Suggested Tests:**
+
 - Screen rendering logic
 - Cursor movement edge cases (word boundaries, line wraps)
 - Character deletion (backspace, delete)
@@ -585,9 +632,11 @@ Test Code:
 ---
 
 #### 6. Add Integration Tests
+
 **Impact:** Real-world workflows
 
 **Suggested Tests:**
+
 - Edit → Save → Reopen cycle
 - Search → Replace workflow
 - Modal editing sequences (navigation + editing)
@@ -602,9 +651,11 @@ Test Code:
 ### Lower Priority (Nice to Have)
 
 #### 7. Add Selection/Clipboard Tests
+
 **Impact:** Less critical feature, 99 lines
 
 **Suggested Tests:**
+
 - OSC 52 protocol encoding
 - Selection bounds calculation
 - Base64 encoding correctness
@@ -615,9 +666,11 @@ Test Code:
 ---
 
 #### 8. Add Memory/Leak Tests
+
 **Impact:** Quality assurance
 
 **Suggested Tests:**
+
 - Run existing tests under Valgrind
 - Check cleanup paths with AddressSanitizer
 - Verify no leaks in error conditions
@@ -628,9 +681,11 @@ Test Code:
 ---
 
 #### 9. Add Performance Tests
+
 **Impact:** Stress testing
 
 **Suggested Tests:**
+
 - Large file handling (10MB+)
 - Many concurrent HTTP requests
 - Syntax highlighting on huge files
@@ -678,6 +733,7 @@ Test Code:
 ### Recommended Additions
 
 1. **Add test utilities:**
+
    ```c
    // Helper to create test file with content
    void create_test_file(const char *path, const char *content);
@@ -759,6 +815,7 @@ The project has **excellent coverage for core editor functionality** including s
 **Coverage Level:** Good (~62-67%) ⬆️ +17% improvement from initial ~45-50%
 
 **Strengths:**
+
 - Excellent testing of security-critical features (95%)
 - Comprehensive search functionality (80% coverage, 24 tests) ✨ NEW
 - Strong syntax highlighting tests (75% coverage, 25 tests)
@@ -767,12 +824,14 @@ The project has **excellent coverage for core editor functionality** including s
 - Thorough edge case testing where implemented
 
 **Weaknesses:**
+
 - Gaps in selection/clipboard features (0%)
 - No integration or end-to-end workflow testing
 - Limited UI/terminal operation testing (30%)
 - Markdown highlighting not yet tested
 
 **Architecture:** The codebase is well-positioned to add more tests thanks to:
+
 - Clean module separation
 - Existing test framework
 - Context-based architecture (easy to mock)

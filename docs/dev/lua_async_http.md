@@ -7,6 +7,7 @@ Complete documentation for Loki's asynchronous HTTP client API.
 `loki.async_http()` provides non-blocking HTTP requests for Loki editor and REPL. The editor remains responsive while waiting for responses, making it ideal for AI completions, API integrations, and external service calls.
 
 **Key Features:**
+
 - Non-blocking: Editor/REPL stays responsive during requests
 - Callback-based: Results delivered to your Lua function
 - Multiple concurrent requests: Up to 10 simultaneous requests
@@ -58,6 +59,7 @@ The callback function receives a single argument: a **response table** with thes
 | `error` | string or nil | Error message. Set if network error or CURL failure. `nil` on success. |
 
 **Important Notes:**
+
 - `response.error` is set for **network/transport errors** (connection failed, timeout, DNS failure)
 - `response.error` is also set for **HTTP errors >= 400** with message like "HTTP error 404"
 - Even with HTTP errors (4xx/5xx), `response.body` may contain error details from the server

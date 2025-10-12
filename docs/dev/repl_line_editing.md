@@ -6,6 +6,7 @@
 ## Overview
 
 The loki-repl now has comprehensive line editing support with automatic detection of editline (libedit) or GNU readline libraries. This provides:
+
 - **Command history** with up/down arrow navigation
 - **Line editing** with cursor movement (left/right arrows, home/end)
 - **History persistence** across sessions (saved to `.loki/repl_history`)
@@ -23,16 +24,19 @@ The build system tries libraries in this order:
 ## Platform Support
 
 ### macOS
+
 - **System editline**: Built-in (`/usr/lib/libedit.dylib`)
 - **Homebrew readline**: `brew install readline`
 - **Auto-detected**: Works out of the box on modern macOS
 
 ### Linux
+
 - **Debian/Ubuntu**: `sudo apt-get install libedit-dev` or `libreadline-dev`
 - **Fedora/RHEL**: `sudo dnf install libedit-devel` or `readline-devel`
 - **Arch**: `sudo pacman -S libedit` or `readline`
 
 ### FreeBSD/OpenBSD
+
 - **editline**: Usually pre-installed
 - **readline**: `pkg install readline`
 
@@ -65,7 +69,7 @@ Line editing library not found; loki-repl will use basic fallback (no history/co
 
 ## Features
 
-### With editline/readline:
+### With editline/readline
 
 ```bash
 $ ./build/loki-repl
@@ -77,33 +81,39 @@ loki>
 **Available features:**
 
 **Navigation:**
+
 - ⬆ **Up arrow**: Navigate to previous command
 - ⬇ **Down arrow**: Navigate to next command
 - ⬅ **Left arrow**: Move cursor left
--  **Right arrow**: Move cursor right
+- **Right arrow**: Move cursor right
 - **Home/End**: Jump to start/end of line
 - **Ctrl-A**: Jump to start of line
 - **Ctrl-E**: Jump to end of line
 
 **Editing:**
+
 - **Ctrl-K**: Delete from cursor to end
 - **Ctrl-U**: Delete entire line
 - **Ctrl-W**: Delete word backward
 - **Ctrl-_**: Undo last edit
 
 **History:**
+
 - **Ctrl-R**: Reverse incremental search through history
 - **Ctrl-D**: Exit REPL (EOF)
 
 **Tab Completion:**
+
 - **TAB**: Complete Lua keywords (if, then, function, etc.)
 - **TAB**: Complete Lua globals from _G table (print, string, table, etc.)
 - **TAB**: Complete loki.* API functions (loki.status, loki.get_lines, etc.)
 
 **Multi-line Input:**
+
 - Incomplete Lua code automatically triggers continuation prompt `cont>`
 - Works for: functions, tables, control structures, incomplete expressions
 - Example:
+
   ```lua
   loki> function factorial(n)
   cont>   if n <= 1 then return 1
@@ -114,7 +124,7 @@ loki>
   120
   ```
 
-### Without line editing:
+### Without line editing
 
 ```bash
 $ ./build/loki-repl
@@ -124,6 +134,7 @@ loki>
 ```
 
 **Limited features:**
+
 - Only basic line input
 - No command history
 - No cursor movement
@@ -134,12 +145,14 @@ loki>
 Command history is saved to `.loki/repl_history` in the current directory.
 
 **Format:**
+
 - editline uses `_HiStOrY_V2_` format
 - readline uses its own format
 - Both are human-readable
 
 **Example:**
-```
+
+```text
 _HiStOrY_V2_
 print('hello')
 x = 42
@@ -147,6 +160,7 @@ print(x)
 ```
 
 **Management:**
+
 - Automatically loaded on REPL start
 - Saved on clean exit (`:quit` or `quit`)
 - Limited to 1000 entries (configurable in source)
@@ -173,6 +187,7 @@ endif()
 ### Source Code Integration
 
 **Conditional compilation:**
+
 ```c
 #if defined(LOKI_HAVE_EDITLINE)
     #include <editline/readline.h>  // Readline-compatible API
@@ -183,6 +198,7 @@ endif()
 ```
 
 **Runtime detection:**
+
 ```c
 #ifdef LOKI_HAVE_LINEEDIT
     printf("Line editing: %s (history enabled)\n", "editline" or "readline");
@@ -212,6 +228,7 @@ sudo pacman -S libedit
 ```
 
 Then rebuild:
+
 ```bash
 rm -rf build && make build
 ```
@@ -219,6 +236,7 @@ rm -rf build && make build
 ### Problem: History not saving
 
 **Check:**
+
 1. Does `.loki/` directory exist? (Create it: `mkdir -p .loki`)
 2. Is `.loki/repl_history` writable?
 3. Are you exiting with `:quit` or `quit`? (Ctrl-C doesn't save history)
@@ -228,6 +246,7 @@ rm -rf build && make build
 **Cause:** Terminal doesn't support editline/readline properly, or library not linked
 
 **Solution:** Check linked libraries:
+
 ```bash
 otool -L build/loki-repl | grep edit  # macOS
 ldd build/loki-repl | grep edit        # Linux
@@ -253,17 +272,20 @@ If no editline/readline found, rebuild after installing.
 ## Future Enhancements
 
 ### Completed [x]
+
 - [x] Tab completion for Lua globals
 - [x] Tab completion for `loki.*` API functions
 - [x] Multi-line editing for functions/tables
 - [x] Tab completion for Lua keywords
 
 ### Planned
+
 - [ ] Syntax-aware completion (table keys, methods)
 - [ ] Vi mode toggle
 - [ ] Smart indentation in multi-line mode
 
 ### Possible
+
 - [ ] Completion from Lua documentation
 - [ ] Completion from loaded modules
 - [ ] Context-aware hints (like fish shell)
@@ -282,14 +304,17 @@ If no editline/readline found, rebuild after installing.
 ### Code changes made
 
 **Files modified:**
+
 - `CMakeLists.txt`: Enhanced detection logic with editline priority
 - `src/main_repl.c`: Added editline support, tab completion, multi-line input
 
 **Lines changed:** ~280 lines total
+
 - CMakeLists.txt: +65 lines (improved detection, status messages)
 - main_repl.c: +215 lines (editline support, tab completion, multi-line input)
 
 **New features implemented:**
+
 1. **Tab completion system (lines 397-535)**:
    - `get_lua_completions()`: Queries Lua keywords, globals, and loki API
    - `completion_generator()`: State machine for readline completion
@@ -359,6 +384,7 @@ print(t.x, t.y)
 ```
 
 **Tab completion testing:**
+
 - Type `fun` + TAB → completes to `function`
 - Type `loki.` + TAB → shows loki.status, loki.get_lines, etc.
 - Type `pri` + TAB → completes to `print`
@@ -366,6 +392,7 @@ print(t.x, t.y)
 [x] All tests passed
 
 **Test results:**
+
 - [x] Basic single-line evaluation
 - [x] Multi-line functions with proper indentation
 - [x] Multi-line tables

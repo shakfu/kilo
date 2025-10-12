@@ -20,7 +20,8 @@ Loki has evolved from a 1K-line educational editor into a **production-grade, mo
 ### Strengths
 
 **Modular Design** - Exceptional separation of concerns:
-```
+
+```text
 Core (1,336 lines)     - Terminal I/O, buffers, rendering, file operations
 Languages (494 lines)  - Syntax highlighting, language definitions
 Modal (407 lines)      - Vim-like editing modes
@@ -38,6 +39,7 @@ Undo (475 lines)       - ✅ Recently added - undo/redo with grouping
 5. **CMake build system** - Proper dependency management, shared/static library options
 
 **Evidence of Quality:**
+
 - All 10 test suites pass (100% success rate)
 - Compiles cleanly with `-Wall -Wextra -pedantic`
 - Zero compiler warnings
@@ -62,6 +64,7 @@ Undo (475 lines)       - ✅ Recently added - undo/redo with grouping
 ### Strengths
 
 **Memory Safety** - Comprehensive protections:
+
 - ✅ All malloc/realloc calls have NULL checks
 - ✅ Bounds checking before array access
 - ✅ Binary file detection (prevents null byte crashes)
@@ -69,6 +72,7 @@ Undo (475 lines)       - ✅ Recently added - undo/redo with grouping
 - ✅ Buffer overflow protections in syntax highlighting
 
 **Error Handling** - Robust throughout:
+
 ```c
 // Example from loki_undo.c:49
 undo_entry_t *undo = malloc(sizeof(struct undo_state));
@@ -76,6 +80,7 @@ if (!undo) return;  // Graceful degradation
 ```
 
 **Code Style** - Consistent and readable:
+
 - Clear naming conventions
 - Well-commented complex sections
 - Sensible function lengths (mostly <100 lines)
@@ -84,18 +89,21 @@ if (!undo) return;  // Graceful degradation
 ### Weaknesses
 
 1. **One remaining TODO** (`loki_modal.c`):
+
    ```c
    /* TODO: delete selection - need to implement this */
    ```
+
    - *Impact*: Visual mode delete incomplete
    - *Priority*: Medium
 
-2. **Limited documentation strings** in code:
+1. **Limited documentation strings** in code:
    - Public API has good doc comments
    - Internal functions often lack purpose documentation
    - *Recommendation*: Add Doxygen-style comments
 
-3. **Magic numbers** in some places:
+2. **Magic numbers** in some places:
+
    ```c
    #define KILO_QUERY_LEN 256  // Why 256? Should document rationale
    ```
@@ -118,15 +126,17 @@ if (!undo) return;  // Graceful degradation
 | Response size limits | 10MB max | ✅ Prevents DoS |
 | SSL/TLS verification | Enabled by default via libcurl | ✅ Secure |
 | Header injection protection | Control character filtering | ✅ Prevents attacks |
-| SSRF protection | Rejects file://, ftp://, etc. | ✅ Critical mitigation |
+| SSRF protection | Rejects file://, <ftp://>, etc. | ✅ Critical mitigation |
 
 **Comprehensive Security Documentation:**
+
 - 889-line `docs/security.md` covering threat model, best practices, known limitations
 - Clear explanation of trust boundaries
 - Example attacks and mitigations
 - Testing procedures for security features
 
 **Memory Safety:**
+
 - Fixed all critical buffer overflows (from earlier code review)
 - Proper bounds checking throughout
 - NULL pointer checks after all allocations
@@ -140,14 +150,16 @@ if (!undo) return;  // Graceful degradation
    - ⚠️ **User education needed**: README should warn about inspecting init.lua before use
 
 2. **No file path validation** in Lua:
+
    ```lua
    io.open("../../../../etc/passwd", "r")  -- Allowed
    ```
+
    - *Impact*: Path traversal possible
    - *Status*: By design (documented limitation)
    - *Recommendation*: Add warning in README
 
-3. **Temporary file permissions** (tests):
+1. **Temporary file permissions** (tests):
    - Created with default umask (world-readable)
    - *Impact*: Low (test-only)
    - *Recommendation*: Use `mkstemp()` with 0600 permissions
@@ -161,7 +173,8 @@ if (!undo) return;  // Graceful degradation
 ### Excellent Test Coverage
 
 **Test Suite Organization:**
-```
+
+```text
 test_core.c              - Core editor functionality
 test_file_io.c          - File operations
 test_lua_api.c          - Lua C API bindings
@@ -173,12 +186,14 @@ test_search.c           - Search functionality
 ```
 
 **Testing Infrastructure:**
+
 - Custom test framework (`test_framework.h/c`)
 - 10 test suites, all passing
 - Fast execution (~0.07 seconds total)
 - Integration with CMake/CTest
 
 **Test Quality:**
+
 - Good coverage of edge cases
 - Security tests validate HTTP hardening
 - Modal editing tests cover mode transitions
@@ -187,6 +202,7 @@ test_search.c           - Search functionality
 ### Testing Gaps
 
 1. **No fuzzing** - Recommended additions:
+
    ```bash
    # Should add AFL or libFuzzer for file input
    CC=afl-gcc cmake -B build-fuzz
@@ -215,6 +231,7 @@ test_search.c           - Search functionality
 ### Strengths
 
 **Comprehensive Documentation:**
+
 - ✅ Excellent README.md (354 lines)
 - ✅ Detailed CLAUDE.md (project instructions, 650+ lines)
 - ✅ Thorough ROADMAP.md (495 lines)
@@ -223,12 +240,14 @@ test_search.c           - Search functionality
 - ✅ Modular design docs (`.loki/modules/README.md`)
 
 **User-Facing Documentation:**
+
 - Clear installation instructions
 - Comprehensive keybinding reference
 - Lua API documentation with examples
 - Example configurations included
 
 **Developer Documentation:**
+
 - Architecture overview in CLAUDE.md
 - Code review report tracking all fixes
 - Module development guidelines
@@ -240,6 +259,7 @@ test_search.c           - Search functionality
    - No Doxygen/generated API docs
    - Function signatures documented but not parameter constraints
    - Example:
+
      ```c
      // What are the bounds? What happens if row is invalid?
      const char *editor_get_line(int row);
@@ -290,9 +310,11 @@ test_search.c           - Search functionality
 ### High Priority
 
 #### 1. Complete Visual Mode Delete Selection
+
 **Location:** `loki_modal.c` - TODO around line 200-300
 
 **Current State:**
+
 ```c
 /* TODO: delete selection - need to implement this */
 ```
@@ -300,6 +322,7 @@ test_search.c           - Search functionality
 **Impact:** Visual mode is incomplete, users expect `d` to delete selection
 
 **Implementation Sketch:**
+
 ```c
 void modal_delete_selection(editor_ctx_t *ctx) {
     if (!ctx->sel_active) return;
@@ -319,11 +342,13 @@ void modal_delete_selection(editor_ctx_t *ctx) {
 ---
 
 #### 2. Add Security Warning to README
+
 **Location:** `README.md`
 
 **Current State:** No prominent warning about Lua script execution
 
 **Recommended Addition (after line 35):**
+
 ```markdown
 ## ⚠️ Security Notice
 
@@ -331,13 +356,16 @@ Loki executes Lua scripts from `.loki/init.lua` with **full user privileges**.
 Always inspect init.lua before opening projects from untrusted sources.
 
 ```bash
-# Before opening a new project:
+
+## Before opening a new project
+
 cat .loki/init.lua  # Review configuration
 ./loki myfile.txt   # Safe to use
 ```
 
 See [docs/security.md](docs/security.md) for complete security information.
-```
+
+```text
 
 **Impact:** Prevents users from accidentally running malicious configuration
 
@@ -345,9 +373,11 @@ See [docs/security.md](docs/security.md) for complete security information.
 
 ---
 
-#### 3. Improve Git Commit Messages
+## 3. Improve Git Commit Messages
+
 **Current State:**
 ```
+
 2f457e5 dropped thirdparty
 3546bd5 added undo/redo
 600b4f6 added undo/redo
@@ -355,21 +385,25 @@ See [docs/security.md](docs/security.md) for complete security information.
 e4445af more tests
 f173136 snap
 16c74ac snap
-```
+
+```text
 
 **Issue:** Many "snap" commits provide no context
 
 **Recommendation:**
 Use conventional commits format:
 ```
+
 feat(undo): implement operation grouping with time-based heuristics
 fix(modal): prevent crash when deleting in visual mode
 test(http): add security validation tests for rate limiting
 docs(security): document HTTP hardening implementation
 refactor(core): extract syntax highlighting to separate module
-```
+
+```text
 
 **Benefits:**
+
 - Improves project history readability
 - Enables automatic changelog generation
 - Makes bisecting easier
@@ -382,6 +416,7 @@ refactor(core): extract syntax highlighting to separate module
 ### Medium Priority
 
 #### 4. Add Fuzzing to CI
+
 **Rationale:** File input is primary attack surface
 
 **Implementation:**
@@ -399,7 +434,8 @@ endif()
 ```
 
 **Test corpus:**
-```
+
+```text
 testdata/fuzz/
 ├── valid/
 │   ├── simple.txt
@@ -416,7 +452,9 @@ testdata/fuzz/
 ---
 
 #### 5. Memory Leak Detection in CI
+
 **Implementation:**
+
 ```yaml
 # .github/workflows/test.yml (if using GitHub Actions)
 - name: Run tests with Valgrind
@@ -428,6 +466,7 @@ testdata/fuzz/
 ```
 
 **Alternative: AddressSanitizer**
+
 ```cmake
 # CMakeLists.txt
 option(ENABLE_ASAN "Build with AddressSanitizer" OFF)
@@ -443,13 +482,16 @@ endif()
 ---
 
 #### 6. Performance Benchmarks
+
 **Recommendation:** Add benchmark suite for:
+
 - File loading (1KB, 10KB, 100KB, 1MB)
 - Syntax highlighting (various languages)
 - Screen rendering (full refresh)
 - Search operations
 
 **Implementation:**
+
 ```c
 // tests/benchmark_core.c
 #include <time.h>
@@ -515,15 +557,18 @@ Based on roadmap analysis and project needs, implement in this order:
 #### Tier 1: Essential for Production Use (Next 3 months)
 
 **1. ✅ Undo/Redo** - **COMPLETED!**
-   - Status: Already implemented in `loki_undo.c`
-   - Quality: Excellent implementation with grouping
-   - Action: Just need to complete visual mode delete
+
+- Status: Already implemented in `loki_undo.c`
+- Quality: Excellent implementation with grouping
+- Action: Just need to complete visual mode delete
 
 **2. Multiple Buffers Module** (ROADMAP #2) ⭐⭐⭐
-   - **Why**: Edit multiple files simultaneously
-   - **Complexity**: Medium (~250-350 lines)
-   - **ROI**: Very high - essential editor feature
-   - **Implementation approach:**
+
+- **Why**: Edit multiple files simultaneously
+- **Complexity**: Medium (~250-350 lines)
+- **ROI**: Very high - essential editor feature
+- **Implementation approach:**
+
      ```c
      // Already have editor_ctx_t - just need buffer manager
      typedef struct buffer_manager {
@@ -532,74 +577,85 @@ Based on roadmap analysis and project needs, implement in this order:
          int num_buffers;
      } buffer_manager_t;
      ```
-   - **Commands**: `Ctrl-T` (new), `Ctrl-W` (close), `Ctrl-Tab` (switch)
-   - **Status bar**: Show buffer list/indicators
-   - **File**: `src/loki_buffers.c`, `src/loki_buffers.h`
+
+- **Commands**: `Ctrl-T` (new), `Ctrl-W` (close), `Ctrl-Tab` (switch)
+- **Status bar**: Show buffer list/indicators
+- **File**: `src/loki_buffers.c`, `src/loki_buffers.h`
 
 **3. Clipboard Paste** (ROADMAP #3) ⭐⭐
-   - **Why**: Already have copy (OSC 52), need paste
-   - **Complexity**: Low (~50-100 lines)
-   - **Implementation:**
-     - Extend existing OSC 52 in `loki_selection.c`
-     - Add `p`/`P` commands in NORMAL mode
-     - Query clipboard via OSC 52 read (terminal-dependent)
-     - Fallback to internal buffer
-   - **Commands**:
-     - `p` - paste after cursor
-     - `P` - paste before cursor
-     - Works over SSH via OSC 52
+
+- **Why**: Already have copy (OSC 52), need paste
+- **Complexity**: Low (~50-100 lines)
+- **Implementation:**
+  - Extend existing OSC 52 in `loki_selection.c`
+  - Add `p`/`P` commands in NORMAL mode
+  - Query clipboard via OSC 52 read (terminal-dependent)
+  - Fallback to internal buffer
+- **Commands**:
+  - `p` - paste after cursor
+  - `P` - paste before cursor
+  - Works over SSH via OSC 52
 
 **4. Modal Editing Enhancements** (ROADMAP #4) ⭐⭐
-   - **Additions needed:**
-     - `w`/`b` - word forward/backward
-     - `0`/`$` - line start/end
-     - `gg`/`G` - file start/end
-     - `A`/`I` - append/insert at line boundaries
-     - `C` - change to end of line
-     - `%` - matching bracket (future)
-   - **Lines**: ~150-200 addition to `loki_modal.c`
-   - **Impact**: Makes vim users feel at home
-   - **Testing**: Add to `test_modal.c`
+
+- **Additions needed:**
+  - `w`/`b` - word forward/backward
+  - `0`/`$` - line start/end
+  - `gg`/`G` - file start/end
+  - `A`/`I` - append/insert at line boundaries
+  - `C` - change to end of line
+  - `%` - matching bracket (future)
+- **Lines**: ~150-200 addition to `loki_modal.c`
+- **Impact**: Makes vim users feel at home
+- **Testing**: Add to `test_modal.c`
 
 **5. Auto-Indent Module** (ROADMAP #9) ⭐
-   - **Why**: Developer quality-of-life
-   - **Complexity**: Low (~100-150 lines)
-   - **Hook into**: `editor_insert_newline()` and `editor_insert_char()`
-   - **Features:**
-     - Copy indentation from previous line
-     - Electric dedent for `}`
-     - Tab/space detection from file
-   - **API:**
+
+- **Why**: Developer quality-of-life
+- **Complexity**: Low (~100-150 lines)
+- **Hook into**: `editor_insert_newline()` and `editor_insert_char()`
+- **Features:**
+  - Copy indentation from previous line
+  - Electric dedent for `}`
+  - Tab/space detection from file
+- **API:**
+
      ```c
      int indent_get_level(editor_ctx_t *ctx, int row);
      void indent_apply(editor_ctx_t *ctx, int row);
      void indent_electric_char(editor_ctx_t *ctx, char c);
      ```
-   - **File**: `src/loki_indent.c`, `src/loki_indent.h`
+
+- **File**: `src/loki_indent.c`, `src/loki_indent.h`
 
 #### Tier 2: Powerful Additions (3-6 months)
 
 **6. Search Enhancements** (ROADMAP #5) ⭐⭐
-   - **Additions:**
-     - POSIX regex via `<regex.h>` (no external deps)
-     - Find-and-replace with confirmation
-     - Search history (up/down arrows)
-     - Case sensitivity toggle
-     - `/` and `?` commands in NORMAL mode
-     - `n`/`N` for next/previous
-   - **API additions:**
+
+- **Additions:**
+  - POSIX regex via `<regex.h>` (no external deps)
+  - Find-and-replace with confirmation
+  - Search history (up/down arrows)
+  - Case sensitivity toggle
+  - `/` and `?` commands in NORMAL mode
+  - `n`/`N` for next/previous
+- **API additions:**
+
      ```c
      int search_regex(editor_ctx_t *ctx, const char *pattern, int flags);
      void search_replace(editor_ctx_t *ctx, const char *find,
                         const char *replace, int confirm);
      void search_history_add(const char *query);
      ```
-   - **Estimated lines**: ~150-200 additions to `loki_search.c`
+
+- **Estimated lines**: ~150-200 additions to `loki_search.c`
 
 **7. Configuration System** (ROADMAP #10) ⭐
-   - **Format**: TOML (simple parser or minimal library)
-   - **Location**: `.loki/config.toml` or `~/.loki/config.toml`
-   - **Examples:**
+
+- **Format**: TOML (simple parser or minimal library)
+- **Location**: `.loki/config.toml` or `~/.loki/config.toml`
+- **Examples:**
+
      ```toml
      [core]
      tab_width = 4
@@ -623,77 +679,85 @@ Based on roadmap analysis and project needs, implement in this order:
      detect_indent = true
      electric_dedent = true
      ```
-   - **API:**
+
+- **API:**
+
      ```c
      void config_load(const char *path);
      const char *config_get_string(const char *section, const char *key);
      int config_get_int(const char *section, const char *key);
      int config_get_bool(const char *section, const char *key);
      ```
-   - **File**: `src/loki_config.c`, `src/loki_config.h`
+
+- **File**: `src/loki_config.c`, `src/loki_config.h`
 
 **8. Line Numbers Module** (Low complexity) ⭐
-   - **Features:**
-     - Gutter display with configurable width
-     - Relative/absolute mode toggle
-     - Adjust screen column offset
-   - **Commands**: `:set number`, `:set relativenumber`
-   - **Lines**: ~40-60
-   - **Integration**: Modify screen rendering in `loki_core.c`
+
+- **Features:**
+  - Gutter display with configurable width
+  - Relative/absolute mode toggle
+  - Adjust screen column offset
+- **Commands**: `:set number`, `:set relativenumber`
+- **Lines**: ~40-60
+- **Integration**: Modify screen rendering in `loki_core.c`
 
 #### Tier 3: Advanced Features (6-12 months)
 
 **9. Split Windows** (ROADMAP #7)
-   - **Impact**: View multiple locations/files simultaneously
-   - **Complexity**: High (~300-400 lines)
-   - **Features:**
-     - Horizontal/vertical panes
-     - Independent viewports
-     - Window navigation
-   - **Commands**:
-     - `Ctrl-X 2` - split horizontal
-     - `Ctrl-X 3` - split vertical
-     - `Ctrl-X o` - cycle windows
-     - `Ctrl-X 0` - close window
+
+- **Impact**: View multiple locations/files simultaneously
+- **Complexity**: High (~300-400 lines)
+- **Features:**
+  - Horizontal/vertical panes
+  - Independent viewports
+  - Window navigation
+- **Commands**:
+  - `Ctrl-X 2` - split horizontal
+  - `Ctrl-X 3` - split vertical
+  - `Ctrl-X o` - cycle windows
+  - `Ctrl-X 0` - close window
 
 **10. Macro Recording** (ROADMAP #8)
-   - **Impact**: Automate repetitive edits
-   - **Complexity**: Medium (~150-200 lines)
-   - **Features:**
-     - Record keystroke sequences
-     - Named registers (a-z)
-     - Replay with count
-   - **Commands**:
-     - `q{register}` - start recording
-     - `q` - stop recording
-     - `@{register}` - replay
-     - `@@` - repeat last
+
+- **Impact**: Automate repetitive edits
+- **Complexity**: Medium (~150-200 lines)
+- **Features:**
+  - Record keystroke sequences
+  - Named registers (a-z)
+  - Replay with count
+- **Commands**:
+  - `q{register}` - start recording
+  - `q` - stop recording
+  - `@{register}` - replay
+  - `@@` - repeat last
 
 **11. LSP Client** (ROADMAP #12)
-   - **Impact**: Most transformative feature
-   - **Complexity**: Very high (~600-800 lines)
-   - **Start with proof-of-concept:**
-     - Simple autocomplete only
-     - Single language (C)
-     - Basic JSON-RPC parser
-   - **Future expansion:**
-     - Diagnostics (error squiggles)
-     - Go-to-definition
-     - Hover documentation
-     - Code actions
+
+- **Impact**: Most transformative feature
+- **Complexity**: Very high (~600-800 lines)
+- **Start with proof-of-concept:**
+  - Simple autocomplete only
+  - Single language (C)
+  - Basic JSON-RPC parser
+- **Future expansion:**
+  - Diagnostics (error squiggles)
+  - Go-to-definition
+  - Hover documentation
+  - Code actions
 
 **12. Tree-sitter Integration** (ROADMAP #14)
-   - **Impact**: Superior syntax highlighting
-   - **Complexity**: Very high (~500-700 lines)
-   - **Implementation:**
-     - Optional module (compile flag)
-     - Load parsers dynamically
-     - Incremental parsing
-   - **Features enabled:**
-     - Accurate highlighting
-     - Code folding
-     - Smart navigation
-     - Structural selection
+
+- **Impact**: Superior syntax highlighting
+- **Complexity**: Very high (~500-700 lines)
+- **Implementation:**
+  - Optional module (compile flag)
+  - Load parsers dynamically
+  - Incremental parsing
+- **Features enabled:**
+  - Accurate highlighting
+  - Code folding
+  - Smart navigation
+  - Structural selection
 
 ---
 
@@ -704,73 +768,85 @@ Based on roadmap analysis and project needs, implement in this order:
 These are explicitly **excluded** to maintain minimalism:
 
 **1. ❌ GUI Version** - Terminal-native is core identity
-   - *Rationale*: Different project entirely, violates minimalist philosophy
-   - *Alternative*: Use existing GUI editors (VS Code, Sublime)
-   - *Keep*: Terminal-first design, VT100 sequences
+
+- *Rationale*: Different project entirely, violates minimalist philosophy
+- *Alternative*: Use existing GUI editors (VS Code, Sublime)
+- *Keep*: Terminal-first design, VT100 sequences
 
 **2. ❌ Built-in Terminal** - Use tmux/screen
-   - *Rationale*: Scope creep, external tools excel at this
-   - *Alternative*: `Ctrl-Z` to background, `fg` to return, or use tmux
-   - *Why not*: Adds complexity, terminal emulation is hard
+
+- *Rationale*: Scope creep, external tools excel at this
+- *Alternative*: `Ctrl-Z` to background, `fg` to return, or use tmux
+- *Why not*: Adds complexity, terminal emulation is hard
 
 **3. ❌ Debugger Integration** - Beyond scope
-   - *Rationale*: Use gdb/lldb externally
-   - *Alternative*: `:!gdb %` to shell out
-   - *Why not*: Massive feature, belongs in IDE not minimal editor
+
+- *Rationale*: Use gdb/lldb externally
+- *Alternative*: `:!gdb %` to shell out
+- *Why not*: Massive feature, belongs in IDE not minimal editor
 
 **4. ❌ Email/Web Browser** - Not an editor responsibility
-   - *Rationale*: "We're not Emacs"
-   - *Keep focused*: Text editing only
+
+- *Rationale*: "We're not Emacs"
+- *Keep focused*: Text editing only
 
 **5. ❌ AI Training** - Integration yes, training no
-   - *Rationale*: Resource intensive, not editor's job
-   - *What's okay*: AI completion via API (already supported)
-   - *Not okay*: Local model training, fine-tuning
+
+- *Rationale*: Resource intensive, not editor's job
+- *What's okay*: AI completion via API (already supported)
+- *Not okay*: Local model training, fine-tuning
 
 ### Additional Recommendations (Not to Implement)
 
 **6. ❌ Package Manager for Lua Modules**
-   - *Why not*: Adds complexity, security risk (dependency chain attacks)
-   - *Alternative*: Manual module installation, git submodules
-   - *Concern*: Package managers need update mechanisms, version resolution, etc.
+
+- *Why not*: Adds complexity, security risk (dependency chain attacks)
+- *Alternative*: Manual module installation, git submodules
+- *Concern*: Package managers need update mechanisms, version resolution, etc.
 
 **7. ❌ Mouse-Heavy Features** - Keep keyboard-first
-   - *Why not*: Conflicts with modal editing philosophy
-   - *What's okay*: Basic mouse support (click-to-position, scrollwheel)
-   - *Not okay*: Context menus, toolbar buttons, drag-and-drop
+
+- *Why not*: Conflicts with modal editing philosophy
+- *What's okay*: Basic mouse support (click-to-position, scrollwheel)
+- *Not okay*: Context menus, toolbar buttons, drag-and-drop
 
 **8. ❌ Complex Project Management** - Use external tools
-   - *Why not*: Make, rake, npm, cargo already exist and excel
-   - *Alternative*: Shell out to build tools (`:!make`)
-   - *What's okay*: Running single commands, quickfix list
-   - *Not okay*: Build system integration, dependency graphs
+
+- *Why not*: Make, rake, npm, cargo already exist and excel
+- *Alternative*: Shell out to build tools (`:!make`)
+- *What's okay*: Running single commands, quickfix list
+- *Not okay*: Build system integration, dependency graphs
 
 **9. ❌ Embedded Database** - Overkill
-   - *Why not*: Adds dependency, complexity, binary size
-   - *Alternative*: Lua tables, JSON files for session state
-   - *Concern*: SQLite is 600KB+ of code
+
+- *Why not*: Adds dependency, complexity, binary size
+- *Alternative*: Lua tables, JSON files for session state
+- *Concern*: SQLite is 600KB+ of code
 
 **10. ❌ Built-in Git Client Beyond Basic Status** - Too complex
-   - *Why not*: Git CLI is comprehensive and well-designed
-   - *What's okay*:
-     - Diff markers in gutter (ROADMAP #13)
-     - Show branch name in status
-     - Stage/unstage hunks
-   - *Not okay*:
-     - Full commit UI with message editor
-     - Branch management (checkout, merge, rebase)
-     - Merge conflict resolution UI
-     - Git log browser
-   - *Alternative*: Use `fugitive.vim` pattern - shell out to git
+
+- *Why not*: Git CLI is comprehensive and well-designed
+- *What's okay*:
+  - Diff markers in gutter (ROADMAP #13)
+  - Show branch name in status
+  - Stage/unstage hunks
+- *Not okay*:
+  - Full commit UI with message editor
+  - Branch management (checkout, merge, rebase)
+  - Merge conflict resolution UI
+  - Git log browser
+- *Alternative*: Use `fugitive.vim` pattern - shell out to git
 
 **11. ❌ Collaborative Editing** - Out of scope
-   - *Why not*: Requires server, networking, conflict resolution
-   - *Alternative*: Use external tools (tmate, tmux + SSH, VS Code Live Share)
+
+- *Why not*: Requires server, networking, conflict resolution
+- *Alternative*: Use external tools (tmate, tmux + SSH, VS Code Live Share)
 
 **12. ❌ Plugin Marketplace** - Too much infrastructure
-   - *Why not*: Needs hosting, curation, security review
-   - *Alternative*: GitHub topics, awesome-loki list
-   - *What's okay*: Plugin loading mechanism (ROADMAP #11)
+
+- *Why not*: Needs hosting, curation, security review
+- *Alternative*: GitHub topics, awesome-loki list
+- *What's okay*: Plugin loading mechanism (ROADMAP #11)
 
 ---
 
@@ -779,29 +855,35 @@ These are explicitly **excluded** to maintain minimalism:
 ### Low Impact (Can Defer)
 
 **1. Global language registry** (`loki_languages.c`)
-   - **Current**: Static array of language definitions
-   - **Issue**: Prevents multiple editor instances
-   - **Refactor**: Convert to context-based storage
-   - **Benefit**: Enables multiple editor instances
-   - **Effort**: Medium (~4-6 hours)
-   - **Priority**: Low (single instance is fine for now)
+
+- **Current**: Static array of language definitions
+- **Issue**: Prevents multiple editor instances
+- **Refactor**: Convert to context-based storage
+- **Benefit**: Enables multiple editor instances
+- **Effort**: Medium (~4-6 hours)
+- **Priority**: Low (single instance is fine for now)
 
 **2. Magic numbers throughout code**
-   - **Examples**:
+
+- **Examples**:
+
      ```c
      #define KILO_QUERY_LEN 256           // Why 256?
      #define LUA_REPL_HISTORY_MAX 64      // Why 64?
      #define MAX_ASYNC_REQUESTS 10        // Why 10?
      ```
-   - **Action**: Extract to named constants with documentation
-   - **Benefit**: Improved code clarity, easier tuning
-   - **Effort**: Low (~2-3 hours)
-   - **Priority**: Low (works fine, just not documented)
+
+- **Action**: Extract to named constants with documentation
+- **Benefit**: Improved code clarity, easier tuning
+- **Effort**: Low (~2-3 hours)
+- **Priority**: Low (works fine, just not documented)
 
 **3. Test code duplication**
-   - **Issue**: Setup/teardown code repeated across tests
-   - **Action**: Create more test utilities/fixtures
-   - **Example**:
+
+- **Issue**: Setup/teardown code repeated across tests
+- **Action**: Create more test utilities/fixtures
+- **Example**:
+
      ```c
      // tests/test_utils.c
      editor_ctx_t *test_create_editor_with_file(const char *content) {
@@ -812,35 +894,40 @@ These are explicitly **excluded** to maintain minimalism:
          return ctx;
      }
      ```
-   - **Benefit**: Easier test writing, less maintenance
-   - **Effort**: Low (~3-4 hours)
-   - **Priority**: Low (tests work fine)
+
+- **Benefit**: Easier test writing, less maintenance
+- **Effort**: Low (~3-4 hours)
+- **Priority**: Low (tests work fine)
 
 **4. Error message consistency**
-   - **Issue**: Some errors to stderr, some to status bar
-   - **Action**: Standardize error reporting
-   - **Decision needed**: When to use stderr vs status bar?
-   - **Effort**: Medium (~4-6 hours to audit all error paths)
-   - **Priority**: Low (doesn't affect functionality)
+
+- **Issue**: Some errors to stderr, some to status bar
+- **Action**: Standardize error reporting
+- **Decision needed**: When to use stderr vs status bar?
+- **Effort**: Medium (~4-6 hours to audit all error paths)
+- **Priority**: Low (doesn't affect functionality)
 
 ### Can Keep As-Is
 
 **1. Single global editor state** - Documented limitation
-   - **Why keep**: Refactoring would be too invasive for marginal benefit
-   - **Alternative**: Add comment documenting limitation
-   - **Cost/benefit**: 40+ hours work for feature few users need
-   - **Decision**: Accept as design constraint
+
+- **Why keep**: Refactoring would be too invasive for marginal benefit
+- **Alternative**: Add comment documenting limitation
+- **Cost/benefit**: 40+ hours work for feature few users need
+- **Decision**: Accept as design constraint
 
 **2. No Doxygen** - Manual documentation sufficient
-   - **Why keep**: Project is small enough to understand without generated docs
-   - **API surface**: Limited (~30 public functions)
-   - **Alternative**: Keep maintaining header comments
-   - **Cost/benefit**: 10+ hours setup + maintenance for marginal benefit
+
+- **Why keep**: Project is small enough to understand without generated docs
+- **API surface**: Limited (~30 public functions)
+- **Alternative**: Keep maintaining header comments
+- **Cost/benefit**: 10+ hours setup + maintenance for marginal benefit
 
 **3. Simple build system** - CMake is sufficient
-   - **Why keep**: Works on all platforms, widely understood
-   - **Alternative considered**: Meson, Bazel, custom Makefile
-   - **Decision**: CMake is standard for C projects
+
+- **Why keep**: Works on all platforms, widely understood
+- **Alternative considered**: Meson, Bazel, custom Makefile
+- **Decision**: CMake is standard for C projects
 
 ---
 
@@ -856,6 +943,7 @@ These are explicitly **excluded** to maintain minimalism:
 | pthreads | Threading (implicit) | System | - | ✅ Standard |
 
 **Strengths:**
+
 - All widely-available via package managers (Homebrew, apt, etc.)
 - Well-maintained, security-audited libraries
 - Active development and security patches
@@ -863,6 +951,7 @@ These are explicitly **excluded** to maintain minimalism:
 - No exotic dependencies that might disappear
 
 **Dependency Management:**
+
 - ✅ CMake finds dependencies automatically
 - ✅ Graceful degradation (editline/readline optional)
 - ✅ Clear error messages if dependencies missing
@@ -871,6 +960,7 @@ These are explicitly **excluded** to maintain minimalism:
 ### Recommendations
 
 **1. Document version requirements**
+
 ```markdown
 ## Dependencies
 
@@ -882,6 +972,7 @@ These are explicitly **excluded** to maintain minimalism:
 ```
 
 **2. Add dependency security scanning to CI**
+
 ```yaml
 # .github/workflows/security.yml
 - name: Check for known vulnerabilities
@@ -891,6 +982,7 @@ These are explicitly **excluded** to maintain minimalism:
 ```
 
 **3. Consider adding optional dependencies for future features**
+
 - **Tree-sitter**: For advanced syntax highlighting (ROADMAP #14)
 - **libgit2**: For git integration (ROADMAP #13)
 - **PCRE2**: For advanced regex in search (ROADMAP #5)
@@ -904,6 +996,7 @@ All should remain **optional** - compile flags, not hard requirements.
 ### Current Performance (Based on Code Review)
 
 **Strengths:**
+
 1. **Direct VT100 output** - No curses overhead
    - Writes escape sequences directly to terminal
    - Batches output in append buffer (`abuf`)
@@ -927,47 +1020,51 @@ All should remain **optional** - compile flags, not hard requirements.
 **Potential Bottlenecks:**
 
 **1. Large File Handling**
-   - **Current approach**: Loads entire file into memory as row array
-   - **Limitation**: Memory usage = O(file size)
-   - **Problem**: May struggle with 100MB+ files
-   - **Evidence**: All rows allocated upfront in `editor_open()`
-   - **Solution** (ROADMAP #17):
-     - Piece table data structure
-     - Lazy loading (load chunks on demand)
-     - Virtual scrolling (only keep viewport + buffer in memory)
-   - **Priority**: Medium (most users don't edit 100MB files)
+
+- **Current approach**: Loads entire file into memory as row array
+- **Limitation**: Memory usage = O(file size)
+- **Problem**: May struggle with 100MB+ files
+- **Evidence**: All rows allocated upfront in `editor_open()`
+- **Solution** (ROADMAP #17):
+  - Piece table data structure
+  - Lazy loading (load chunks on demand)
+  - Virtual scrolling (only keep viewport + buffer in memory)
+- **Priority**: Medium (most users don't edit 100MB files)
 
 **2. Syntax Highlighting**
-   - **Current approach**: Re-processes rows on edit
-   - **Evidence**: `editor_update_syntax()` called in `editor_update_row()`
-   - **Limitation**: O(row length) on every character insert
-   - **Optimization ideas**:
-     - Cache compiled regex patterns (currently recompiled each time)
-     - Incremental highlighting (mark dirty regions)
-     - Use DFA-based state machine instead of regex
-   - **Future**: Tree-sitter for incremental parsing (ROADMAP #14)
-   - **Priority**: Low (fast enough for typical files)
+
+- **Current approach**: Re-processes rows on edit
+- **Evidence**: `editor_update_syntax()` called in `editor_update_row()`
+- **Limitation**: O(row length) on every character insert
+- **Optimization ideas**:
+  - Cache compiled regex patterns (currently recompiled each time)
+  - Incremental highlighting (mark dirty regions)
+  - Use DFA-based state machine instead of regex
+- **Future**: Tree-sitter for incremental parsing (ROADMAP #14)
+- **Priority**: Low (fast enough for typical files)
 
 **3. Screen Rendering**
-   - **Current approach**: Full screen redraw on each refresh
-   - **Evidence**: `editor_refresh_screen()` rebuilds entire screen buffer
-   - **Limitation**: O(screen height × width) on every keystroke
-   - **Optimization ideas** (ROADMAP #15):
-     - Incremental rendering (only redraw changed lines)
-     - Dirty region tracking
-     - Double buffering (diff before writing)
-     - Smart scrolling (use VT100 scroll sequences)
-   - **Priority**: Medium (fast enough, but could be better)
+
+- **Current approach**: Full screen redraw on each refresh
+- **Evidence**: `editor_refresh_screen()` rebuilds entire screen buffer
+- **Limitation**: O(screen height × width) on every keystroke
+- **Optimization ideas** (ROADMAP #15):
+  - Incremental rendering (only redraw changed lines)
+  - Dirty region tracking
+  - Double buffering (diff before writing)
+  - Smart scrolling (use VT100 scroll sequences)
+- **Priority**: Medium (fast enough, but could be better)
 
 **4. Search Performance**
-   - **Current approach**: Linear scan through all rows
-   - **Evidence**: `editor_find_next_match()` iterates rows
-   - **Limitation**: O(file size) on each search
-   - **Optimization ideas**:
-     - Build suffix array for large files
-     - Boyer-Moore or similar for string search
-     - Index common identifiers
-   - **Priority**: Low (search is fast enough for typical files)
+
+- **Current approach**: Linear scan through all rows
+- **Evidence**: `editor_find_next_match()` iterates rows
+- **Limitation**: O(file size) on each search
+- **Optimization ideas**:
+  - Build suffix array for large files
+  - Boyer-Moore or similar for string search
+  - Index common identifiers
+- **Priority**: Low (search is fast enough for typical files)
 
 ### Performance Metrics (Estimated)
 
@@ -983,29 +1080,34 @@ Based on code review, expected performance:
 
 *Note: These are estimates based on algorithm complexity, not measured*
 
-### Performance Recommendations:
+### Performance Recommendations
 
 **1. Add benchmarks** (see Critical Improvements #6)
-   - Measure actual performance, don't guess
-   - Track performance over time (regression detection)
-   - Test on various file sizes and types
+
+- Measure actual performance, don't guess
+- Track performance over time (regression detection)
+- Test on various file sizes and types
 
 **2. Profile with large files**
-   - Use `gprof`, `perf`, or Instruments (macOS)
-   - Test with 10K+ lines, 1MB+ files
-   - Identify actual bottlenecks before optimizing
+
+- Use `gprof`, `perf`, or Instruments (macOS)
+- Test with 10K+ lines, 1MB+ files
+- Identify actual bottlenecks before optimizing
 
 **3. Consider lazy row rendering** (ROADMAP #16)
-   - Don't render rows outside viewport
-   - Use gap buffer for row storage
-   - Share syntax state for identical rows
+
+- Don't render rows outside viewport
+- Use gap buffer for row storage
+- Share syntax state for identical rows
 
 **4. Defer optimizations until measured**
-   - Avoid premature optimization
-   - Current performance is likely acceptable
-   - Only optimize when users complain or benchmarks show issues
+
+- Avoid premature optimization
+- Current performance is likely acceptable
+- Only optimize when users complain or benchmarks show issues
 
 **5. Document performance characteristics**
+
 ```markdown
 ## Performance
 
@@ -1027,7 +1129,7 @@ Known limitations:
 
 ### Lines of Code Breakdown
 
-```
+```text
 Total Lines of Code: 8,255
 ├── Source (C):      7,705 (93%)
 │   ├── Core:        1,336 lines (loki_core.c)
@@ -1055,12 +1157,14 @@ Module Distribution:
 ### Quality Metrics
 
 **Compilation:**
+
 - ✅ Warnings: 0 (with `-Wall -Wextra -pedantic`)
 - ✅ Build time: Fast (~2-3 seconds clean build)
 - ✅ Binary size: ~72KB (dynamically linked, stripped)
 - ✅ Dependencies: 3 (Lua, libcurl, pthreads)
 
 **Testing:**
+
 - ✅ Test suites: 10
 - ✅ Test LOC: ~5,000
 - ✅ Pass rate: 100% (10/10)
@@ -1069,12 +1173,14 @@ Module Distribution:
 - ❌ Mutation testing: Not implemented
 
 **Memory:**
+
 - ✅ Static analysis: Clean (no obvious leaks in code review)
 - ❌ Valgrind: Not run in CI
 - ❌ AddressSanitizer: Not enabled by default
 - ✅ NULL checks: Present on all allocations
 
 **Security:**
+
 - ✅ Buffer overflows: Fixed (comprehensive bounds checking)
 - ✅ NULL dereferences: Protected (checks on all allocations)
 - ✅ Signal safety: Fixed (async-signal-safe pattern)
@@ -1094,6 +1200,7 @@ Based on code review, approximate cyclomatic complexity:
 | loki_lua.c | 4-6 | ~15 | Excellent |
 
 **Notes:**
+
 - Most functions are simple (<10 complexity)
 - Complex functions are well-commented
 - No obviously unmaintainable functions
@@ -1102,6 +1209,7 @@ Based on code review, approximate cyclomatic complexity:
 ### Maintainability Index (Estimated)
 
 **Positive factors:**
+
 - ✅ Clear module boundaries
 - ✅ Consistent naming conventions
 - ✅ Well-organized code structure
@@ -1109,6 +1217,7 @@ Based on code review, approximate cyclomatic complexity:
 - ✅ Test coverage of core functionality
 
 **Negative factors:**
+
 - ⚠️ Some large functions (could be split)
 - ⚠️ Magic numbers without rationale
 - ⚠️ Limited API documentation
@@ -1123,194 +1232,215 @@ Based on code review, approximate cyclomatic complexity:
 ### Immediate (This Week) 🔥
 
 **1. ✅ Complete Visual Mode Delete**
-   - File: `loki_modal.c`
-   - Lines: ~50-80
-   - Effort: 2-3 hours
-   - Impact: HIGH - Completes visual mode feature
-   - Test: Add to `test_modal.c`
+
+- File: `loki_modal.c`
+- Lines: ~50-80
+- Effort: 2-3 hours
+- Impact: HIGH - Completes visual mode feature
+- Test: Add to `test_modal.c`
 
 **2. ✅ Add Security Warning to README**
-   - File: `README.md`
-   - Location: After line 35
-   - Effort: 15 minutes
-   - Impact: HIGH - Prevents malicious config execution
-   - Content: Warn about `.loki/init.lua` inspection
+
+- File: `README.md`
+- Location: After line 35
+- Effort: 15 minutes
+- Impact: HIGH - Prevents malicious config execution
+- Content: Warn about `.loki/init.lua` inspection
 
 **3. ✅ Improve Git Commit Messages**
-   - Action: Adopt conventional commits
-   - Format: `type(scope): description`
-   - Effort: 0 (just awareness)
-   - Impact: MEDIUM - Better project history
-   - Examples:
-     ```
+
+- Action: Adopt conventional commits
+- Format: `type(scope): description`
+- Effort: 0 (just awareness)
+- Impact: MEDIUM - Better project history
+- Examples:
+
+```text
      feat(undo): implement operation grouping
      fix(modal): prevent crash in visual mode
      test(http): add rate limit validation
      docs(security): document HTTP hardening
-     ```
+```
 
 ---
 
 ### Short Term (This Month) 📅
 
 **4. Implement Multiple Buffers Module** ⭐⭐⭐
-   - File: New `src/loki_buffers.c`
-   - Lines: ~250-350
-   - Effort: 12-16 hours
-   - Impact: VERY HIGH - Essential editor feature
-   - Features:
-     - `Ctrl-T` new buffer
-     - `Ctrl-W` close buffer
-     - `Ctrl-Tab` switch buffer
-     - Status bar shows buffer list
-   - Tests: New `test_buffers.c`
+
+- File: New `src/loki_buffers.c`
+- Lines: ~250-350
+- Effort: 12-16 hours
+- Impact: VERY HIGH - Essential editor feature
+- Features:
+  - `Ctrl-T` new buffer
+  - `Ctrl-W` close buffer
+  - `Ctrl-Tab` switch buffer
+  - Status bar shows buffer list
+- Tests: New `test_buffers.c`
 
 **5. Add Clipboard Paste** ⭐⭐
-   - File: `src/loki_selection.c` (extend existing)
-   - Lines: ~50-100
-   - Effort: 4-6 hours
-   - Impact: HIGH - Completes clipboard feature
-   - Features:
-     - `p` paste after cursor
-     - `P` paste before cursor
-     - OSC 52 read (terminal-dependent)
-     - Internal buffer fallback
-   - Tests: Extend `test_modal.c`
+
+- File: `src/loki_selection.c` (extend existing)
+- Lines: ~50-100
+- Effort: 4-6 hours
+- Impact: HIGH - Completes clipboard feature
+- Features:
+  - `p` paste after cursor
+  - `P` paste before cursor
+  - OSC 52 read (terminal-dependent)
+  - Internal buffer fallback
+- Tests: Extend `test_modal.c`
 
 **6. Enhance Modal Editing** ⭐⭐
-   - File: `src/loki_modal.c`
-   - Lines: ~150-200 additions
-   - Effort: 8-12 hours
-   - Impact: HIGH - Vim users expect these
-   - Additions:
-     - `w`/`b` - word forward/backward
-     - `0`/`$` - line start/end
-     - `gg`/`G` - file start/end
-     - `A`/`I` - line boundary insert
-     - `C` - change to end of line
-   - Tests: Extend `test_modal.c`
+
+- File: `src/loki_modal.c`
+- Lines: ~150-200 additions
+- Effort: 8-12 hours
+- Impact: HIGH - Vim users expect these
+- Additions:
+  - `w`/`b` - word forward/backward
+  - `0`/`$` - line start/end
+  - `gg`/`G` - file start/end
+  - `A`/`I` - line boundary insert
+  - `C` - change to end of line
+- Tests: Extend `test_modal.c`
 
 **7. Add Auto-Indent Module** ⭐
-   - File: New `src/loki_indent.c`
-   - Lines: ~100-150
-   - Effort: 6-8 hours
-   - Impact: MEDIUM - Developer quality-of-life
-   - Features:
-     - Copy indentation from previous line
-     - Electric dedent for `}`
-     - Tab/space detection
-   - Tests: New `test_indent.c`
+
+- File: New `src/loki_indent.c`
+- Lines: ~100-150
+- Effort: 6-8 hours
+- Impact: MEDIUM - Developer quality-of-life
+- Features:
+  - Copy indentation from previous line
+  - Electric dedent for `}`
+  - Tab/space detection
+- Tests: New `test_indent.c`
 
 ---
 
 ### Medium Term (Next 3 Months) 📆
 
 **8. Search Enhancements** ⭐⭐
-   - File: `src/loki_search.c` (extend)
-   - Lines: ~150-200 additions
-   - Effort: 10-14 hours
-   - Impact: HIGH - Power user feature
-   - Features:
-     - POSIX regex support
-     - Find-and-replace with confirmation
-     - Search history
-     - Case sensitivity toggle
-     - `/` and `?` commands
-     - `n`/`N` next/previous
-   - Tests: Extend `test_search.c`
+
+- File: `src/loki_search.c` (extend)
+- Lines: ~150-200 additions
+- Effort: 10-14 hours
+- Impact: HIGH - Power user feature
+- Features:
+  - POSIX regex support
+  - Find-and-replace with confirmation
+  - Search history
+  - Case sensitivity toggle
+  - `/` and `?` commands
+  - `n`/`N` next/previous
+- Tests: Extend `test_search.c`
 
 **9. Configuration System** ⭐
-   - File: New `src/loki_config.c`
-   - Lines: ~200-250
-   - Effort: 12-16 hours
-   - Impact: MEDIUM - User customization
-   - Format: TOML
-   - Features:
-     - Load from `.loki/config.toml`
-     - Per-module settings
-     - Exposed to Lua via `loki.config`
-   - Tests: New `test_config.c`
+
+- File: New `src/loki_config.c`
+- Lines: ~200-250
+- Effort: 12-16 hours
+- Impact: MEDIUM - User customization
+- Format: TOML
+- Features:
+  - Load from `.loki/config.toml`
+  - Per-module settings
+  - Exposed to Lua via `loki.config`
+- Tests: New `test_config.c`
 
 **10. Add Fuzzing to CI** 🔒
-   - Files: New `tests/fuzz_*.c`
-   - Effort: 8-12 hours (including corpus)
-   - Impact: HIGH - Security hardening
-   - Approach: AFL or libFuzzer
-   - Targets: File input, Lua scripts
+
+- Files: New `tests/fuzz_*.c`
+- Effort: 8-12 hours (including corpus)
+- Impact: HIGH - Security hardening
+- Approach: AFL or libFuzzer
+- Targets: File input, Lua scripts
 
 **11. Memory Leak Detection in CI** 🔒
-   - Action: Add Valgrind to test workflow
-   - Effort: 3-4 hours
-   - Impact: MEDIUM - Quality assurance
-   - Alternative: AddressSanitizer builds
+
+- Action: Add Valgrind to test workflow
+- Effort: 3-4 hours
+- Impact: MEDIUM - Quality assurance
+- Alternative: AddressSanitizer builds
 
 **12. Performance Benchmarks** 📊
-   - Files: New `tests/benchmark_*.c`
-   - Effort: 10-15 hours
-   - Impact: MEDIUM - Performance tracking
-   - Targets:
-     - File loading (various sizes)
-     - Syntax highlighting
-     - Screen rendering
-     - Search operations
+
+- Files: New `tests/benchmark_*.c`
+- Effort: 10-15 hours
+- Impact: MEDIUM - Performance tracking
+- Targets:
+  - File loading (various sizes)
+  - Syntax highlighting
+  - Screen rendering
+  - Search operations
 
 ---
 
 ### Long Term (6-12 Months) 🚀
 
 **13. Split Windows Module**
-   - Complexity: HIGH
-   - Lines: ~300-400
-   - Impact: HIGH
-   - Priority: Medium
+
+- Complexity: HIGH
+- Lines: ~300-400
+- Impact: HIGH
+- Priority: Medium
 
 **14. Macro Recording Module**
-   - Complexity: MEDIUM
-   - Lines: ~150-200
-   - Impact: MEDIUM
-   - Priority: Low
+
+- Complexity: MEDIUM
+- Lines: ~150-200
+- Impact: MEDIUM
+- Priority: Low
 
 **15. LSP Client (Proof of Concept)**
-   - Complexity: VERY HIGH
-   - Lines: ~600-800
-   - Impact: VERY HIGH
-   - Approach: Start simple (autocomplete only)
-   - Priority: High (but complex)
+
+- Complexity: VERY HIGH
+- Lines: ~600-800
+- Impact: VERY HIGH
+- Approach: Start simple (autocomplete only)
+- Priority: High (but complex)
 
 **16. Git Integration**
-   - Complexity: MEDIUM-HIGH
-   - Lines: ~200-400
-   - Impact: MEDIUM
-   - Features: Diff markers, branch name
-   - Priority: Medium
+
+- Complexity: MEDIUM-HIGH
+- Lines: ~200-400
+- Impact: MEDIUM
+- Features: Diff markers, branch name
+- Priority: Medium
 
 **17. Tree-sitter Integration**
-   - Complexity: VERY HIGH
-   - Lines: ~500-700
-   - Impact: HIGH
-   - Note: Optional module
-   - Priority: Medium
+
+- Complexity: VERY HIGH
+- Lines: ~500-700
+- Impact: HIGH
+- Note: Optional module
+- Priority: Medium
 
 ---
 
 ### Continuous (Ongoing) ♾️
 
 **18. Documentation Updates**
-   - Keep README current
-   - Update ROADMAP as features complete
-   - Maintain CHANGELOG with releases
-   - Document new APIs
+
+- Keep README current
+- Update ROADMAP as features complete
+- Maintain CHANGELOG with releases
+- Document new APIs
 
 **19. Security Monitoring**
-   - Watch for CVEs in dependencies
-   - Keep Lua, libcurl updated
-   - Monitor security mailing lists
+
+- Watch for CVEs in dependencies
+- Keep Lua, libcurl updated
+- Monitor security mailing lists
 
 **20. Code Quality**
-   - Maintain zero compiler warnings
-   - Keep test pass rate at 100%
-   - Review and address TODOs
-   - Refactor as needed
+
+- Maintain zero compiler warnings
+- Keep test pass rate at 100%
+- Review and address TODOs
+- Refactor as needed
 
 ---
 
@@ -1319,157 +1449,180 @@ Based on code review, approximate cyclomatic complexity:
 ### Strengths ⭐
 
 **1. Exceptional architecture**
-   - Clean modular design with minimal core
-   - Well-defined API boundaries
-   - Context-based for future expansion
-   - Zero circular dependencies
+
+- Clean modular design with minimal core
+- Well-defined API boundaries
+- Context-based for future expansion
+- Zero circular dependencies
 
 **2. Production-ready security**
-   - Comprehensive HTTP hardening
-   - Rate limiting, size limits, validation
-   - Defense-in-depth architecture
-   - Excellent security documentation
+
+- Comprehensive HTTP hardening
+- Rate limiting, size limits, validation
+- Defense-in-depth architecture
+- Excellent security documentation
 
 **3. Excellent testing**
-   - 100% pass rate across 10 suites
-   - Good coverage of core functionality
-   - Security-focused tests
-   - Fast execution (~0.07s)
+
+- 100% pass rate across 10 suites
+- Good coverage of core functionality
+- Security-focused tests
+- Fast execution (~0.07s)
 
 **4. Outstanding documentation**
-   - 889-line security.md
-   - Comprehensive README
-   - Detailed roadmap
-   - Architecture docs
+
+- 889-line security.md
+- Comprehensive README
+- Detailed roadmap
+- Architecture docs
 
 **5. Active, disciplined development**
-   - Undo/redo just completed (roadmap #1)
-   - Follows roadmap priorities
-   - Maintains code quality
-   - Regular testing
+
+- Undo/redo just completed (roadmap #1)
+- Follows roadmap priorities
+- Maintains code quality
+- Regular testing
 
 **6. Zero-config experience**
-   - Works out of box
-   - Sensible defaults
-   - Auto-detects dependencies
-   - Graceful degradation
+
+- Works out of box
+- Sensible defaults
+- Auto-detects dependencies
+- Graceful degradation
 
 **7. Educational value**
-   - Clean, readable code
-   - Well-commented
-   - Understandable architecture
-   - Good learning resource
+
+- Clean, readable code
+- Well-commented
+- Understandable architecture
+- Good learning resource
 
 ---
 
 ### Weaknesses ⚠️
 
 **1. Missing security warning in README**
-   - Users may not realize Lua scripts have full access
-   - No prominent warning about inspecting `.loki/init.lua`
-   - **Fix**: 15 minutes to add warning section
-   - **Priority**: HIGH
+
+- Users may not realize Lua scripts have full access
+- No prominent warning about inspecting `.loki/init.lua`
+- **Fix**: 15 minutes to add warning section
+- **Priority**: HIGH
 
 **2. Incomplete visual mode**
-   - One TODO remaining (delete selection)
-   - Users expect `d` to delete in visual mode
-   - **Fix**: 2-3 hours to implement
-   - **Priority**: MEDIUM-HIGH
+
+- One TODO remaining (delete selection)
+- Users expect `d` to delete in visual mode
+- **Fix**: 2-3 hours to implement
+- **Priority**: MEDIUM-HIGH
 
 **3. No performance benchmarks**
-   - Can't measure improvements
-   - Don't know actual bottlenecks
-   - No regression detection
-   - **Fix**: 10-15 hours to create suite
-   - **Priority**: MEDIUM
+
+- Can't measure improvements
+- Don't know actual bottlenecks
+- No regression detection
+- **Fix**: 10-15 hours to create suite
+- **Priority**: MEDIUM
 
 **4. Limited API documentation**
-   - Function parameters not always documented
-   - No constraints specified
-   - No generated docs
-   - **Fix**: 6-10 hours for comprehensive docs
-   - **Priority**: LOW-MEDIUM
+
+- Function parameters not always documented
+- No constraints specified
+- No generated docs
+- **Fix**: 6-10 hours for comprehensive docs
+- **Priority**: LOW-MEDIUM
 
 **5. Git history noise**
-   - Many "snap" commits
-   - Low-information messages
-   - Makes bisecting harder
-   - **Fix**: Adopt conventional commits (ongoing)
-   - **Priority**: LOW
+
+- Many "snap" commits
+- Low-information messages
+- Makes bisecting harder
+- **Fix**: Adopt conventional commits (ongoing)
+- **Priority**: LOW
 
 **6. No fuzzing or memory leak testing in CI**
-   - Security testing could be better
-   - No systematic leak detection
-   - **Fix**: 8-12 hours to set up
-   - **Priority**: MEDIUM
+
+- Security testing could be better
+- No systematic leak detection
+- **Fix**: 8-12 hours to set up
+- **Priority**: MEDIUM
 
 ---
 
 ### Opportunities 🚀
 
 **1. Multiple buffers** (ROADMAP #2)
-   - Next logical feature after undo/redo
-   - High user demand
-   - Medium complexity
-   - Architecture supports it (context-based design)
+
+- Next logical feature after undo/redo
+- High user demand
+- Medium complexity
+- Architecture supports it (context-based design)
 
 **2. Clipboard paste** (ROADMAP #3)
-   - Complete existing feature
-   - Low complexity
-   - High user value
-   - Quick win
+
+- Complete existing feature
+- Low complexity
+- High user value
+- Quick win
 
 **3. Enhanced modal editing** (ROADMAP #4)
-   - Make vim users feel at home
-   - Medium complexity
-   - High user satisfaction
-   - Incremental additions possible
+
+- Make vim users feel at home
+- Medium complexity
+- High user satisfaction
+- Incremental additions possible
 
 **4. LSP integration** (ROADMAP #12)
-   - Most transformative feature
-   - Brings IDE-like intelligence
-   - High complexity (start with PoC)
-   - Large impact on editor utility
+
+- Most transformative feature
+- Brings IDE-like intelligence
+- High complexity (start with PoC)
+- Large impact on editor utility
 
 **5. Tree-sitter** (ROADMAP #14)
-   - Superior syntax highlighting
-   - Enables advanced features
-   - Optional module (keeps core minimal)
-   - Future-proofs highlighting
+
+- Superior syntax highlighting
+- Enables advanced features
+- Optional module (keeps core minimal)
+- Future-proofs highlighting
 
 ---
 
 ### Threats 🛡️
 
 **1. Scope creep**
-   - Risk: Adding features outside roadmap
-   - Mitigation: Follow non-goals list strictly
-   - Watch for: Feature requests that bloat core
-   - Defense: "We're not Emacs" principle
+
+- Risk: Adding features outside roadmap
+- Mitigation: Follow non-goals list strictly
+- Watch for: Feature requests that bloat core
+- Defense: "We're not Emacs" principle
 
 **2. Feature bloat**
-   - Risk: Core exceeds 1,500 lines
-   - Mitigation: All new features in modules
-   - Monitor: Core line count in CI
-   - Threshold: 1,500 lines hard limit
+
+- Risk: Core exceeds 1,500 lines
+- Mitigation: All new features in modules
+- Monitor: Core line count in CI
+- Threshold: 1,500 lines hard limit
 
 **3. Security complacency**
-   - Risk: Assuming current hardening is sufficient
-   - Mitigation: Continuous security testing
-   - Action: Add fuzzing, dependency scanning
-   - Review: Annual security audit
+
+- Risk: Assuming current hardening is sufficient
+- Mitigation: Continuous security testing
+- Action: Add fuzzing, dependency scanning
+- Review: Annual security audit
 
 **4. Malicious Lua configs**
-   - Risk: Users run untrusted init.lua
-   - Mitigation: Prominent warnings in README
-   - Education: Security best practices in docs
-   - Accept: By-design limitation (documented)
+
+- Risk: Users run untrusted init.lua
+- Mitigation: Prominent warnings in README
+- Education: Security best practices in docs
+- Accept: By-design limitation (documented)
 
 **5. Dependency rot**
-   - Risk: Lua/libcurl vulnerabilities
-   - Mitigation: Track CVEs, update regularly
-   - Monitor: Security mailing lists
-   - Test: Automated dependency checking
+
+- Risk: Lua/libcurl vulnerabilities
+- Mitigation: Track CVEs, update regularly
+- Monitor: Security mailing lists
+- Test: Automated dependency checking
 
 ---
 
@@ -1490,12 +1643,14 @@ Based on code review, approximate cyclomatic complexity:
 **A- (92.55/100)** - Exceptional software engineering
 
 **Why not A or A+?**
+
 - Missing security warning in README (easily fixed)
 - Incomplete visual mode (one TODO)
 - No performance benchmarks
 - Git commit message quality
 
 **Why not B+ or lower?**
+
 - Outstanding architecture and security
 - Comprehensive testing (100% pass rate)
 - Excellent documentation
@@ -1503,6 +1658,7 @@ Based on code review, approximate cyclomatic complexity:
 - Active, disciplined development
 
 **Path to A (95+)**:
+
 1. Add security warning to README ✅
 2. Complete visual mode delete ✅
 3. Add performance benchmarks
@@ -1510,6 +1666,7 @@ Based on code review, approximate cyclomatic complexity:
 5. Add fuzzing to CI
 
 **Path to A+ (98+)**:
+
 - All of the above, plus:
 - Implement multiple buffers
 - Add memory leak detection to CI
@@ -1525,6 +1682,7 @@ Loki is an **exceptionally well-engineered project** that demonstrates professio
 ### Key Achievement
 
 Successfully evolved from educational code to production software while:
+
 - ✅ Maintaining minimalist philosophy (core < 1,500 lines)
 - ✅ Adding powerful features (undo/redo, modal editing, async HTTP)
 - ✅ Hardening security (comprehensive HTTP validation)
@@ -1534,46 +1692,53 @@ Successfully evolved from educational code to production software while:
 ### What Sets Loki Apart
 
 **1. Architectural Discipline**
-   - Core stays minimal while features grow
-   - Modules are truly independent
-   - Context-based design enables future expansion
+
+- Core stays minimal while features grow
+- Modules are truly independent
+- Context-based design enables future expansion
 
 **2. Security-First Approach**
-   - Defense-in-depth HTTP hardening
-   - Comprehensive threat model documentation
-   - Security testing integrated
+
+- Defense-in-depth HTTP hardening
+- Comprehensive threat model documentation
+- Security testing integrated
 
 **3. Quality Engineering**
-   - Zero compiler warnings
-   - All tests passing
-   - Memory safety throughout
-   - Proper error handling
+
+- Zero compiler warnings
+- All tests passing
+- Memory safety throughout
+- Proper error handling
 
 **4. Clear Vision**
-   - Roadmap with priorities
-   - Explicit non-goals
-   - Minimalism with power
-   - Educational value preserved
+
+- Roadmap with priorities
+- Explicit non-goals
+- Minimalism with power
+- Educational value preserved
 
 ### Next Steps (Recommended Priority)
 
 **Week 1:**
+
 1. ✅ Complete visual mode delete (2-3 hours)
 2. ✅ Add security warning to README (15 minutes)
 3. ✅ Adopt conventional commits (ongoing)
 
 **Month 1:**
-4. Implement multiple buffers (12-16 hours)
-5. Add clipboard paste (4-6 hours)
-6. Enhance modal editing (8-12 hours)
-7. Add auto-indent (6-8 hours)
+
+1. Implement multiple buffers (12-16 hours)
+2. Add clipboard paste (4-6 hours)
+3. Enhance modal editing (8-12 hours)
+4. Add auto-indent (6-8 hours)
 
 **Quarter 1:**
-8. Search enhancements (10-14 hours)
-9. Configuration system (12-16 hours)
-10. Add fuzzing to CI (8-12 hours)
-11. Memory leak detection (3-4 hours)
-12. Performance benchmarks (10-15 hours)
+
+1. Search enhancements (10-14 hours)
+2. Configuration system (12-16 hours)
+3. Add fuzzing to CI (8-12 hours)
+4. Memory leak detection (3-4 hours)
+5. Performance benchmarks (10-15 hours)
 
 ### Final Verdict
 
@@ -1584,6 +1749,7 @@ Successfully evolved from educational code to production software while:
 Continue current development trajectory - you're building something exceptional. The modular architecture provides a solid foundation for growth while maintaining the minimalist soul that makes Loki special.
 
 **Recommended for:**
+
 - Daily text editing (after completing visual mode delete)
 - Learning C programming and editor architecture
 - Extending via Lua scripting

@@ -25,6 +25,7 @@ static void editor_row_append_string(editor_ctx_t *ctx, t_erow *row, char *s, si
 ### Edit Flow Analysis
 
 All user edits flow through the three public functions:
+
 - **Insert character**: `editor_insert_char()` → `editor_row_insert_char()`
 - **Delete character**: `editor_del_char()` → `editor_row_del_char()` or `editor_del_row()` (if deleting newline)
 - **Insert newline**: `editor_insert_newline()` → `editor_insert_row()` and possibly row split
@@ -34,11 +35,13 @@ This clean architecture means we only need to intercept 3 functions to capture a
 ## Where Should Undo/Redo Live?
 
 ### Option A: Extend loki_core.c (~200 lines added)
+
 - **Pros**: All buffer operations in one place, simpler mental model
 - **Cons**: File grows to ~1,536 lines, mixing core buffer logic with undo state management
 - **Best for**: Minimal implementation with no grouping, simple undo/redo
 
 ### Option B: New file src/loki_undo.c (~350-450 lines)
+
 - **Pros**: Separation of concerns, easier to test, can be disabled via compile flag
 - **Cons**: Extra file, slight indirection
 - **Best for**: Production-quality undo with grouping, memory limits, undo branches
@@ -57,7 +60,7 @@ Here's why:
 
 ### File Structure
 
-```
+```text
 src/
 ├── loki_core.c         # Buffer operations (insert/delete)
 ├── loki_undo.c         # Undo/redo state management (NEW)
@@ -660,6 +663,7 @@ lua_setfield(L, -2, "redo");
 ### Memory Overhead
 
 **Per-entry overhead:**
+
 - Character operation: `~64 bytes` (struct with small union)
 - Line operation: `~64 bytes + line_length`
 
@@ -673,17 +677,20 @@ lua_setfield(L, -2, "redo");
 | 5,000    | 50 chars       | ~570 KB      |
 
 **Recommended defaults:**
+
 - **Capacity**: 1,000 operations (~64 KB for char-only edits)
 - **Memory limit**: 10 MB (allows ~200K chars of line undo data)
 
 ### Performance Impact
 
 **Recording overhead:**
+
 - Character insert/delete: `O(1)` - just store char + position
 - Line insert/delete: `O(n)` - copy line content (unavoidable)
 - Grouping check: `O(1)` - simple comparisons
 
 **Undo/redo performance:**
+
 - Single operation: `O(1)` buffer manipulation
 - Group of N operations: `O(N)` - must undo each in sequence
 - Typical group size: 5-50 operations (typing a word)
@@ -703,7 +710,7 @@ lua_setfield(L, -2, "redo");
 
 ### Example Grouping Scenarios
 
-```
+```text
 User types "hello world"
 → Group 1: "hello" (5 insert_char ops)
 → Group 2: " world" (6 insert_char ops, break on space)
@@ -835,6 +842,7 @@ endif()
 ## Implementation Phases
 
 ### Phase 1: Basic Undo (No Grouping) - 2-3 days
+
 1. Implement `loki_undo.c` with circular buffer (no grouping)
 2. Record character insert/delete operations
 3. Implement undo/redo for character operations
@@ -842,17 +850,20 @@ endif()
 5. Basic tests (15 tests)
 
 ### Phase 2: Undo Grouping - 1-2 days
+
 1. Implement grouping heuristics (time, cursor movement)
 2. Group operations by context
 3. Test grouping scenarios (10 tests)
 
 ### Phase 3: Line Operations - 1-2 days
+
 1. Add newline insert/delete tracking
 2. Handle line split/merge in undo
 3. Memory management for line content
 4. Test line operations (10 tests)
 
 ### Phase 4: Polish & Integration - 1 day
+
 1. Lua API (undo/redo functions)
 2. Status bar integration (show undo levels)
 3. Memory limit enforcement
@@ -863,9 +874,10 @@ endif()
 ## Future Enhancements
 
 ### Undo Branches (Vim-style Undo Tree)
+
 Instead of discarding redo history, maintain tree of all edits:
 
-```
+```text
 Initial: ""
   ↓ insert "hello"
 "hello"
@@ -876,14 +888,18 @@ Initial: ""
 This allows navigating to any previous state without losing work.
 
 ### Persistent Undo
+
 Save undo history to disk (`.loki/undo/<filename>.undo`):
+
 - Survive editor restarts
 - Useful for long-lived files
 - Compression needed for large undo files
 
 ### Undo Visualization
+
 Show undo tree graphically (like `:undotree` in vim):
-```
+
+```text
 :undotree
 
    1 "hello"
@@ -900,6 +916,7 @@ Current: node 3
 **Recommendation:** Implement in dedicated `src/loki_undo.c` module.
 
 **Key design points:**
+
 1. **Circular buffer** for memory efficiency (1,000 operations ≈ 64 KB)
 2. **Operation grouping** via heuristics (time, cursor movement, operation type)
 3. **Three integration points**: `editor_insert_char`, `editor_del_char`, `editor_insert_newline`
@@ -907,12 +924,14 @@ Current: node 3
 5. **Memory limits** to prevent unbounded growth (default 10 MB)
 
 **Benefits:**
+
 - **Production-ready**: Undo is essential for serious text editing
 - **Minimal overhead**: <1% performance impact, ~64 KB memory for typical use
 - **Clean architecture**: Separate module, easy to test and enhance
 - **User-friendly**: Intelligent grouping (undo word-by-word, not char-by-char)
 
 **Next steps if implementing:**
+
 1. Create `src/loki_undo.c` and `src/loki_undo.h`
 2. Implement Phase 1 (basic undo without grouping)
 3. Add integration points to `editor_insert_char`, etc.

@@ -28,6 +28,7 @@ loki.status(string.format("Loaded %d languages", count))
 ```
 
 **Problems:**
+
 - Startup time increases with more languages (10ms per 20 languages)
 - Memory wasted on unused languages (Go loaded even if never editing .go)
 - All language files must be present at startup
@@ -46,6 +47,7 @@ languages.init()  -- Just sets up infrastructure, doesn't load anything
 ```
 
 **Benefits:**
+
 - ✅ Instant startup (0ms language loading)
 - ✅ Lower memory (only loaded languages in RAM)
 - ✅ Partial installation okay (missing Go? Fine, just no .go highlighting)
@@ -180,7 +182,8 @@ void editor_select_syntax_highlight(editor_ctx_t *ctx, char *filename) {
 **Solution:** Simple convention or quick file scan.
 
 **Option A: Convention-based (fastest)**
-```
+
+```text
 .loki/languages/python.lua    → handles .py, .pyw
 .loki/languages/javascript.lua → handles .js, .jsx, .mjs, .cjs
 .loki/languages/typescript.lua → handles .ts, .tsx
@@ -190,6 +193,7 @@ Derive from filename: `python.lua` → `.py` (primary extension).
 Problem: Doesn't handle multiple extensions well.
 
 **Option B: Quick file scan (recommended)**
+
 ```lua
 function get_language_extensions(filepath)
     -- Read just the first 200 bytes of file to find extensions declaration
@@ -210,7 +214,8 @@ end
 ```
 
 **Option C: Metadata file (overkill but most robust)**
-```
+
+```text
 .loki/languages/
 ├── python.lua
 ├── javascript.lua
@@ -228,6 +233,7 @@ end
 Replace `.loki/modules/languages.lua` with lazy loading implementation.
 
 **Key changes:**
+
 - `load_all()` → `init()` (just builds registry)
 - Add `load_for_extension(ext)` function
 - Add `load_file(filepath)` function
@@ -265,6 +271,7 @@ Modify `editor_select_syntax_highlight()` to trigger lazy loading.
 ### Step 4: Create Missing Lua Language Files 🚧
 
 **Currently in C only (need to create .lua files):**
+
 - `c.lua` - C/C++
 - `markdown.lua` - Markdown (loaded immediately as fallback)
 - `cython.lua` - Cython
@@ -276,6 +283,7 @@ Modify `editor_select_syntax_highlight()` to trigger lazy loading.
 ### Step 5: Remove C Definitions 🚧
 
 Clean out `src/loki_languages.c`:
+
 - Remove Python, Lua, JavaScript, Rust, TypeScript, Swift, SQL, Shell
 - Keep only minimal infrastructure
 - Keep Markdown as emergency fallback (if Lua fails)
@@ -302,6 +310,7 @@ Test matrix:
 ## Markdown as Default Fallback
 
 **Rationale:** Markdown is:
+
 - Universal (works for any text file)
 - Lightweight (minimal keywords)
 - Non-intrusive (doesn't over-highlight)
@@ -323,6 +332,7 @@ end
 ```
 
 **Alternative:** No default highlighting for unknown files
+
 ```lua
 -- Don't assume markdown for .txt, .log, etc.
 -- Only highlight when extension matches
@@ -347,6 +357,7 @@ languages.init({
 **Scenario:** User opens `.rs` file but no `rust.lua` exists.
 
 **Behavior:**
+
 - Status bar: "No highlighting for .rs files"
 - File opens normally, just no syntax highlighting
 - User can add `rust.lua` and reload
@@ -356,6 +367,7 @@ languages.init({
 **Scenario:** User hasn't set up `.loki/` yet.
 
 **Behavior:**
+
 - Markdown fallback from C (minimal definition)
 - Status bar: "No language definitions found. Install .loki/ for syntax highlighting"
 - Editor still works, just no highlighting
@@ -365,6 +377,7 @@ languages.init({
 **Scenario:** `python.lua` has syntax error.
 
 **Behavior:**
+
 - Status bar: "Error loading python.lua: [error message]"
 - File opens without highlighting
 - Other languages unaffected
@@ -374,6 +387,7 @@ languages.init({
 **Scenario:** JavaScript handles `.js`, `.jsx`, `.mjs`, `.cjs`
 
 **Behavior:**
+
 - Extension map: `{".js" → "javascript.lua", ".jsx" → "javascript.lua", ...}`
 - First `.js` file loads `javascript.lua`
 - All subsequent `.js`, `.jsx`, `.mjs`, `.cjs` files reuse loaded definition
@@ -386,13 +400,15 @@ languages.init({
 ### Startup Time Comparison
 
 **Before (Eager Loading):**
-```
+
+```text
 Load all languages: 10-15ms
 Total startup: ~50ms
 ```
 
 **After (Lazy Loading):**
-```
+
+```text
 Scan directory: 2-3ms
 Load markdown: 1-2ms
 Total startup: ~20ms (60% faster!)
@@ -401,13 +417,15 @@ Total startup: ~20ms (60% faster!)
 ### Memory Comparison
 
 **Before (Eager Loading, 15 languages):**
-```
+
+```text
 Language definitions: ~200KB
 Total memory: ~500KB
 ```
 
 **After (Lazy Loading, editing 3 file types):**
-```
+
+```text
 Language definitions: ~40KB (3 languages)
 Total memory: ~340KB (32% reduction)
 ```
@@ -424,17 +442,20 @@ Total memory: ~340KB (32% reduction)
 ## Backwards Compatibility
 
 **Existing behavior preserved:**
+
 - Users with `.loki/languages/` see no difference
 - All languages still work
 - Can still manually call `languages.load_all()` if desired
 
 **New capabilities:**
+
 - Faster startup (automatic)
 - Lower memory (automatic)
 - Partial installs work (new)
 - On-demand loading (new)
 
 **Migration path:**
+
 - Old `init.lua` with `languages.load_all()` still works
 - Recommended to update to `languages.init()` for benefits
 
@@ -464,7 +485,7 @@ languages.prefetch({"javascript", "typescript", "json"})
 
 Reload language definition without restarting editor:
 
-```
+```text
 :lua languages.reload("python")  -- Reload python.lua
 ```
 
@@ -481,6 +502,7 @@ Compress keyword lists with trie or DAWG:
 ## Summary
 
 **Lazy loading achieves:**
+
 - ✅ 60% faster startup
 - ✅ 32% lower memory (typical usage)
 - ✅ Better user experience (no delay for unused languages)

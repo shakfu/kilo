@@ -12,6 +12,7 @@ How would this be integrated in an experimental variant of existing code?
 ### Current Architecture
 
 Existing syntax highlighting (src/loki_languages.c, src/loki_core.c):
+
 - Per-row pattern matching with editor_update_syntax()
 - Simple keyword/string/comment detection
 - ~160 lines of core logic
@@ -21,6 +22,7 @@ Existing syntax highlighting (src/loki_languages.c, src/loki_core.c):
 ### Tree-Sitter Architecture
 
 Tree-sitter provides:
+
 - Incremental parsing - rebuilds only changed portions of syntax tree
 - Grammar-based highlighting - accurate token classification (e.g.,
 function names vs variables)
@@ -29,7 +31,7 @@ function names vs variables)
 
 ### Integration Strategy: Dual-Mode Architecture
 
-#### Proposal: Keep both systems, allow opt-in per language.
+#### Proposal: Keep both systems, allow opt-in per language
 
 ```c
 /* loki_internal.h - Add tree-sitter support flag */
@@ -62,6 +64,7 @@ struct editor_ctx {
 ### Implementation Modules
 
 New file: src/loki_treesitter.c (~300-400 lines)
+
 ```c
 /* loki_treesitter.c - Tree-sitter integration layer */
 #ifdef LOKI_HAVE_TREESITTER
@@ -268,7 +271,7 @@ etc. */
 
 ## Build System Integration
 
-### CMakeLists.txt additions:
+### CMakeLists.txt additions
 
 ```cmake
 # Optional tree-sitter support
@@ -352,7 +355,6 @@ each language       |
 | Maintenance      | Manual keyword lists            | Grammar updates
 from upstream         |
 
-
 ### Critical Design Questions
 
 1. Dependency Philosophy
@@ -382,6 +384,7 @@ files)
 ### Recommended Implementation Path
 
 Phase 1: Proof of Concept (~2-3 days)
+
 1. Add tree-sitter for C language only
 2. Hard-code grammar loading (no dynamic discovery)
 3. Full reparse on every edit (no incremental yet)
@@ -389,17 +392,20 @@ Phase 1: Proof of Concept (~2-3 days)
 5. Test with existing test suite (should still pass)
 
 Phase 2: Incremental Updates (~2-3 days)
+
 1. Implement ts_update_tree() for single-char edits
 2. Add byte offset tracking to editor_ctx_t
 3. Handle newline insertions/deletions
 4. Benchmark: measure performance impact
 
 Phase 3: Multi-Language (~1-2 days)
+
 1. Add Python, JavaScript grammars
 2. Implement grammar discovery (check /usr/local/lib for .so files)
 3. Graceful fallback if grammar missing
 
 Phase 4: Query Customization (~1-2 days)
+
 1. Load highlight queries from .loki/queries/<lang>/highlights.scm
 2. Allow users to customize capture → HL_* mappings
 3. Document query syntax for custom languages
@@ -428,6 +434,7 @@ variables */
 ```
 
 Benefits:
+
 - Best of both worlds: speed + accuracy where it matters
 - Smaller tree-sitter footprint
 - Simpler byte offset management
@@ -463,6 +470,7 @@ TEST(treesitter_incremental_edit) {
     /* Verify highlights still accurate */
 }
 ```
+
 Lua API Extensions
 
 Allow scripts to query syntax tree:
@@ -500,10 +508,12 @@ use cases. Tree-sitter's accuracy gain doesn't justify complexity for an
 editor focused on simplicity.
 
 4. Better alternative: If accuracy is critical, users should use
+
 LSP-enabled editors (Neovim, VS Code). Loki's niche is lightweight,
 dependency-light editing.
 
 However, if you want to experiment:
+
 - Create loki-ts fork/branch
 - Implement Phase 1 POC for C only
 - Measure real-world performance impact

@@ -12,6 +12,7 @@ implemented.
 Current Modal System
 
 Existing structure (src/loki_modal.c):
+
 ```c
 /* Current modes in include/loki/core.h */
 typedef enum {
@@ -34,12 +35,14 @@ void modal_process_keypress(editor_ctx_t *ctx, int fd) {
 ## Where Command Mode Should Live
 
 Option A: Extend loki_modal.c (~150 lines added)
+
 - Pros: All modal logic in one place, simpler mental model
 - Cons: File grows to ~550 lines, mixing concerns (navigation + command
 execution)
 - Best for: Simple command mode with <10 built-in commands
 
 Option B: New file loki_command.c (~300-400 lines)
+
 - Pros: Separation of concerns, easier to test, extensible
 - Cons: Extra file, more indirection
 - Best for: Rich command system with 20+ commands, Lua extensibility
@@ -64,6 +67,7 @@ dedicated module
 ## Implementation Design
 
 File Structure
+
 ```text
 src/
 ├── loki_modal.c        # Modal editing (NORMAL/INSERT/VISUAL/COMMAND mode
@@ -74,9 +78,11 @@ src/
 include/loki/
 └── core.h              # Add MODE_COMMAND to EditorMode enum
 ```
+
 1. Core Data Structures
 
 src/loki_command.h:
+
 ```c
 #ifndef LOKI_COMMAND_H
 #define LOKI_COMMAND_H
@@ -122,7 +128,8 @@ int cmd_set(editor_ctx_t *ctx, const char *args);
 
 #endif /* LOKI_COMMAND_H */
 ```
-2. Implementation: `src/loki_command.c`
+
+1. Implementation: `src/loki_command.c`
 
 ⏺ Read(`~/projects/loki/include/loki/core.h`)
 ⎿  Read 50 lines
@@ -611,7 +618,7 @@ void command_unregister_all_dynamic(void) {
 }
 ```
 
-3. Integration with Modal System
+1. Integration with Modal System
 
 Update `src/loki_modal.c:`
 
@@ -655,7 +662,7 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd) {
 }
 ```
 
-4. Update Editor Context
+1. Update Editor Context
 
 Add to `loki_internal.h`:
 
@@ -754,7 +761,7 @@ end, "Count lines matching pattern")
 -- :count TODO   --> "Found 7 lines matching 'TODO'"
 ```
 
-6. Testing Strategy
+1. Testing Strategy
 
 New test file: tests/test_command.c
 
@@ -828,9 +835,10 @@ TEST(command_unknown) {
 }
 ```
 
-7. Build System Updates
+1. Build System Updates
 
 CMakeLists.txt:
+
 ```cmake
 add_library(libloki ${LOKI_LIBRARY_TYPE}
     src/loki_core.c
@@ -865,6 +873,7 @@ navigation
 3. Lua integration: Natural place for custom command registration
 4. Testing: Can unit test command parser independently
 5. Growth: Command systems tend to expand (:substitute, :global, :buffers,
+
  etc.)
 
 Architecture:

@@ -26,12 +26,14 @@ Loki is a **single-user text editor** designed to run on trusted systems with th
 ### Threat Model
 
 **In Scope:**
+
 - Protection against accidental data corruption
 - Defense against malformed file inputs (binary files, extremely long lines)
 - Safe handling of network responses
 - Prevention of common memory safety issues (buffer overflows, use-after-free)
 
 **Out of Scope:**
+
 - Sandboxing untrusted Lua scripts (by design)
 - Protection against malicious system administrators
 - Multi-user isolation (Loki is single-user)
@@ -90,6 +92,7 @@ io.open("/etc/passwd"):read("*a")     -- Read sensitive files (if permissions al
 ### Safe Configuration Practices
 
 **DO:**
+
 ```lua
 -- Use environment variables for secrets
 local api_key = os.getenv("OPENAI_API_KEY")
@@ -113,6 +116,7 @@ end
 ```
 
 **DON'T:**
+
 ```lua
 -- Don't hardcode credentials
 local api_key = "sk-proj-abc123..."  -- NEVER DO THIS
@@ -176,11 +180,13 @@ end
 Loki can make HTTP requests via `loki.async_http()`. These requests include multiple layers of security hardening:
 
 **Transport Security:**
+
 - Run with **libcurl** (industry-standard, well-audited)
 - Support **HTTPS with SSL/TLS verification** (default: enabled)
 - Certificate validation against system CA bundle
 
 **Resource Limits:**
+
 - **60-second request timeout** to prevent hangs
 - **10-second connection timeout**
 - **10 concurrent requests maximum** to prevent resource exhaustion
@@ -189,17 +195,20 @@ Loki can make HTTP requests via `loki.async_http()`. These requests include mult
 - **8KB total headers size limit** to prevent header-based attacks
 
 **URL Validation:**
+
 - Only `http://` and `https://` schemes allowed (rejects `file://`, `ftp://`, etc.)
 - **2048 character URL length limit** to prevent buffer issues
 - Null byte injection detection
 - Control character filtering (prevents header injection)
 
 **Rate Limiting:**
+
 - **100 requests per 60-second window** to prevent abuse
 - Per-process global rate limit (applies to all async_http calls)
 - Automatic window reset after timeout
 
 **Header Validation:**
+
 - Maximum 100 headers per request
 - Maximum 1KB per individual header
 - Maximum 8KB total headers size
@@ -235,6 +244,7 @@ loki.async_http(
 **Best Practices:**
 
 1. **Environment Variables**: Store API keys in environment variables
+
    ```lua
    local api_key = os.getenv("OPENAI_API_KEY")
    if not api_key then
@@ -244,6 +254,7 @@ loki.async_http(
    ```
 
 2. **Never Commit Secrets**: Use `.gitignore` for config files with credentials
+
    ```gitignore
    # .gitignore
    .loki/secrets.lua
@@ -251,6 +262,7 @@ loki.async_http(
    ```
 
 3. **Separate Files**: Keep secrets in separate, local-only files
+
    ```lua
    -- .loki/init.lua (version controlled)
    local secrets = dofile(os.getenv("HOME") .. "/.loki/secrets.lua")
@@ -263,6 +275,7 @@ loki.async_http(
    ```
 
 4. **Restricted Permissions**: Protect secret files
+
    ```bash
    chmod 600 ~/.loki/secrets.lua
    ```
@@ -320,28 +333,28 @@ end
 **Rate Limiting:**
 If you exceed 100 requests per minute, you'll receive an error message indicating how long until the rate limit resets:
 
-```
+```text
 Rate limit exceeded (max 100 requests per 60 seconds, retry in 45 seconds)
 ```
 
 **Request Body Size:**
 If your request body exceeds 5MB, the request will be rejected immediately:
 
-```
+```text
 HTTP security error: Request body too large (5242880 bytes, max 5242880 bytes)
 ```
 
 **URL Length:**
 URLs longer than 2048 characters are rejected:
 
-```
+```text
 HTTP security error: URL too long (max 2048 characters)
 ```
 
 **Header Limits:**
 Individual headers over 1KB or total headers exceeding 8KB are rejected:
 
-```
+```text
 HTTP security error: Header 3 too long (1536 bytes, max 1024)
 HTTP security error: Total headers size too large (9216 bytes, max 8192 bytes)
 ```
@@ -411,6 +424,7 @@ Loki implements defense-in-depth HTTP security through multiple validation layer
 All security checks execute in `start_async_http_request()` before the HTTP request is created. Validation runs in this order:
 
 **1. URL Validation** (`validate_http_url()`)
+
 ```c
 /* Checks performed: */
 - URL not empty or NULL
@@ -426,6 +440,7 @@ loki.async_http("ftp://evil.com/file", "GET", nil, {}, "callback")
 ```
 
 **2. Rate Limiting** (`check_rate_limit()`)
+
 ```c
 /* Algorithm: Sliding window */
 - Window: 60 seconds
@@ -441,6 +456,7 @@ loki.async_http("https://api.com", "GET", nil, {}, "callback")
 ```
 
 **3. Request Body Validation** (`validate_request_body()`)
+
 ```c
 /* Checks performed: */
 - Body size ≤ 5MB (5,242,880 bytes)
@@ -455,6 +471,7 @@ loki.async_http("https://api.com", "POST", huge_body, {}, "callback")
 ```
 
 **4. Header Validation** (`validate_headers()`)
+
 ```c
 /* Checks performed: */
 - Maximum 100 headers per request
@@ -475,7 +492,7 @@ loki.async_http("https://api.com", "GET", nil, headers, "callback")
 
 #### Implementation Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │ loki.async_http(url, method, body, headers, callback)       │
 └───────────────────────┬─────────────────────────────────────┘
@@ -567,6 +584,7 @@ All security limits are defined as compile-time constants in `src/loki_editor.c`
 #### Testing Security Features
 
 **Test URL validation:**
+
 ```lua
 -- Test scheme validation
 assert(loki.async_http("ftp://evil.com", "GET", nil, {}, "cb") == nil)
@@ -579,6 +597,7 @@ assert(loki.async_http(long_url, "GET", nil, {}, "cb") == nil)
 ```
 
 **Test rate limiting:**
+
 ```lua
 -- Test rate limit enforcement
 local success_count = 0
@@ -591,6 +610,7 @@ print("Successful requests: " .. success_count)
 ```
 
 **Test body size validation:**
+
 ```lua
 -- Test request body limits
 local small_body = string.rep("x", 1000)       -- 1KB - OK
@@ -603,6 +623,7 @@ assert(loki.async_http("https://httpbin.org/post", "POST", large_body, {}, "cb")
 ```
 
 **Test header validation:**
+
 ```lua
 -- Test header count limits
 local many_headers = {}
@@ -633,6 +654,7 @@ assert(loki.async_http("https://httpbin.org/get", "GET", nil, {huge_header}, "cb
 4. **Keep SSL/TLS verification enabled**: Never disable certificate validation
 
 **Example of increasing limits (requires recompilation):**
+
 ```c
 // src/loki_editor.c
 #define MAX_HTTP_REQUEST_BODY_SIZE (50 * 1024 * 1024)  // Increase to 50MB
@@ -640,6 +662,7 @@ assert(loki.async_http("https://httpbin.org/get", "GET", nil, {huge_header}, "cb
 ```
 
 **Disabling security is strongly discouraged.** If limits are insufficient for your use case, consider:
+
 - Using external tools (`curl`, `wget`) via `os.execute()`
 - Implementing custom C extension with appropriate security controls
 - Splitting large requests into smaller chunks
@@ -667,6 +690,7 @@ Loki detects and rejects binary files to prevent:
 - Accidental modification of executable files
 
 **Implementation** (loki_core.c:679-720):
+
 ```c
 /* Detect binary files by checking for null bytes in first 1KB */
 size_t check_size = (file_size < 1024) ? file_size : 1024;
@@ -712,6 +736,7 @@ Loki creates temporary files in `/tmp` during testing. These files:
    - Use `less .loki/init.lua` before opening the editor
 
 2. **Secure Credentials**
+
    ```bash
    # Store API keys in environment, not config files
    export OPENAI_API_KEY="sk-proj-..."
@@ -729,6 +754,7 @@ Loki creates temporary files in `/tmp` during testing. These files:
    - Use dedicated user accounts for working with untrusted files
 
 5. **Keep Dependencies Updated**
+
    ```bash
    # Update system packages regularly
    brew update && brew upgrade  # macOS
@@ -742,6 +768,7 @@ Loki creates temporary files in `/tmp` during testing. These files:
    - Validate array bounds before access
    - Free allocated memory in all code paths
    - Use AddressSanitizer during development:
+
      ```bash
      cmake -B build -DCMAKE_C_FLAGS="-fsanitize=address -g"
      make -C build
@@ -763,6 +790,7 @@ Loki creates temporary files in `/tmp` during testing. These files:
    - Test with fuzzing tools (AFL, libFuzzer)
 
 5. **Testing**
+
    ```bash
    # Run tests with memory checking
    make test
@@ -827,12 +855,14 @@ Loki creates temporary files in `/tmp` during testing. These files:
 We take security seriously for **memory safety**, **file handling**, and **network security** issues.
 
 **In Scope:**
+
 - Memory safety vulnerabilities (buffer overflows, use-after-free, null pointer dereferences)
 - File parsing vulnerabilities (malformed inputs causing crashes)
 - HTTP security issues (SSL/TLS handling, credential leakage)
 - Binary file detection bypasses
 
 **Out of Scope:**
+
 - Lua script execution (by design, scripts have full access)
 - Path traversal in Lua (by design, Lua has file system access)
 - Social engineering attacks (tricking users into running malicious configs)
@@ -851,6 +881,7 @@ We take security seriously for **memory safety**, **file handling**, and **netwo
    - Suggested fix (if you have one)
 
 **Response Timeline:**
+
 - **Acknowledgment**: Within 48 hours
 - **Initial Assessment**: Within 7 days
 - **Fix Timeline**: Depends on severity
@@ -861,6 +892,7 @@ We take security seriously for **memory safety**, **file handling**, and **netwo
 ### Recognition
 
 Security researchers who report valid vulnerabilities will be:
+
 - Credited in release notes (if desired)
 - Listed in SECURITY.md acknowledgments
 - Thanked publicly (with permission)

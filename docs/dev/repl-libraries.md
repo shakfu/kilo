@@ -20,6 +20,7 @@ This document surveys available line editing libraries for C-based REPLs, compar
 ```
 
 **Detection priority:**
+
 1. editline (BSD license, built-in on macOS/BSD)
 2. readline (GPL, Homebrew on macOS)
 3. basic getline() fallback
@@ -30,11 +31,12 @@ This document surveys available line editing libraries for C-based REPLs, compar
 
 **Author:** Salvatore Sanfilippo (antirez) - creator of Redis and original kilo editor
 **License:** BSD 2-Clause
-**Repository:** https://github.com/antirez/linenoise
+**Repository:** <https://github.com/antirez/linenoise>
 **Size:** ~1100 lines of code, single .c/.h file pair
 **Dependencies:** None
 
 **Features:**
+
 - [x] Command history with persistence
 - [x] Line editing (arrows, home/end, Ctrl-A/E/K/U/W)
 - [x] Tab completion (customizable callback)
@@ -45,18 +47,21 @@ This document surveys available line editing libraries for C-based REPLs, compar
 - [x] History search (Ctrl-R)
 
 **Platforms:**
+
 - Linux [x]
 - macOS [x]
 - BSD [x]
 - Windows [x] (native console API, no ANSI emulation needed)
 
 **Used by:**
+
 - Redis CLI
 - MongoDB shell
 - LevelDB tools
 - Many embedded systems
 
 **Integration example:**
+
 ```c
 #include "linenoise.h"
 
@@ -84,6 +89,7 @@ int main() {
 ```
 
 **Advantages:**
+
 - Embeddable - just copy 2 files
 - Zero dependencies
 - Tiny footprint (~50KB compiled)
@@ -92,6 +98,7 @@ int main() {
 - Battle-tested in production (Redis, MongoDB)
 
 **Disadvantages:**
+
 - Less feature-rich than readline
 - Smaller community than readline/editline
 - No vi mode
@@ -104,11 +111,12 @@ int main() {
 
 **Maintainer:** NetBSD project
 **License:** BSD 3-Clause
-**Repository:** https://github.com/NetBSD/libedit
+**Repository:** <https://github.com/NetBSD/libedit>
 **Size:** ~200KB library
 **Dependencies:** curses/ncurses
 
 **Features:**
+
 - [x] Full readline API compatibility
 - [x] Command history with persistence
 - [x] Line editing (all standard shortcuts)
@@ -118,6 +126,7 @@ int main() {
 - [x] Signal handling
 
 **Platforms:**
+
 - macOS [x] (built-in system library)
 - FreeBSD [x] (built-in)
 - OpenBSD [x] (built-in)
@@ -126,12 +135,14 @@ int main() {
 - Windows [X]
 
 **Used by:**
+
 - macOS system utilities
 - LLDB debugger
 - Fish shell (original)
 - Many BSD tools
 
 **Integration example:**
+
 ```c
 #include <editline/readline.h>
 
@@ -153,12 +164,14 @@ int main() {
 ```
 
 **Advantages:**
+
 - Built-in on macOS and BSDs (no extra dependency)
 - BSD license (more permissive than GPL)
 - Readline-compatible API (easy migration)
 - Well-maintained by NetBSD project
 
 **Disadvantages:**
+
 - External library (not embeddable)
 - No Windows support
 - Requires curses/ncurses
@@ -172,11 +185,12 @@ int main() {
 
 **Maintainer:** Free Software Foundation
 **License:** GPL v3
-**Repository:** https://git.savannah.gnu.org/cgit/readline.git
+**Repository:** <https://git.savannah.gnu.org/cgit/readline.git>
 **Size:** ~500KB library
 **Dependencies:** curses/ncurses
 
 **Features:**
+
 - [x] Most comprehensive feature set
 - [x] Command history with timestamps
 - [x] Line editing (extensive)
@@ -189,12 +203,14 @@ int main() {
 - [x] Undo/redo
 
 **Platforms:**
+
 - Linux [x] (usually pre-installed)
 - macOS [x] (via Homebrew, keg-only)
 - BSD [x] (via packages)
 - Windows [X] (MinGW only)
 
 **Used by:**
+
 - Bash shell
 - GDB debugger
 - Python REPL
@@ -203,6 +219,7 @@ int main() {
 - Hundreds of other tools
 
 **Integration example:**
+
 ```c
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -225,12 +242,14 @@ int main() {
 ```
 
 **Advantages:**
+
 - Industry standard
 - Most feature-rich
 - Excellent documentation
 - Huge user base
 
 **Disadvantages:**
+
 - GPL license (viral for linking)
 - Large library size
 - Not embeddable
@@ -245,11 +264,12 @@ int main() {
 
 **Author:** Marcin Konarski
 **License:** BSD 3-Clause
-**Repository:** https://github.com/AmokHuginnsson/replxx
+**Repository:** <https://github.com/AmokHuginnsson/replxx>
 **Language:** C++ with C API
 **Size:** Medium (~10K lines)
 
 **Features:**
+
 - [x] UTF-8 support
 - [x] Syntax highlighting (callback-based)
 - [x] Hints and completions
@@ -260,12 +280,14 @@ int main() {
 - [x] Incremental search
 
 **Platforms:**
+
 - Linux [x]
 - macOS [x]
 - Windows [x]
 - BSD [x]
 
 **Integration example:**
+
 ```c
 #include "replxx.h"
 
@@ -286,6 +308,7 @@ int main() {
 ```
 
 **Advantages:**
+
 - Modern design
 - Syntax highlighting support
 - Cross-platform including Windows
@@ -293,6 +316,7 @@ int main() {
 - Active maintenance
 
 **Disadvantages:**
+
 - C++ dependency (even for C API)
 - Not single-file embeddable
 - Smaller community
@@ -306,11 +330,12 @@ int main() {
 
 **Author:** Daan Leijen (Microsoft Research)
 **License:** MIT
-**Repository:** https://github.com/daanx/isocline
+**Repository:** <https://github.com/daanx/isocline>
 **Size:** Single header file (~5000 lines)
 **Dependencies:** None
 
 **Features:**
+
 - [x] UTF-8 support
 - [x] ANSI color and styling
 - [x] History with persistence
@@ -321,12 +346,14 @@ int main() {
 - [x] Hints (inline suggestions)
 
 **Platforms:**
+
 - Windows [x] (native console, no ANSI needed)
 - Linux [x]
 - macOS [x]
 - BSD [x]
 
 **Integration example:**
+
 ```c
 #include "isocline.h"
 
@@ -344,6 +371,7 @@ int main() {
 ```
 
 **Advantages:**
+
 - Header-only (easy integration)
 - MIT license (very permissive)
 - Works on Windows without ANSI emulation
@@ -351,6 +379,7 @@ int main() {
 - Good documentation
 
 **Disadvantages:**
+
 - Relatively new (less battle-tested)
 - Smaller community
 - Single-header = longer compile times
@@ -363,10 +392,11 @@ int main() {
 
 **Author:** Martin Shepherd (Caltech)
 **License:** Modified MIT (permissive)
-**Repository:** http://www.astro.caltech.edu/~mcs/tecla/
+**Repository:** <http://www.astro.caltech.edu/~mcs/tecla/>
 **Size:** Medium library
 
 **Features:**
+
 - [x] History with persistence
 - [x] Line editing
 - [x] Tab completion
@@ -374,20 +404,24 @@ int main() {
 - [x] Signal safety
 
 **Platforms:**
+
 - Linux [x]
 - Unix [x]
 - Some Windows support
 
 **Used by:**
+
 - Astronomy software
 - Scientific computing tools
 
 **Advantages:**
+
 - Permissive license
 - Signal-safe (useful for scientific computing)
 - Stable and mature
 
 **Disadvantages:**
+
 - Less modern
 - Smaller community
 - Not actively maintained
@@ -417,6 +451,7 @@ int main() {
 ## Platform Availability
 
 ### macOS
+
 - [x] **editline**: Built-in system library (`/usr/lib/libedit.dylib`)
 - [x] **readline**: Homebrew (`brew install readline`, keg-only)
 - [x] **linenoise**: Embed source
@@ -424,6 +459,7 @@ int main() {
 - [x] **replxx**: Build from source
 
 ### Linux (Debian/Ubuntu)
+
 - [x] **editline**: `apt-get install libedit-dev`
 - [x] **readline**: `apt-get install libreadline-dev`
 - [x] **linenoise**: Embed source
@@ -431,6 +467,7 @@ int main() {
 - [x] **replxx**: Build from source
 
 ### FreeBSD/OpenBSD
+
 - [x] **editline**: Built-in system library
 - [x] **readline**: `pkg install readline`
 - [x] **linenoise**: Embed source
@@ -438,6 +475,7 @@ int main() {
 - [x] **replxx**: Build from source
 
 ### Windows
+
 - [X] **editline**: Not available
 - [X] **readline**: MinGW only
 - [x] **linenoise**: Native Windows console API
@@ -447,18 +485,21 @@ int main() {
 ## Recommendations for Loki
 
 ### Current Strategy: [x] Good
-```
+
+```text
 1st: editline (BSD, built-in on macOS/BSD)
 2nd: readline (GPL, fallback)
 3rd: getline (basic, no features)
 ```
 
 **Pros:**
+
 - Works out-of-box on macOS
 - No code to maintain
 - Good feature set
 
 **Cons:**
+
 - External dependency
 - No Windows support
 - GPL in fallback path
@@ -466,7 +507,8 @@ int main() {
 ### Recommended Addition: linenoise
 
 **Add as 4th tier before getline:**
-```
+
+```text
 1st: editline (BSD, built-in on macOS/BSD)
 2nd: readline (GPL, Homebrew/Linux)
 3rd: linenoise (BSD, embedded)
@@ -474,6 +516,7 @@ int main() {
 ```
 
 **Why add linenoise:**
+
 1. **No external dependency** - embed 2 files in `src/`
 2. **Windows support** - works on all platforms
 3. **Same author as kilo** - philosophical alignment
@@ -482,7 +525,8 @@ int main() {
 6. **BSD license** - no GPL concerns
 
 **Implementation:**
-```
+
+```text
 src/
 ├── linenoise.c        # Add these
 ├── linenoise.h        # Add these
@@ -499,11 +543,13 @@ CMakeLists.txt:
 ### Alternative: Full linenoise
 
 **Replace editline/readline entirely:**
-```
+
+```text
 1st: linenoise (embedded, always available)
 ```
 
 **Pros:**
+
 - No external dependencies
 - Works everywhere (including Windows)
 - Smaller binary
@@ -512,11 +558,13 @@ CMakeLists.txt:
 - Same author as kilo
 
 **Cons:**
+
 - More code to maintain (2 files)
 - Lose system integration on macOS
 - Less feature-rich than readline
 
 **When to choose:**
+
 - Targeting cross-platform (Windows support needed)
 - Want zero dependencies
 - Prefer minimal philosophy
@@ -525,11 +573,13 @@ CMakeLists.txt:
 ### Alternative: Header-only isocline
 
 **For maximum portability:**
-```
+
+```text
 1st: isocline (header-only, embedded)
 ```
 
 **Pros:**
+
 - Single header file
 - MIT license
 - Windows support without ANSI
@@ -537,6 +587,7 @@ CMakeLists.txt:
 - No build complexity
 
 **Cons:**
+
 - Longer compile times
 - Less battle-tested
 - MIT vs BSD (minor)
@@ -546,18 +597,21 @@ CMakeLists.txt:
 ### For Distribution
 
 **GPL (readline):**
--  Cannot link into proprietary software
--  Must provide source code
+
+- Cannot link into proprietary software
+- Must provide source code
 - [x] OK for open-source projects
 - [!] May affect downstream users
 
 **BSD (editline, linenoise, replxx):**
+
 - [x] Can link into proprietary software
 - [x] No source disclosure required
 - [x] Only need to include license notice
 - [x] Most permissive
 
 **MIT (isocline):**
+
 - [x] Similar to BSD, slightly simpler
 - [x] Very permissive
 - [x] No patent clause (unlike BSD-3)
@@ -567,6 +621,7 @@ CMakeLists.txt:
 Current license: **Unknown** (should be specified in LICENSE file)
 
 **Recommendation:**
+
 - If BSD/MIT: Current strategy (editline/readline) is fine
 - If GPL-compatible: No concerns
 - If proprietary/commercial: Remove readline fallback, use editline + linenoise
@@ -574,6 +629,7 @@ Current license: **Unknown** (should be specified in LICENSE file)
 ## Implementation Roadmap
 
 ### Phase 1: Current (Completed)
+
 - [x] editline detection
 - [x] readline fallback
 - [x] Basic getline fallback
@@ -581,6 +637,7 @@ Current license: **Unknown** (should be specified in LICENSE file)
 - [x] Cross-platform build
 
 ### Phase 2: Add linenoise (Recommended)
+
 1. Add `src/linenoise.c` and `src/linenoise.h` from upstream
 2. Update CMakeLists.txt to prefer embedded linenoise over getline
 3. Add `LOKI_HAVE_LINENOISE` compilation flag
@@ -592,11 +649,13 @@ Current license: **Unknown** (should be specified in LICENSE file)
 **Benefit:** Windows support, better fallback than getline
 
 ### Phase 3: Optional syntax highlighting (Future)
+
 - Add callback-based syntax highlighting
 - Requires replxx or isocline (or custom editline extension)
 - Would need to switch primary library
 
 ### Phase 4: Tab completion (Future)
+
 - Implement completion for Lua globals
 - Complete `loki.*` API functions
 - Complete table keys/methods
@@ -614,6 +673,7 @@ Current license: **Unknown** (should be specified in LICENSE file)
 | isocline | [x] | [x] | [x] | [x] |
 
 ### Test Cases
+
 1. Command history (up/down arrows)
 2. Line editing (left/right, home/end)
 3. History persistence across sessions
@@ -628,18 +688,21 @@ Current license: **Unknown** (should be specified in LICENSE file)
 **Current implementation (editline/readline):** Good for Unix systems
 
 **Recommended enhancement:** Add linenoise as tier-3 fallback
+
 - Provides Windows support
 - Better than basic getline
 - Only ~2 files to add
 - Same author as kilo (philosophical fit)
 
 **Alternative paths:**
+
 1. **Minimal:** Keep current (editline/readline/getline)
 2. **Portable:** Add linenoise tier
 3. **Full embedded:** Switch entirely to linenoise
 4. **Modern:** Switch to isocline (header-only, cross-platform)
 
 **Decision factors:**
+
 - Windows support needed? → Add linenoise or isocline
 - Zero dependencies wanted? → Switch to linenoise or isocline
 - System integration valued? → Keep editline/readline
@@ -647,12 +710,12 @@ Current license: **Unknown** (should be specified in LICENSE file)
 
 ## References
 
-- linenoise: https://github.com/antirez/linenoise
-- editline: https://github.com/NetBSD/libedit
-- readline: https://tiswww.case.edu/php/chet/readline/rltop.html
-- replxx: https://github.com/AmokHuginnsson/replxx
-- isocline: https://github.com/daanx/isocline
-- tecla: http://www.astro.caltech.edu/~mcs/tecla/
+- linenoise: <https://github.com/antirez/linenoise>
+- editline: <https://github.com/NetBSD/libedit>
+- readline: <https://tiswww.case.edu/php/chet/readline/rltop.html>
+- replxx: <https://github.com/AmokHuginnsson/replxx>
+- isocline: <https://github.com/daanx/isocline>
+- tecla: <http://www.astro.caltech.edu/~mcs/tecla/>
 
 ---
 

@@ -22,6 +22,7 @@ By default, Loki starts in **NORMAL mode** (vim-like behavior). Keys navigate an
 ### Entering Insert Mode
 
 Press `i` to start typing, or use any of these commands:
+
 - `i` - Insert before cursor
 - `a` - Insert after cursor
 - `o` - Insert new line below
@@ -48,6 +49,7 @@ modal.disable()
 Navigate and execute commands without inserting text.
 
 **Navigation:**
+
 - `h` - Move left
 - `j` - Move down
 - `k` - Move up
@@ -55,6 +57,7 @@ Navigate and execute commands without inserting text.
 - Arrow keys also work
 
 **Enter INSERT mode:**
+
 - `i` - Insert before cursor
 - `a` - Insert after cursor (append)
 - `o` - Insert new line below
@@ -63,21 +66,26 @@ Navigate and execute commands without inserting text.
 - `A` - Insert at end of line
 
 **Visual mode:**
+
 - `v` - Enter VISUAL mode
 
 **Edit commands:**
+
 - `x` - Delete character under cursor
 
 **Word motions (via Lua):**
+
 - `w` - Next word
 - `b` - Previous word
 - `e` - End of word
 
 **Paragraph motions:**
+
 - `{` - Move to previous empty line (paragraph backward)
 - `}` - Move to next empty line (paragraph forward)
 
 **Global commands (work in all modes):**
+
 - `Ctrl-S` - Save
 - `Ctrl-F` - Find
 - `Ctrl-Q` - Quit
@@ -88,6 +96,7 @@ Navigate and execute commands without inserting text.
 Type normally. All keys insert characters.
 
 **Special keys:**
+
 - `ESC` - Return to NORMAL mode
 - `Enter` - New line
 - `Backspace` / `Delete` - Delete character
@@ -103,15 +112,18 @@ Type normally. All keys insert characters.
 Select text visually. Selection is highlighted.
 
 **Movement (extends selection):**
+
 - `h` / `j` / `k` / `l` - Extend selection
 - Arrow keys also work
 
 **Actions:**
+
 - `y` - Yank (copy) selection to clipboard
 - `d` or `x` - Delete selection (WIP)
 - `ESC` - Return to NORMAL mode
 
 **Global commands:**
+
 - `Ctrl-C` - Copy selection
 
 ## Lua API
@@ -184,9 +196,11 @@ end)
 ### C Level
 
 **Core Files:**
+
 - `src/loki_core.c` - Modal system implementation
 
 **Key Components:**
+
 1. **EditorMode enum**: Tracks current mode
 2. **process_normal_mode()**: Handles normal mode keys
 3. **process_insert_mode()**: Handles insert mode keys
@@ -197,6 +211,7 @@ end)
    - `loki.register_command(key, callback)` - Register command
 
 **Dispatcher Pattern:**
+
 ```c
 void editor_process_keypress(int fd) {
     int c = editor_read_key(fd);
@@ -220,6 +235,7 @@ void editor_process_keypress(int fd) {
 **Modal Module:** `.loki/modules/modal.lua`
 
 **Key Functions:**
+
 - `loki_process_normal_key(key)` - Global function called from C for unknown keys
 - `modal.register_command(key, callback)` - Register custom command
 - `modal.enable()` / `modal.disable()` - Mode control
@@ -371,6 +387,7 @@ Loki's modal system is designed to be:
 ## Comparison with Vim
 
 **What Loki has:**
+
 - Basic modal editing (normal/insert/visual)
 - hjkl navigation
 - i/a/o/O insert commands
@@ -379,6 +396,7 @@ Loki's modal system is designed to be:
 - Extensible via Lua
 
 **What Vim has that Loki doesn't:**
+
 - Undo/redo
 - Command mode (`:` commands)
 - Text objects
@@ -420,6 +438,7 @@ end
 ### Status bar not showing mode
 
 The mode should always show in the status bar. If not:
+
 1. Check that Loki was compiled with the latest code
 2. Verify the status bar is rendering
 3. Try resizing the terminal
@@ -428,7 +447,7 @@ The mode should always show in the status bar. If not:
 
 ### Basic Usage Session
 
-```
+```text
 # Start editor (INSERT mode by default)
 ./loki-editor test.c
 

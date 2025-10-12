@@ -11,7 +11,7 @@
 
 Language definitions are **duplicated** between C code and Lua scripts:
 
-```
+```text
 src/loki_languages.c (C code)           .loki/languages/*.lua (Lua scripts)
 ├── Python (keywords, extensions)   ←→  ├── python.lua (DUPLICATE)
 ├── Lua (keywords, extensions)      ←→  ├── lua.lua (DUPLICATE)
@@ -22,6 +22,7 @@ src/loki_languages.c (C code)           .loki/languages/*.lua (Lua scripts)
 **Example Duplication:**
 
 **C code (src/loki_languages.c:52-63):**
+
 ```c
 char *Python_HL_extensions[] = {".py",".pyw",NULL};
 char *Python_HL_keywords[] = {
@@ -36,6 +37,7 @@ char *Python_HL_keywords[] = {
 ```
 
 **Lua code (.loki/languages/python.lua:2-15):**
+
 ```lua
 loki.register_language({
     name = "Python",
@@ -97,6 +99,7 @@ loki.register_language({
 ### Current Inconsistencies Detected
 
 **Python types differ:**
+
 ```c
 // C version (loki_languages.c:60-62)
 "int|","float|","str|","bool|","list|","dict|","tuple|","set|",
@@ -109,6 +112,7 @@ loki.register_language({
 ```
 
 **Lua keywords differ:**
+
 ```c
 // C version (loki_languages.c:74-78) - built-in functions as types
 "assert|","collectgarbage|","dofile|","error|","getmetatable|",
@@ -135,6 +139,7 @@ The duplication exists because of **unclear architecture evolution**:
 5. **Result**: Languages exist in both places
 
 **No clear policy** on:
+
 - Which languages should be built-in vs dynamic?
 - What happens if a language is defined in both?
 - Which definition takes precedence?
@@ -148,6 +153,7 @@ The duplication exists because of **unclear architecture evolution**:
 **Move all language definitions to Lua, keep only C infrastructure.**
 
 **Pros:**
+
 - ✅ Single source of truth (`.loki/languages/*.lua`)
 - ✅ User-extensible without recompilation
 - ✅ Easy to add/modify languages
@@ -155,6 +161,7 @@ The duplication exists because of **unclear architecture evolution**:
 - ✅ Already have the infrastructure (`loki.register_language()`)
 
 **Cons:**
+
 - ⚠️ Requires `.loki/languages/` directory to exist
 - ⚠️ Small startup time to load languages (negligible)
 - ⚠️ Editor won't work without Lua files (but already requires Lua anyway)
@@ -183,6 +190,7 @@ languages.load_all()  -- Already does this!
 ```
 
 **Files to change:**
+
 1. Delete from `src/loki_languages.c`:
    - Python definition (lines 50-63)
    - Lua definition (lines 65-79)
@@ -196,6 +204,7 @@ languages.load_all()  -- Already does this!
    - `cython.lua` (move from C)
 
 **Fallback for missing `.loki/`:**
+
 ```c
 // If .loki/languages/ doesn't exist, provide minimal defaults
 void load_emergency_defaults(void) {
@@ -211,11 +220,13 @@ void load_emergency_defaults(void) {
 **Move all language definitions to C, remove Lua definitions.**
 
 **Pros:**
+
 - ✅ Fast (compiled-in, no runtime loading)
 - ✅ No dependencies on `.loki/` directory
 - ✅ Single source of truth (C code)
 
 **Cons:**
+
 - ❌ Not user-extensible (requires recompilation)
 - ❌ Bloats binary (more keywords = larger executable)
 - ❌ Against project philosophy (Lua-powered extensibility)
@@ -231,20 +242,24 @@ void load_emergency_defaults(void) {
 **Keep minimal essential languages in C, everything else in Lua.**
 
 **C definitions (Essential for editor to function):**
+
 - C/C++ (for editing loki itself)
 - Markdown (for docs)
 
 **Lua definitions (Everything else):**
+
 - Python, Lua, JavaScript, TypeScript, Rust, Go, Java, etc.
 
 **Precedence rule:** Lua definitions override C definitions (if both exist)
 
 **Pros:**
+
 - ✅ Editor works without `.loki/` (C/Markdown highlighting)
 - ✅ User-extensible (add languages via Lua)
 - ✅ Clear separation (essentials vs extensions)
 
 **Cons:**
+
 - ⚠️ Two mechanisms to maintain
 - ⚠️ Need precedence/override logic
 - ⚠️ Still some duplication risk if not disciplined
@@ -278,11 +293,13 @@ struct t_editor_syntax HLDB[] = {
 **C provides default language definitions, Lua can override/extend them.**
 
 **Pros:**
+
 - ✅ Works out of box (C defaults)
 - ✅ Customizable (Lua overrides)
 - ✅ Graceful degradation (no `.loki/` needed)
 
 **Cons:**
+
 - ⚠️ Complex precedence logic
 - ⚠️ Still have duplication in codebase
 - ⚠️ Harder to reason about (which definition is active?)
@@ -304,6 +321,7 @@ struct t_editor_syntax HLDB[] = {
 ### Migration Plan
 
 #### Phase 1: Document Current State ✅
+
 - [x] Identify all duplicated languages
 - [x] Document inconsistencies
 - [x] Create this analysis document
@@ -311,6 +329,7 @@ struct t_editor_syntax HLDB[] = {
 #### Phase 2: Remove C Definitions (Week 1)
 
 **Step 1: Remove duplicates from C**
+
 ```bash
 # Edit src/loki_languages.c
 # Delete these sections:
@@ -322,6 +341,7 @@ struct t_editor_syntax HLDB[] = {
 ```
 
 **Step 2: Ensure Lua versions are complete**
+
 ```bash
 # Verify .loki/languages/ has:
 # - python.lua ✓
@@ -333,6 +353,7 @@ struct t_editor_syntax HLDB[] = {
 ```
 
 **Step 3: Test that nothing breaks**
+
 ```bash
 make test
 ./build/loki-editor test.py  # Should still highlight Python
@@ -342,6 +363,7 @@ make test
 #### Phase 3: Move Remaining C Definitions to Lua (Week 2)
 
 **Create new Lua files:**
+
 - `.loki/languages/c.lua` (move C/C++ definition)
 - `.loki/languages/markdown.lua` (already exists in modules?)
 - `.loki/languages/cython.lua`
@@ -351,6 +373,7 @@ make test
 - `.loki/languages/shell.lua`
 
 **Empty out C definitions:**
+
 ```c
 // src/loki_languages.c - INFRASTRUCTURE ONLY
 struct t_editor_syntax HLDB[] = {
@@ -379,6 +402,7 @@ void load_emergency_defaults(editor_ctx_t *ctx) {
 ```
 
 **In init.lua:**
+
 ```lua
 -- Provide helpful error if languages don't load
 local lang_count = languages.load_all()
@@ -390,12 +414,14 @@ end
 #### Phase 5: Update Documentation (Week 2)
 
 **Update files:**
+
 - `CLAUDE.md` - Document new architecture
 - `README.md` - Installation now requires `.loki/languages/`
 - `.loki/languages/README.md` - Explain how to add languages
 - `docs/dev/language_api_design.md` - Update with new approach
 
 **Installation instructions:**
+
 ```bash
 # README.md - Installation section
 git clone https://github.com/user/loki
@@ -411,6 +437,7 @@ ln -s /usr/share/loki/languages ~/.loki/languages
 #### Phase 6: Validation (Week 3)
 
 **Tests to run:**
+
 - [ ] All test suites pass (`make test`)
 - [ ] Python highlighting works (`.py` files)
 - [ ] Lua highlighting works (`.lua` files)
@@ -421,6 +448,7 @@ ln -s /usr/share/loki/languages ~/.loki/languages
 - [ ] Custom user languages can be added
 
 **Benchmarks:**
+
 - [ ] Startup time with 20 languages < 50ms
 - [ ] No performance regression in highlighting
 
@@ -435,6 +463,7 @@ If the full migration is too much work right now, apply this **immediate fix**:
 **Rationale:** C definitions are already compiled and tested. Remove Lua duplicates to eliminate duplication immediately.
 
 **Action:**
+
 ```bash
 # Delete these files (they duplicate C definitions):
 rm .loki/languages/python.lua
@@ -448,6 +477,7 @@ rm .loki/languages/rust.lua  # if it duplicates C
 ```
 
 **Update `.loki/init.lua`:**
+
 ```lua
 -- languages.load_all() will now only load Go and Java
 -- Python, Lua, JavaScript, Rust come from C (compiled-in)
@@ -456,11 +486,13 @@ loki.status(string.format("Loaded %d dynamic languages", lang_count))
 ```
 
 **Pros:**
+
 - ✅ 15 minutes to implement
 - ✅ Eliminates duplication immediately
 - ✅ No risk (C definitions already work)
 
 **Cons:**
+
 - ⚠️ Doesn't achieve "all in Lua" vision
 - ⚠️ Temporary fix, not long-term solution
 
@@ -507,6 +539,7 @@ loki.status(string.format("Loaded %d dynamic languages", lang_count))
 7. **Update** installation instructions
 
 **Estimated Effort:**
+
 - Option 1 (Full migration): 12-16 hours
 - Option 3 (Hybrid): 8-10 hours
 - Quick Fix: 1 hour

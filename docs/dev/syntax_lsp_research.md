@@ -11,6 +11,7 @@ This document evaluates high-performance syntax highlighting solutions and LSP i
 ### Current Implementation
 
 loki uses a basic hand-coded syntax highlighter (~150 lines):
+
 - **Method**: Manual character-by-character parsing with regex-like patterns
 - **Features**: Keywords, strings, numbers, single/multi-line comments
 - **Languages**: C/C++ only (hardcoded)
@@ -19,6 +20,7 @@ loki uses a basic hand-coded syntax highlighter (~150 lines):
 - **Extensibility**: Requires C code changes for each language
 
 **Key limitations:**
+
 1. Only one language definition (C/C++)
 2. No support for complex syntax patterns
 3. Manual maintenance required
@@ -33,6 +35,7 @@ loki uses a basic hand-coded syntax highlighter (~150 lines):
 **What it is:** Incremental parser generator that creates concrete syntax trees. Used by Neovim, Helix, Zed, GitHub.com, and Atom.
 
 **Pros:**
+
 - [x] Extremely accurate syntax highlighting (AST-based, not regex)
 - [x] Incremental parsing (only re-parses changed sections)
 - [x] High performance even on large files
@@ -43,6 +46,7 @@ loki uses a basic hand-coded syntax highlighter (~150 lines):
 - [x] Active development and community
 
 **Cons:**
+
 - [X] Significant complexity overhead (~10K lines of integration code in real editors)
 - [X] Requires language grammar files (.so or .a per language)
 - [X] Binary size: ~300-500KB core + ~100-200KB per language grammar
@@ -77,6 +81,7 @@ ts_tree_edit(tree, &edit);
 ```
 
 **Compilation:**
+
 ```bash
 clang -I tree-sitter/lib/include \
       kilo.c \
@@ -86,6 +91,7 @@ clang -I tree-sitter/lib/include \
 ```
 
 **Estimated Impact:**
+
 - Binary size: +400-600KB (core + C grammar)
 - Code complexity: +500-1000 lines for basic integration
 - Runtime overhead: Minimal (faster than regex for complex grammars)
@@ -100,6 +106,7 @@ clang -I tree-sitter/lib/include \
 **What it is:** Regex-based pattern matching system used by VS Code, Sublime Text, TextMate.
 
 **Pros:**
+
 - [x] 200+ languages with existing grammar files (JSON)
 - [x] Simpler than Tree-sitter
 - [x] Industry standard (VS Code compatibility)
@@ -107,6 +114,7 @@ clang -I tree-sitter/lib/include \
 - [x] Well-documented pattern syntax
 
 **Cons:**
+
 - [X] Requires Oniguruma regex library (~200KB)
 - [X] Slower than Tree-sitter for complex grammars
 - [X] Less accurate (regex limitations)
@@ -115,10 +123,12 @@ clang -I tree-sitter/lib/include \
 - [X] Need JSON parser for grammar loading
 
 **Libraries:**
+
 - **Oniguruma** (C): ~150KB library, BSDL license
 - **vscode-textmate** (TypeScript/JS): Reference implementation (not C)
 
 **Estimated Impact:**
+
 - Binary size: +200-300KB (Oniguruma + JSON parser)
 - Code complexity: +300-500 lines
 - Runtime overhead: Moderate (regex matching per line)
@@ -132,11 +142,13 @@ clang -I tree-sitter/lib/include \
 **What it is:** Rust library used by `bat` (cat clone) and other tools. Parses Sublime Text syntax definitions.
 
 **Pros:**
+
 - [x] Battle-tested (bat has millions of users)
 - [x] Sublime Text syntax compatibility
 - [x] Good performance
 
 **Cons:**
+
 - [X] Written in Rust (not suitable for C codebase)
 - [X] Would require FFI bindings
 - [X] Large Rust stdlib overhead
@@ -150,6 +162,7 @@ clang -I tree-sitter/lib/include \
 **What it is:** Improve kilo's current approach with a data-driven design instead of full parsing library.
 
 **Pros:**
+
 - [x] Minimal code addition (~200-300 lines)
 - [x] No external dependencies
 - [x] Zero binary size increase (or +10KB for embedded grammars)
@@ -157,6 +170,7 @@ clang -I tree-sitter/lib/include \
 - [x] Easy to understand and maintain
 
 **Cons:**
+
 - [X] Limited accuracy (regex-like patterns only)
 - [X] Manual language definition required
 - [X] No advanced features (semantic highlighting, injection)
@@ -214,6 +228,7 @@ string_chars: "'"
 ```
 
 **Estimated Impact:**
+
 - Binary size: +0-20KB (if languages embedded), or 0 if loaded from files
 - Code complexity: +200-300 lines
 - Runtime overhead: Same as current (O(n) per line)
@@ -227,6 +242,7 @@ string_chars: "'"
 ### What is LSP?
 
 Language Server Protocol provides:
+
 - Auto-completion
 - Go-to-definition
 - Find references
@@ -240,9 +256,10 @@ Language Server Protocol provides:
 
 ### Option 1: lsp-framework (C++ Recommended)
 
-**Repository:** https://github.com/leon-bckl/lsp-framework
+**Repository:** <https://github.com/leon-bckl/lsp-framework>
 
 **Pros:**
+
 - [x] Modern C++20, type-safe
 - [x] Zero dependencies (except CMake + C++20 compiler)
 - [x] Automatic JSON serialization/deserialization
@@ -252,6 +269,7 @@ Language Server Protocol provides:
 - [x] Minimal threading (async handlers only)
 
 **Cons:**
+
 - [X] Requires C++20 compiler (may limit portability)
 - [X] Increases binary size significantly
 - [X] Learning curve for LSP protocol
@@ -289,6 +307,7 @@ while (true) {
 ```
 
 **Estimated Impact:**
+
 - Binary size: +500KB-1MB (LSP framework + protocol types)
 - Code complexity: +800-1500 lines (protocol handling, UI integration)
 - Requires C++ compiler (can link with C code)
@@ -300,13 +319,15 @@ while (true) {
 
 ### Option 2: LspCpp
 
-**Repository:** https://github.com/kuafuwang/LspCpp
+**Repository:** <https://github.com/kuafuwang/LspCpp>
 
 **Pros:**
+
 - [x] C++ implementation
 - [x] Full LSP support
 
 **Cons:**
+
 - [X] Depends on Boost, RapidJSON, utfcpp, uri
 - [X] Heavy dependency chain
 - [X] Less actively maintained
@@ -320,11 +341,13 @@ while (true) {
 **What it is:** Implement a minimal LSP client manually using just JSON parsing.
 
 **Pros:**
+
 - [x] Full control
 - [x] Minimal code
 - [x] Can cherry-pick LSP features (e.g., only diagnostics)
 
 **Cons:**
+
 - [X] Still need JSON parser (cJSON ~300 lines, or json-c ~50KB)
 - [X] Significant protocol complexity
 - [X] Easy to get wrong
@@ -355,6 +378,7 @@ void send_lsp_initialize() {
 ```
 
 **Estimated Impact:**
+
 - Binary size: +50-100KB (JSON parser)
 - Code complexity: +500-800 lines
 - Limited LSP feature subset feasible
@@ -368,6 +392,7 @@ void send_lsp_initialize() {
 **What it is:** Implement LSP client logic in Lua using kilo's existing Lua integration.
 
 **Pros:**
+
 - [x] Leverages existing Lua runtime
 - [x] No additional C dependencies
 - [x] Easy to prototype and iterate
@@ -375,6 +400,7 @@ void send_lsp_initialize() {
 - [x] Async I/O already available in kilo
 
 **Cons:**
+
 - [X] Performance overhead for JSON parsing in Lua
 - [X] Lua JSON library needed (can be pure Lua)
 - [X] Still complex protocol handling
@@ -414,6 +440,7 @@ end
 ```
 
 **Estimated Impact:**
+
 - Binary size: +0KB (pure Lua implementation)
 - Code complexity: +100 lines C (pipe I/O), +400 lines Lua (protocol)
 - Performance: Acceptable for typical LSP usage
@@ -427,6 +454,7 @@ end
 ### For Maintaining loki's Minimalism
 
 **1. Enhanced Manual Syntax Highlighting (Option 4)**
+
 - Add data-driven language definitions
 - Load from `.kilo/languages/*.lang` files
 - Support 10-20 popular languages
@@ -434,6 +462,7 @@ end
 - **Impact:** Minimal, in line with kilo's philosophy
 
 **2. Lua LSP Client (Option 4)**
+
 - Implement LSP protocol in Lua
 - Focus on diagnostics + completion only
 - Use existing async HTTP infrastructure for communication
@@ -441,6 +470,7 @@ end
 - **Impact:** Zero binary size, moderate Lua code
 
 **Implementation priority:**
+
 1. Add multi-language syntax highlighting first (easier, more visible)
 2. Add LSP support later as experimental Lua module
 
@@ -451,11 +481,13 @@ end
 If forking kilo for a more feature-rich editor:
 
 **1. Tree-sitter for Syntax Highlighting**
+
 - Best-in-class accuracy and performance
 - Enables advanced features (folding, smart selection)
 - Wide language support
 
 **2. lsp-framework for LSP**
+
 - Clean C++20 API
 - Minimal dependencies
 - Production-ready
@@ -492,14 +524,14 @@ If forking kilo for a more feature-rich editor:
 
 ## References
 
-- **Tree-sitter:** https://tree-sitter.github.io/
-- **Tree-sitter C API:** https://tree-sitter.github.io/tree-sitter/using-parsers/1-getting-started.html
-- **LSP Specification:** https://microsoft.github.io/language-server-protocol/
-- **lsp-framework:** https://github.com/leon-bckl/lsp-framework
-- **Helix Editor:** https://helix-editor.com/ (Tree-sitter + LSP reference)
-- **Bat (syntect):** https://github.com/sharkdp/bat
-- **TextMate Grammars:** https://macromates.com/manual/en/language_grammars
-- **Oniguruma:** https://github.com/kkos/oniguruma
+- **Tree-sitter:** <https://tree-sitter.github.io/>
+- **Tree-sitter C API:** <https://tree-sitter.github.io/tree-sitter/using-parsers/1-getting-started.html>
+- **LSP Specification:** <https://microsoft.github.io/language-server-protocol/>
+- **lsp-framework:** <https://github.com/leon-bckl/lsp-framework>
+- **Helix Editor:** <https://helix-editor.com/> (Tree-sitter + LSP reference)
+- **Bat (syntect):** <https://github.com/sharkdp/bat>
+- **TextMate Grammars:** <https://macromates.com/manual/en/language_grammars>
+- **Oniguruma:** <https://github.com/kkos/oniguruma>
 
 ---
 
@@ -508,6 +540,7 @@ If forking kilo for a more feature-rich editor:
 Current implementation (~150 lines in `kilo.c`):
 
 **Data structures:**
+
 ```c
 struct t_editor_syntax {
     char **filematch;         // File extensions
@@ -528,6 +561,7 @@ typedef struct t_erow {
 ```
 
 **Highlighting algorithm:**
+
 - Single pass, character-by-character
 - State machine: `in_string`, `in_comment`, `prev_sep`
 - Multi-line comment tracking via `hl_oc` in previous row

@@ -6,7 +6,7 @@ This guide defines the commit message format for the Loki project. Following the
 
 ## Format
 
-```
+```text
 <type>(<scope>): <description>
 
 [optional body]
@@ -71,6 +71,7 @@ Omit scope for project-wide changes: `chore: update copyright year`
 ## Description Guidelines
 
 **DO:**
+
 - Use imperative mood ("add feature" not "added feature")
 - Start with lowercase
 - Keep under 72 characters
@@ -78,11 +79,13 @@ Omit scope for project-wide changes: `chore: update copyright year`
 - Omit trailing period
 
 **Examples:**
+
 - ✅ `feat(modal): add visual block mode (Ctrl-V)`
 - ✅ `fix(search): handle regex errors gracefully`
 - ✅ `perf(render): reduce screen refresh time by 40%`
 
 **DON'T:**
+
 - ❌ `feat(modal): Added visual block mode.` (wrong tense, period)
 - ❌ `fix: bug fix` (too vague)
 - ❌ `snap` (no context)
@@ -164,18 +167,21 @@ Supports electric dedent for closing braces.
 ## When NOT to Use Conventional Commits
 
 **Merge commits**: Use default merge message
+
 ```bash
 git merge feature-branch
 # Message: "Merge branch 'feature-branch'"
 ```
 
 **Revert commits**: Use `git revert` default
+
 ```bash
 git revert abc123
 # Message: "Revert 'feat(modal): add word motions'"
 ```
 
 **Fixup commits** (interactive rebase): Use `fixup!` prefix
+
 ```bash
 git commit --fixup=abc123
 # Message: "fixup! feat(modal): add word motions"
@@ -199,6 +205,7 @@ These are actual commit messages from Loki history that we want to avoid:
 ```
 
 **Why these are bad:**
+
 - No searchable keywords (`git log --grep="undo"` won't find "snap")
 - Can't generate changelog
 - Makes bisecting difficult
@@ -244,6 +251,7 @@ echo "module.exports = {extends: ['@conventional-commits']}" > commitlint.config
 ```
 
 Add to git hook:
+
 ```bash
 # .git/hooks/commit-msg
 #!/bin/sh
@@ -295,6 +303,7 @@ conventional-changelog -p angular -i CHANGELOG.md -s
 ```
 
 Example output:
+
 ```markdown
 ## [0.5.0] - 2025-10-15
 
@@ -319,7 +328,8 @@ Example output:
 ## Summary
 
 **Good commit message:**
-```
+
+```text
 feat(modal): add word forward/backward motion (w/b)
 
 Implement vim-style w and b commands for word-wise navigation.
@@ -333,6 +343,7 @@ Closes #67
 ```
 
 **Components:**
+
 1. ✅ Type: `feat` (new feature)
 2. ✅ Scope: `modal` (modal editing module)
 3. ✅ Description: Concise, imperative, specific
@@ -340,6 +351,7 @@ Closes #67
 5. ✅ Footer: References issue
 
 **Benefits:**
+
 - Searchable (`git log --grep="modal"`)
 - Understandable (know what changed without reading code)
 - Professional (looks like serious project)
@@ -410,6 +422,7 @@ Write commits as if the person reading them is a developer who needs to understa
 ---
 
 **Further Reading:**
+
 - [Conventional Commits](https://www.conventionalcommits.org/)
 - [How to Write a Git Commit Message](https://chris.beams.io/posts/git-commit/)
 - [Angular Commit Message Format](https://github.com/angular/angular/blob/main/CONTRIBUTING.md#commit)

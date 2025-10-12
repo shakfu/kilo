@@ -6,6 +6,7 @@
 ## Currently Implemented [x]
 
 Our current editline/readline integration provides:
+
 - [x] Basic line editing (arrows, home/end)
 - [x] Command history (up/down arrows)
 - [x] History persistence (`.loki/repl_history`)
@@ -19,6 +20,7 @@ Our current editline/readline integration provides:
 **What it is:** Press Tab to auto-complete identifiers
 
 **Use cases:**
+
 ```lua
 loki> pr<TAB>          → print
 loki> loki.get_<TAB>   → loki.get_lines, loki.get_line, loki.get_cursor
@@ -27,6 +29,7 @@ loki> io.op<TAB>       → io.open
 ```
 
 **Implementation complexity:** Medium
+
 - Need to register completion callback
 - Query Lua global table
 - Match `loki.*` API functions
@@ -34,12 +37,14 @@ loki> io.op<TAB>       → io.open
 - Match local variables (requires parser)
 
 **Value:** Extremely high
+
 - Discoverability of API
 - Faster typing
 - Fewer errors
 - Professional UX
 
 **Example implementation:**
+
 ```c
 #ifdef LOKI_HAVE_READLINE
 char *completion_generator(const char *text, int state) {
@@ -69,6 +74,7 @@ rl_attempted_completion_function = loki_completion;
 ```
 
 **Completion sources:**
+
 1. **Lua keywords:** `function`, `local`, `if`, `then`, `else`, `end`, etc.
 2. **Lua globals:** `print`, `type`, `pairs`, `ipairs`, `table`, `string`, `math`, etc.
 3. **loki API:** `loki.status`, `loki.get_lines`, `loki.insert_text`, etc.
@@ -86,7 +92,8 @@ rl_attempted_completion_function = loki_completion;
 **What it is:** Search through command history as you type
 
 **Use case:**
-```
+
+```text
 (reverse-i-search)`http': test_http()
 ```
 
@@ -95,12 +102,14 @@ Type Ctrl-R, then start typing - shows matching commands from history.
 **Current workaround:** Manually press up arrow multiple times
 
 **Implementation complexity:** Very low
+
 - **Already works!** This is a default readline/editline feature
 - Just needs to be documented
 
 **Value:** High for users with long history
 
 **Testing:**
+
 ```bash
 $ ./loki-repl
 loki> print("test 1")
@@ -119,6 +128,7 @@ loki> # Press Ctrl-R, type "print"
 **What it is:** Automatically continue to next line for incomplete Lua
 
 **Use case:**
+
 ```lua
 loki> function factorial(n)
 cont>   if n <= 1 then
@@ -133,6 +143,7 @@ Function defined: factorial
 **Current behavior:** Each line executed separately, causes syntax errors
 
 **Implementation complexity:** Medium
+
 - Detect incomplete Lua (unclosed brackets, `do`/`then` without `end`)
 - Change prompt to "cont> " for continuation lines
 - Buffer lines until complete
@@ -141,6 +152,7 @@ Function defined: factorial
 **Value:** Essential for defining functions/tables in REPL
 
 **Example implementation:**
+
 ```c
 bool is_lua_complete(const char *code) {
     lua_State *L = luaL_newstate();
@@ -180,6 +192,7 @@ while (!is_lua_complete(buffer)) {
 **What it is:** Show completion suggestion inline (fish shell style)
 
 **Use case:**
+
 ```lua
 loki> print(1+1)
 # User types "pri"
@@ -188,6 +201,7 @@ loki> pri|nt(1+1)
 ```
 
 **Implementation complexity:** High
+
 - Not standard readline (need custom extension)
 - Requires terminal manipulation
 - linenoise and isocline support this natively
@@ -203,12 +217,14 @@ loki> pri|nt(1+1)
 **What it is:** Highlight matching braces as you type
 
 **Use case:**
+
 ```lua
 loki> print(table.concat({1,2,3}, ","))
               ^                ^  # Highlights matching parens
 ```
 
 **Implementation complexity:** Very high with readline
+
 - Requires custom display handler
 - Terminal cursor manipulation
 - Might interfere with editline/readline
@@ -226,6 +242,7 @@ loki> print(table.concat({1,2,3}, ","))
 **What it is:** Different completions based on context
 
 **Use cases:**
+
 ```lua
 loki> require('<TAB>        # Complete module names
 loki> dofile('<TAB>         # Complete file paths
@@ -234,6 +251,7 @@ loki> string:<TAB>          # Complete string methods
 ```
 
 **Implementation complexity:** High
+
 - Parse current line to understand context
 - Different completion sources per context
 - File system access for paths
@@ -242,6 +260,7 @@ loki> string:<TAB>          # Complete string methods
 **Value:** Very high for advanced users
 
 **Example:**
+
 ```c
 char **context_aware_completion(const char *text, int start, int end) {
     // Get the line before cursor
@@ -276,6 +295,7 @@ char **context_aware_completion(const char *text, int start, int end) {
 **What it is:** Undo changes to current line (Ctrl-_ or Ctrl-X Ctrl-U)
 
 **Current status:** Already works with readline/editline!
+
 - Ctrl-_ : Undo
 - Ctrl-X Ctrl-U : Undo all changes
 
@@ -294,6 +314,7 @@ char **context_aware_completion(const char *text, int start, int end) {
 **Current:** Emacs mode (default)
 
 **Vi mode commands:**
+
 - `Esc` to enter command mode
 - `i` to enter insert mode
 - `hjkl` for movement
@@ -301,6 +322,7 @@ char **context_aware_completion(const char *text, int start, int end) {
 - `0` and `$` for home/end
 
 **Implementation:**
+
 ```c
 // Already supported by readline/editline!
 rl_bind_key('\t', rl_complete);  // Emacs mode (default)
@@ -320,6 +342,7 @@ rl_variable_bind("editing-mode", "vi");  // Vi mode
 **What it is:** Let users define custom keyboard shortcuts
 
 **Use case:**
+
 ```lua
 -- In .loki/init.lua
 loki.repl.bind_key("Ctrl-T", function()
@@ -328,6 +351,7 @@ end)
 ```
 
 **Implementation complexity:** Medium
+
 - Expose readline's key binding API to Lua
 - Register Lua callbacks for keys
 - Handle re-entrancy (Lua calling from C from Lua)
@@ -343,7 +367,8 @@ end)
 **What it is:** Record when each command was executed
 
 **Format:**
-```
+
+```text
 #1625097600
 print(1+1)
 #1625097615
@@ -353,6 +378,7 @@ test_http()
 **Current:** Plain history without timestamps
 
 **Implementation:**
+
 ```c
 // Readline supports this with:
 history_write_timestamps = 1;
@@ -369,6 +395,7 @@ history_write_timestamps = 1;
 **What it is:** Remember variables between REPL sessions
 
 **Use case:**
+
 ```lua
 # Session 1:
 loki> x = 42
@@ -379,6 +406,7 @@ loki> print(x)  -- Still 42!
 ```
 
 **Implementation:**
+
 - Save Lua state to `.loki/repl_state.lua`
 - Serialize global table
 - Load on startup
@@ -394,6 +422,7 @@ loki> print(x)  -- Still 42!
 **What it is:** Page long output with `less`-style pager
 
 **Use case:**
+
 ```lua
 loki> for i=1,100 do print(i) end
 # Instead of scrolling off screen, shows page-by-page
@@ -401,6 +430,7 @@ loki> for i=1,100 do print(i) end
 ```
 
 **Implementation complexity:** Medium
+
 - Detect TTY
 - Count output lines
 - Integrate with `less` or custom pager
@@ -416,6 +446,7 @@ loki> for i=1,100 do print(i) end
 **What it is:** Edit multi-line code in $EDITOR, then execute
 
 **Use case:**
+
 ```lua
 loki> :edit
 # Opens $EDITOR with current buffer/last function
@@ -423,6 +454,7 @@ loki> :edit
 ```
 
 **Implementation:**
+
 ```c
 void repl_edit_command(void) {
     char tmpfile[] = "/tmp/loki_edit_XXXXXX";
@@ -458,6 +490,7 @@ void repl_edit_command(void) {
 **What it is:** Define short aliases for common commands
 
 **Use case:**
+
 ```lua
 -- In .loki/init.lua
 loki.repl.alias("p", "print")
@@ -497,6 +530,7 @@ loki> p(42)  -- Same as print(42)
 ### Phase 1: Critical Features (Next Release)
 
 **1. Tab Completion** (8 hours)
+
 - [x] Research readline completion API
 - [ ] Implement Lua global completion
 - [ ] Implement `loki.*` API completion
@@ -504,6 +538,7 @@ loki> p(42)  -- Same as print(42)
 - [ ] Test and document
 
 **2. Multi-line Input** (6 hours)
+
 - [ ] Detect incomplete Lua code
 - [ ] Buffer continuation lines
 - [ ] Change prompt for continuations
@@ -511,6 +546,7 @@ loki> p(42)  -- Same as print(42)
 - [ ] Test with functions/tables
 
 **3. Document Existing Features** (2 hours)
+
 - [ ] Ctrl-R history search
 - [ ] Ctrl-_ undo
 - [ ] All standard readline shortcuts
@@ -521,17 +557,20 @@ loki> p(42)  -- Same as print(42)
 ### Phase 2: Important Features (Later)
 
 **4. Context-aware Completion** (16 hours)
+
 - File path completion for `dofile()`
 - Module completion for `require()`
 - Table key completion
 - String method completion
 
 **5. External Editor Integration** (4 hours)
+
 - `:edit` command
 - Respect $EDITOR
 - Execute edited code
 
 **6. Vi Mode Support** (2 hours)
+
 - Add config option
 - Document vi commands
 - Test vi mode
@@ -541,15 +580,18 @@ loki> p(42)  -- Same as print(42)
 ### Phase 3: Nice-to-Have Features (Future)
 
 **7. Syntax Hints** (12 hours)
+
 - Requires custom display handler
 - Or switch to linenoise/isocline
 
 **8. Persistent State** (10 hours)
+
 - Serialize global table
 - Handle non-serializable values
 - Load on startup
 
 **9. Output Paging** (6 hours)
+
 - Integrate less-style pager
 - Handle TTY detection
 
@@ -682,17 +724,20 @@ static void repl_init_completion(void) {
 ## Conclusion
 
 **Most valuable missing features:**
-1.  **Tab completion** - Essential for discoverability
-2.  **Multi-line input** - Essential for functions/tables
+
+1. **Tab completion** - Essential for discoverability
+2. **Multi-line input** - Essential for functions/tables
 3. 🟡 **Context-aware completion** - Great UX improvement
 4. 🟡 **External editor** - Important for complex code
 
 **Quick wins:**
+
 - Document Ctrl-R history search (already works!)
 - Document Ctrl-_ undo (already works!)
 - Expose vi mode config (1 line)
 
 **Recommended next steps:**
+
 1. Implement basic tab completion (Lua globals + keywords)
 2. Add multi-line input support
 3. Document all existing readline features

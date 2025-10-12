@@ -11,12 +11,14 @@ The refactoring of Loki from a single monolithic file to a modular architecture 
 ### 1. Restored Broken Functionality [x]
 
 **Modal Editing** (Missing entirely):
+
 - Added `process_normal_mode()`, `process_insert_mode()`, `process_visual_mode()`
 - Implemented vim-like keybindings (h/j/k/l, i/a/o/O, v, x)
 - Added paragraph motion (`{` and `}`)
 - ~240 lines of new code to restore full modal editing
 
 **REPL Display** (Commented out):
+
 - Uncommented `lua_repl_render()` call
 - Fixed cursor positioning for REPL mode
 - REPL now displays properly below status bar
@@ -24,6 +26,7 @@ The refactoring of Loki from a single monolithic file to a modular architecture 
 ### 2. Proper Resource Management [x]
 
 Created clean architecture for cleanup:
+
 - Added `editor_cleanup_resources()` in loki_editor.c
 - Calls `lua_repl_free()`, `lua_close()`, and `cleanup_curl()`
 - Integrated into `editor_atexit()` in loki_core.c
@@ -32,6 +35,7 @@ Created clean architecture for cleanup:
 ### 3. Code Quality Improvements [x]
 
 Removed duplicate/commented code:
+
 - Deleted ~200 lines of redundant commented-out functions
 - Cleaned up migration TODOs (moved → done)
 - Kept only 2 feature TODOs (legitimate future work)
@@ -42,7 +46,7 @@ Removed duplicate/commented code:
 
 ### File Organization
 
-```
+```text
 loki/
 ├── src/
 │   ├── loki_core.c        (2,501 lines) - Editor core, rendering, terminal I/O
@@ -71,7 +75,7 @@ Growth: 112% (justified by new features + modular structure)
 
 ### Integration Points (All Working [x])
 
-```
+```text
 loki_editor_main()
   ↓ calls
 init_editor() [loki_core]
@@ -108,7 +112,8 @@ Exit:
 ## Testing Results
 
 ### Build Status: [x] SUCCESS
-```
+
+```text
 [ 50%] Built target libloki
 [ 75%] Built target loki_editor
 [100%] Built target loki_repl
@@ -147,18 +152,21 @@ These are tracked and can be implemented when needed.
 ## Refactor Metrics
 
 ### Before Refactor
+
 - **Files**: 1 (loki.c)
 - **Lines**: 2,277
 - **Issues**: Broken modal editing, broken REPL, commented code everywhere
 - **Architecture**: Monolithic
 
 ### After Refactor
+
 - **Files**: 3 main + 4 headers + 2 executables
 - **Lines**: 4,834 total
 - **Issues**: 0 broken features, 2 feature TODOs
 - **Architecture**: Modular with clear separation
 
 ### Code Health
+
 - [x] All functionality working
 - [x] Proper cleanup/resource management
 - [x] Clean integration points
@@ -170,14 +178,16 @@ These are tracked and can be implemented when needed.
 
 ## Was It Worth It? **YES**
 
-### Benefits Realized:
+### Benefits Realized
+
 1. **Modularity**: Can now build different frontends (terminal, GUI, etc.)
 2. **Maintainability**: Clear separation of concerns
 3. **Reusability**: Standalone REPL + editor share Lua code
 4. **Extensibility**: Easy to add features without touching core
 5. **Testability**: Can test modules independently
 
-### Costs:
+### Costs
+
 1. **Size**: 112% code growth (but justified by features)
 2. **Complexity**: More files to navigate
 3. **Initial bugs**: Had to restore broken functionality
@@ -185,6 +195,7 @@ These are tracked and can be implemented when needed.
 ### Net Result: **Positive**
 
 The refactor was worth it because:
+
 - It enables future growth without becoming unmaintainable
 - The modular structure supports the vision (dual editor/REPL, Lua scripting, async features)
 - All initial issues have been resolved
@@ -194,18 +205,21 @@ The refactor was worth it because:
 
 ## Recommendations Going Forward
 
-### Short Term (Next Sprint):
+### Short Term (Next Sprint)
+
 1. [x] Document the new architecture (DONE - this doc)
 2. Add integration tests for modal editing
 3. Add integration tests for REPL
 4. Update CLAUDE.md with new architecture
 
-### Medium Term:
+### Medium Term
+
 1. Implement visual mode delete (with undo)
 2. Add command mode (`:` commands)
 3. Consider adding more extensive API documentation
 
-### Long Term:
+### Long Term
+
 1. Extract more reusable components
 2. Consider creating `libloki.so` for third-party use
 3. Build additional frontends (GUI, web-based)
@@ -215,6 +229,7 @@ The refactor was worth it because:
 ## Conclusion
 
 The Loki refactor is **complete and successful**. The editor is fully functional with:
+
 - [x] Clean modular architecture
 - [x] All features working (modal editing, REPL, Lua, async HTTP)
 - [x] Proper resource management
@@ -223,4 +238,4 @@ The Loki refactor is **complete and successful**. The editor is fully functional
 
 The codebase is ready for continued development and feature additions.
 
-**Status: PRODUCTION READY** 
+**Status: PRODUCTION READY**
