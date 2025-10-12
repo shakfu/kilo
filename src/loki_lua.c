@@ -416,6 +416,219 @@ static int lua_loki_repl_register(lua_State *L) {
     return 0;
 }
 
+/* ============================================================================
+ * Language Registration Helper Functions
+ *
+ * These functions extract and validate individual components of a language
+ * definition from a Lua table. They are used by lua_loki_register_language()
+ * and can be tested independently.
+ * ============================================================================ */
+
+/* Extract and validate language extensions from Lua table
+ * Returns 0 on success, -1 on error (error message pushed to stack) */
+static int extract_language_extensions(lua_State *L, int table_idx, struct t_editor_syntax *lang) {
+    lua_getfield(L, table_idx, "extensions");
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 1);
+        lua_pushstring(L, "'extensions' field is required and must be a table");
+        return -1;
+    }
+
+    /* Count extensions */
+    int ext_count = (int)lua_rawlen(L, -1);
+    if (ext_count == 0) {
+        lua_pop(L, 1);
+        lua_pushstring(L, "'extensions' table cannot be empty");
+        return -1;
+    }
+
+    /* Allocate extension array (NULL-terminated) */
+    lang->filematch = calloc(ext_count + 1, sizeof(char*));
+    if (!lang->filematch) {
+        lua_pop(L, 1);
+        lua_pushstring(L, "memory allocation failed for extensions");
+        return -1;
+    }
+
+    /* Copy extensions */
+    for (int i = 0; i < ext_count; i++) {
+        lua_rawgeti(L, -1, i + 1);
+        if (!lua_isstring(L, -1)) {
+            lua_pop(L, 2);  /* pop string and extensions table */
+            lua_pushstring(L, "extension must be a string");
+            return -1;
+        }
+        const char *ext = lua_tostring(L, -1);
+        if (ext[0] != '.') {
+            lua_pop(L, 2);
+            lua_pushstring(L, "extension must start with '.'");
+            return -1;
+        }
+        lang->filematch[i] = strdup(ext);
+        if (!lang->filematch[i]) {
+            lua_pop(L, 2);
+            lua_pushstring(L, "memory allocation failed for extension string");
+            return -1;
+        }
+        lua_pop(L, 1);  /* pop string */
+    }
+    lua_pop(L, 1);  /* pop extensions table */
+    return 0;
+}
+
+/* Extract and validate language keywords from Lua table
+ * Returns 0 on success, -1 on error (error message pushed to stack) */
+static int extract_language_keywords(lua_State *L, int table_idx, struct t_editor_syntax *lang) {
+    lua_getfield(L, table_idx, "keywords");
+    lua_getfield(L, table_idx, "types");
+
+    int kw_count = lua_istable(L, -2) ? (int)lua_rawlen(L, -2) : 0;
+    int type_count = lua_istable(L, -1) ? (int)lua_rawlen(L, -1) : 0;
+    int total_kw = kw_count + type_count;
+
+    if (total_kw == 0) {
+        lua_pop(L, 2);  /* pop types and keywords */
+        return 0;  /* No keywords, not an error */
+    }
+
+    lang->keywords = calloc(total_kw + 1, sizeof(char*));
+    if (!lang->keywords) {
+        lua_pop(L, 2);
+        lua_pushstring(L, "memory allocation failed for keywords");
+        return -1;
+    }
+
+    /* Copy regular keywords */
+    int idx = 0;
+    if (kw_count > 0) {
+        for (int i = 0; i < kw_count; i++) {
+            lua_rawgeti(L, -2, i + 1);
+            if (lua_isstring(L, -1)) {
+                const char *kw = lua_tostring(L, -1);
+                lang->keywords[idx] = strdup(kw);
+                if (lang->keywords[idx]) {
+                    idx++;
+                }
+            }
+            lua_pop(L, 1);
+        }
+    }
+
+    /* Copy type keywords (append "|" to distinguish them) */
+    if (type_count > 0) {
+        for (int i = 0; i < type_count; i++) {
+            lua_rawgeti(L, -1, i + 1);
+            if (lua_isstring(L, -1)) {
+                const char *type = lua_tostring(L, -1);
+                size_t len = strlen(type);
+                char *type_with_pipe = malloc(len + 2);
+                if (type_with_pipe) {
+                    strcpy(type_with_pipe, type);
+                    type_with_pipe[len] = '|';
+                    type_with_pipe[len + 1] = '\0';
+                    lang->keywords[idx++] = type_with_pipe;
+                }
+            }
+            lua_pop(L, 1);
+        }
+    }
+    lua_pop(L, 2);  /* pop types and keywords tables */
+    return 0;
+}
+
+/* Extract and validate comment delimiters from Lua table
+ * Returns 0 on success, -1 on error (error message pushed to stack) */
+static int extract_comment_delimiters(lua_State *L, int table_idx, struct t_editor_syntax *lang) {
+    /* Extract line comment */
+    lua_getfield(L, table_idx, "line_comment");
+    if (lua_isstring(L, -1)) {
+        const char *lc = lua_tostring(L, -1);
+        size_t len = strlen(lc);
+        if (len >= sizeof(lang->singleline_comment_start)) {
+            lua_pop(L, 1);
+            lua_pushstring(L, "line_comment too long (max 3 chars)");
+            return -1;
+        }
+        strncpy(lang->singleline_comment_start, lc, sizeof(lang->singleline_comment_start) - 1);
+    }
+    lua_pop(L, 1);
+
+    /* Extract block comment start */
+    lua_getfield(L, table_idx, "block_comment_start");
+    if (lua_isstring(L, -1)) {
+        const char *bcs = lua_tostring(L, -1);
+        size_t len = strlen(bcs);
+        if (len >= sizeof(lang->multiline_comment_start)) {
+            lua_pop(L, 1);
+            lua_pushstring(L, "block_comment_start too long (max 5 chars)");
+            return -1;
+        }
+        strncpy(lang->multiline_comment_start, bcs, sizeof(lang->multiline_comment_start) - 1);
+    }
+    lua_pop(L, 1);
+
+    /* Extract block comment end */
+    lua_getfield(L, table_idx, "block_comment_end");
+    if (lua_isstring(L, -1)) {
+        const char *bce = lua_tostring(L, -1);
+        size_t len = strlen(bce);
+        if (len >= sizeof(lang->multiline_comment_end)) {
+            lua_pop(L, 1);
+            lua_pushstring(L, "block_comment_end too long (max 5 chars)");
+            return -1;
+        }
+        strncpy(lang->multiline_comment_end, bce, sizeof(lang->multiline_comment_end) - 1);
+    }
+    lua_pop(L, 1);
+
+    return 0;
+}
+
+/* Extract and validate separators from Lua table
+ * Returns 0 on success, -1 on error (error message pushed to stack) */
+static int extract_separators(lua_State *L, int table_idx, struct t_editor_syntax *lang) {
+    lua_getfield(L, table_idx, "separators");
+    if (lua_isstring(L, -1)) {
+        const char *sep = lua_tostring(L, -1);
+        lang->separators = strdup(sep);
+        if (!lang->separators) {
+            lua_pop(L, 1);
+            lua_pushstring(L, "memory allocation failed for separators");
+            return -1;
+        }
+    } else {
+        /* Default separators */
+        lang->separators = strdup(",.()+-/*=~%<>[];");
+        if (!lang->separators) {
+            lua_pop(L, 1);
+            lua_pushstring(L, "memory allocation failed for default separators");
+            return -1;
+        }
+    }
+    lua_pop(L, 1);
+    return 0;
+}
+
+/* Extract and validate highlight flags from Lua table
+ * Always succeeds (uses defaults if fields not present) */
+static void extract_highlight_flags(lua_State *L, int table_idx, struct t_editor_syntax *lang) {
+    lua_getfield(L, table_idx, "highlight_strings");
+    int hl_strings = lua_isboolean(L, -1) ? lua_toboolean(L, -1) : 1;  /* Default: true */
+    lua_pop(L, 1);
+
+    lua_getfield(L, table_idx, "highlight_numbers");
+    int hl_numbers = lua_isboolean(L, -1) ? lua_toboolean(L, -1) : 1;  /* Default: true */
+    lua_pop(L, 1);
+
+    lang->flags = 0;
+    if (hl_strings) lang->flags |= HL_HIGHLIGHT_STRINGS;
+    if (hl_numbers) lang->flags |= HL_HIGHLIGHT_NUMBERS;
+}
+
+/* ============================================================================
+ * Main Language Registration Function
+ * ============================================================================ */
+
 /* Lua API: loki.register_language(config) - Register a new language for syntax highlighting
  * config table must contain:
  *   - name (string): Language name
@@ -446,7 +659,7 @@ static int lua_loki_register_language(lua_State *L) {
         return 2;
     }
 
-    /* Extract name (required) */
+    /* Extract name (required - just for validation, not stored) */
     lua_getfield(L, 1, "name");
     if (!lua_isstring(L, -1)) {
         free(lang);
@@ -454,181 +667,48 @@ static int lua_loki_register_language(lua_State *L) {
         lua_pushstring(L, "'name' field is required and must be a string");
         return 2;
     }
-    /* Note: name is not stored in the struct, just used for error messages */
     lua_pop(L, 1);
 
-    /* Extract extensions (required) */
-    lua_getfield(L, 1, "extensions");
-    if (!lua_istable(L, -1)) {
-        free(lang);
+    /* Extract extensions using helper */
+    if (extract_language_extensions(L, 1, lang) != 0) {
+        free_dynamic_language(lang);
+        /* Error message already on stack, insert nil below it */
         lua_pushnil(L);
-        lua_pushstring(L, "'extensions' field is required and must be a table");
+        lua_insert(L, -2);  /* Move nil below error message */
         return 2;
     }
 
-    /* Count extensions */
-    int ext_count = (int)lua_rawlen(L, -1);
-    if (ext_count == 0) {
-        lua_pop(L, 1);
-        free(lang);
+    /* Extract keywords using helper */
+    if (extract_language_keywords(L, 1, lang) != 0) {
+        free_dynamic_language(lang);
+        /* Error message already on stack, insert nil below it */
         lua_pushnil(L);
-        lua_pushstring(L, "'extensions' table cannot be empty");
+        lua_insert(L, -2);
         return 2;
     }
 
-    /* Allocate extension array (NULL-terminated) */
-    lang->filematch = calloc(ext_count + 1, sizeof(char*));
-    if (!lang->filematch) {
-        lua_pop(L, 1);
-        free(lang);
+    /* Extract comment delimiters using helper */
+    if (extract_comment_delimiters(L, 1, lang) != 0) {
+        free_dynamic_language(lang);
+        /* Error message already on stack, insert nil below it */
         lua_pushnil(L);
-        lua_pushstring(L, "memory allocation failed for extensions");
+        lua_insert(L, -2);
         return 2;
     }
 
-    /* Copy extensions */
-    for (int i = 0; i < ext_count; i++) {
-        lua_rawgeti(L, -1, i + 1);
-        if (!lua_isstring(L, -1)) {
-            lua_pop(L, 2);
-            free_dynamic_language(lang);
-            lua_pushnil(L);
-            lua_pushstring(L, "extension must be a string");
-            return 2;
-        }
-        const char *ext = lua_tostring(L, -1);
-        if (ext[0] != '.') {
-            lua_pop(L, 2);
-            free_dynamic_language(lang);
-            lua_pushnil(L);
-            lua_pushstring(L, "extension must start with '.'");
-            return 2;
-        }
-        lang->filematch[i] = strdup(ext);
-        lua_pop(L, 1);
+    /* Extract separators using helper */
+    if (extract_separators(L, 1, lang) != 0) {
+        free_dynamic_language(lang);
+        /* Error message already on stack, insert nil below it */
+        lua_pushnil(L);
+        lua_insert(L, -2);
+        return 2;
     }
-    lua_pop(L, 1);  /* pop extensions table */
 
-    /* Extract keywords (optional) */
-    lua_getfield(L, 1, "keywords");
-    lua_getfield(L, 1, "types");
-    int kw_count = lua_istable(L, -2) ? (int)lua_rawlen(L, -2) : 0;
-    int type_count = lua_istable(L, -1) ? (int)lua_rawlen(L, -1) : 0;
-    int total_kw = kw_count + type_count;
+    /* Extract highlight flags using helper */
+    extract_highlight_flags(L, 1, lang);
 
-    if (total_kw > 0) {
-        lang->keywords = calloc(total_kw + 1, sizeof(char*));
-        if (!lang->keywords) {
-            lua_pop(L, 2);
-            free_dynamic_language(lang);
-            lua_pushnil(L);
-            lua_pushstring(L, "memory allocation failed for keywords");
-            return 2;
-        }
-
-        /* Copy regular keywords */
-        int idx = 0;
-        if (kw_count > 0) {
-            for (int i = 0; i < kw_count; i++) {
-                lua_rawgeti(L, -2, i + 1);
-                if (lua_isstring(L, -1)) {
-                    const char *kw = lua_tostring(L, -1);
-                    lang->keywords[idx++] = strdup(kw);
-                }
-                lua_pop(L, 1);
-            }
-        }
-
-        /* Copy type keywords (append "|" to distinguish them) */
-        if (type_count > 0) {
-            for (int i = 0; i < type_count; i++) {
-                lua_rawgeti(L, -1, i + 1);
-                if (lua_isstring(L, -1)) {
-                    const char *type = lua_tostring(L, -1);
-                    size_t len = strlen(type);
-                    char *type_with_pipe = malloc(len + 2);
-                    if (type_with_pipe) {
-                        strcpy(type_with_pipe, type);
-                        type_with_pipe[len] = '|';
-                        type_with_pipe[len + 1] = '\0';
-                        lang->keywords[idx++] = type_with_pipe;
-                    }
-                }
-                lua_pop(L, 1);
-            }
-        }
-    }
-    lua_pop(L, 2);  /* pop types and keywords tables */
-
-    /* Extract comment delimiters (optional) */
-    lua_getfield(L, 1, "line_comment");
-    if (lua_isstring(L, -1)) {
-        const char *lc = lua_tostring(L, -1);
-        size_t len = strlen(lc);
-        if (len >= sizeof(lang->singleline_comment_start)) {
-            lua_pop(L, 1);
-            free_dynamic_language(lang);
-            lua_pushnil(L);
-            lua_pushstring(L, "line_comment too long (max 3 chars)");
-            return 2;
-        }
-        strncpy(lang->singleline_comment_start, lc, sizeof(lang->singleline_comment_start) - 1);
-    }
-    lua_pop(L, 1);
-
-    lua_getfield(L, 1, "block_comment_start");
-    if (lua_isstring(L, -1)) {
-        const char *bcs = lua_tostring(L, -1);
-        size_t len = strlen(bcs);
-        if (len >= sizeof(lang->multiline_comment_start)) {
-            lua_pop(L, 1);
-            free_dynamic_language(lang);
-            lua_pushnil(L);
-            lua_pushstring(L, "block_comment_start too long (max 5 chars)");
-            return 2;
-        }
-        strncpy(lang->multiline_comment_start, bcs, sizeof(lang->multiline_comment_start) - 1);
-    }
-    lua_pop(L, 1);
-
-    lua_getfield(L, 1, "block_comment_end");
-    if (lua_isstring(L, -1)) {
-        const char *bce = lua_tostring(L, -1);
-        size_t len = strlen(bce);
-        if (len >= sizeof(lang->multiline_comment_end)) {
-            lua_pop(L, 1);
-            free_dynamic_language(lang);
-            lua_pushnil(L);
-            lua_pushstring(L, "block_comment_end too long (max 5 chars)");
-            return 2;
-        }
-        strncpy(lang->multiline_comment_end, bce, sizeof(lang->multiline_comment_end) - 1);
-    }
-    lua_pop(L, 1);
-
-    /* Extract separators (optional) */
-    lua_getfield(L, 1, "separators");
-    if (lua_isstring(L, -1)) {
-        const char *sep = lua_tostring(L, -1);
-        lang->separators = strdup(sep);
-    } else {
-        lang->separators = strdup(",.()+-/*=~%<>[];");  /* Default separators */
-    }
-    lua_pop(L, 1);
-
-    /* Extract flags (optional) */
-    lua_getfield(L, 1, "highlight_strings");
-    int hl_strings = lua_isboolean(L, -1) ? lua_toboolean(L, -1) : 1;  /* Default: true */
-    lua_pop(L, 1);
-
-    lua_getfield(L, 1, "highlight_numbers");
-    int hl_numbers = lua_isboolean(L, -1) ? lua_toboolean(L, -1) : 1;  /* Default: true */
-    lua_pop(L, 1);
-
-    lang->flags = 0;
-    if (hl_strings) lang->flags |= HL_HIGHLIGHT_STRINGS;
-    if (hl_numbers) lang->flags |= HL_HIGHLIGHT_NUMBERS;
-
+    /* Set highlighting type */
     lang->type = HL_TYPE_C;  /* Use C-style highlighting */
 
     /* Add to dynamic registry */

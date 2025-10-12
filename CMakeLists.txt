@@ -193,3 +193,14 @@ target_include_directories(test_lua_api PRIVATE
 )
 target_link_libraries(test_lua_api PRIVATE libloki test_framework)
 add_test(NAME test_lua_api COMMAND test_lua_api)
+
+# Unit tests for language registration helpers
+add_executable(test_lang_registration tests/test_lang_registration.c)
+target_include_directories(test_lang_registration PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
+    ${LUA_INCLUDE_DIR}
+)
+target_link_libraries(test_lang_registration PRIVATE libloki test_framework)
+add_test(NAME test_lang_registration COMMAND test_lang_registration)
