@@ -17,6 +17,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **Built-in Language Support Expansion**: Added 6 new programming languages to syntax highlighting
+  - **JavaScript** (.js, .jsx, .mjs, .cjs)
+    - 44 keywords (break, case, class, const, async, await, yield, etc.)
+    - 24 built-in types/objects (Array, Object, String, Number, Promise, Map, Set, etc.)
+    - Comments: `//` and `/* */`
+  - **TypeScript** (.ts, .tsx)
+    - All JavaScript keywords plus TypeScript-specific extensions
+    - 23 TypeScript keywords (interface, type, enum, namespace, implements, private, protected, public, readonly, static, etc.)
+    - 17 TypeScript types (string, number, boolean, any, unknown, never, Promise, Record, Partial, Required, Pick, Omit, etc.)
+    - Comments: `//` and `/* */`
+  - **Swift** (.swift)
+    - 49 keywords (class, struct, protocol, func, var, let, guard, defer, async, await, etc.)
+    - 20 types (Int, Double, String, Array, Dictionary, Optional, Result, Codable, Hashable, etc.)
+    - Comments: `//` and `/* */`
+  - **SQL** (.sql, .ddl, .dml)
+    - 142 keywords covering comprehensive SQL syntax
+    - DDL: CREATE, DROP, ALTER, TABLE, INDEX, VIEW, DATABASE, SCHEMA
+    - DML: SELECT, INSERT, UPDATE, DELETE, FROM, WHERE, JOIN, GROUP BY, ORDER BY
+    - Data types: INT, VARCHAR, TIMESTAMP, BLOB, JSON, DECIMAL, etc.
+    - Functions: COUNT, SUM, AVG, MIN, MAX, CONCAT, CURRENT_TIMESTAMP, COALESCE, etc.
+    - Comments: `--` and `/* */`
+  - **Rust** (.rs, .rlib)
+    - 45 keywords (fn, let, mut, impl, trait, match, loop, async, await, unsafe, etc.)
+    - 41 types and traits (i8-i128, u8-u128, f32, f64, String, Vec, HashMap, Option, Result, Box, Rc, Arc, etc.)
+    - Standard traits: Clone, Copy, Send, Sync, Iterator, Drop, Display, Debug, etc.
+    - Comments: `//` and `/* */`
+  - **Shell** (.sh, .bash, .zsh, .ksh, .csh, .tcsh, .profile, .bashrc, .bash_profile, .zshrc, etc.)
+    - 16 keywords (if, then, else, elif, fi, case, for, while, do, done, function, etc.)
+    - 39 builtin commands (cd, echo, export, source, declare, alias, eval, exec, etc.)
+    - 32 system utilities (grep, sed, awk, curl, ssh, tar, find, etc.)
+    - 35 special variables ($BASH, $HOME, $PATH, $PWD, $UID, $IFS, etc.)
+    - Comments: `#` (single line only)
+    - Custom separators including `$` for variable recognition
+  - **Source**: Extracted from Antonio Foti's [ekilo/ekilo.c](https://github.com/antonio-foti/ekilo) with full keyword coverage
+  - **File Impact**: `src/loki_languages.c` grew from 495 to 702 lines (+207 lines, +42%)
+  - **Total Language Count**: Increased from 5 to 11 built-in languages
+  - **Language Coverage**:
+    - **Before**: C/C++, Python, Lua, Cython, Markdown
+    - **After**: C/C++, Python, Lua, Cython, Markdown, JavaScript, TypeScript, Swift, SQL, Rust, Shell
+  - All languages properly configured with appropriate comment delimiters and separator characters
+  - All tests passing (10/10) with clean compilation
+
 ## [0.4.7]
 
 ### Added

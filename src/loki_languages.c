@@ -104,6 +104,160 @@ char *Cython_HL_keywords[] = {
 
 char *MD_HL_extensions[] = {".md",".markdown",NULL};
 
+/* ======================= JavaScript ======================================= */
+
+char *JavaScript_HL_extensions[] = {".js",".jsx",".mjs",".cjs",NULL};
+char *JavaScript_HL_keywords[] = {
+	/* JavaScript Keywords */
+	"break","case","catch","class","const","continue","debugger","default",
+	"delete","do","else","export","extends","finally","for","function",
+	"if","import","in","instanceof","let","new","return","super","switch",
+	"this","throw","try","typeof","var","void","while","with","yield",
+	"async","await","of","true","false","null","undefined",
+
+	/* JavaScript Built-ins */
+	"Array|","Object|","String|","Number|","Boolean|","Date|","Math|",
+	"RegExp|","Error|","JSON|","console|","window|","document|","setTimeout|",
+	"setInterval|","clearTimeout|","clearInterval|","parseInt|","parseFloat|",
+	"isNaN|","isFinite|","encodeURI|","decodeURI|","Promise|","Map|","Set|",
+	"WeakMap|","WeakSet|","Symbol|","Proxy|","Reflect|","Generator|",NULL
+};
+
+/* ======================= TypeScript ======================================= */
+
+char *TypeScript_HL_extensions[] = {".ts",".tsx",NULL};
+char *TypeScript_HL_keywords[] = {
+	/* TypeScript Keywords (includes JavaScript) */
+	"break","case","catch","class","const","continue","debugger","default",
+	"delete","do","else","export","extends","finally","for","function",
+	"if","import","in","instanceof","let","new","return","super","switch",
+	"this","throw","try","typeof","var","void","while","with","yield",
+	"async","await","of","true","false","null","undefined",
+
+	/* TypeScript Specific */
+	"interface","type","enum","namespace","module","declare","abstract",
+	"implements","private","protected","public","readonly","static",
+	"get","set","as","keyof","infer","is","asserts",
+
+	/* TypeScript Types */
+	"string|","number|","boolean|","object|","any|","unknown|","never|",
+	"void|","bigint|","symbol|","Array|","Promise|","Record|","Partial|",
+	"Required|","Pick|","Omit|","Exclude|","Extract|","NonNullable|",NULL
+};
+
+/* ======================= Swift ============================================ */
+
+char *Swift_HL_extensions[] = {".swift",NULL};
+char *Swift_HL_keywords[] = {
+	/* Swift Keywords */
+	"associatedtype","class","deinit","enum","extension","fileprivate","func",
+	"import","init","inout","internal","let","open","operator","private",
+	"protocol","public","static","struct","subscript","typealias","var",
+	"break","case","continue","default","defer","do","else","fallthrough",
+	"for","guard","if","in","repeat","return","switch","where","while",
+	"as","catch","false","is","nil","rethrows","super","self","Self",
+	"throw","throws","true","try","async","await","some","any",
+
+	/* Swift Types */
+	"Int|","Double|","Float|","Bool|","String|","Character|","Array|",
+	"Dictionary|","Set|","Optional|","Result|","Error|","AnyObject|",
+	"AnyClass|","Protocol|","Codable|","Hashable|","Equatable|",
+	"Comparable|","Collection|","Sequence|",NULL
+};
+
+/* ======================= SQL ============================================== */
+
+char *SQL_HL_extensions[] = {".sql",".ddl",".dml",NULL};
+char *SQL_HL_keywords[] = {
+	/* SQL Keywords */
+	"SELECT","FROM","WHERE","INSERT","UPDATE","DELETE","CREATE","DROP",
+	"ALTER","TABLE","INDEX","VIEW","DATABASE","SCHEMA","COLUMN","PRIMARY",
+	"FOREIGN","KEY","REFERENCES","CONSTRAINT","UNIQUE","NOT","NULL","DEFAULT",
+	"AUTO_INCREMENT","IDENTITY","SERIAL","BOOLEAN","TINYINT","SMALLINT",
+	"MEDIUMINT","INT","INTEGER","BIGINT","DECIMAL","NUMERIC","FLOAT","DOUBLE",
+	"REAL","BIT","DATE","TIME","DATETIME","TIMESTAMP","YEAR","CHAR","VARCHAR",
+	"BINARY","VARBINARY","TINYBLOB","BLOB","MEDIUMBLOB","LONGBLOB","TINYTEXT",
+	"TEXT","MEDIUMTEXT","LONGTEXT","ENUM","SET","JSON","GEOMETRY","POINT",
+	"LINESTRING","POLYGON","MULTIPOINT","MULTILINESTRING","MULTIPOLYGON",
+	"GEOMETRYCOLLECTION","AND","OR","IN","BETWEEN","LIKE","IS","EXISTS",
+	"ANY","ALL","SOME","UNION","INTERSECT","EXCEPT","INNER","LEFT","RIGHT",
+	"FULL","OUTER","JOIN","ON","USING","GROUP","BY","HAVING","ORDER","ASC",
+	"DESC","LIMIT","OFFSET","DISTINCT","AS","CASE","WHEN","THEN","ELSE","END",
+	"IF","IFNULL","ISNULL","COALESCE","NULLIF","CAST","CONVERT","SUBSTRING",
+	"LENGTH","UPPER","LOWER","TRIM","LTRIM","RTRIM","REPLACE","CONCAT",
+	"CURRENT_DATE","CURRENT_TIME","CURRENT_TIMESTAMP","NOW","COUNT","SUM",
+	"AVG","MIN","MAX","STDDEV","VARIANCE","BEGIN","COMMIT","ROLLBACK",
+	"TRANSACTION","SAVEPOINT","GRANT","REVOKE","LOCK","UNLOCK",
+
+	/* SQL Functions and Operators */
+	"TRUE|","FALSE|","UNKNOWN|",NULL
+};
+
+/* ======================= Rust ============================================= */
+
+char *Rust_HL_extensions[] = {".rs",".rlib",NULL};
+char *Rust_HL_keywords[] = {
+	/* Rust Keywords */
+	"as","async","await","break","const","continue","crate","dyn","else",
+	"enum","extern","false","fn","for","if","impl","in","let","loop",
+	"match","mod","move","mut","pub","ref","return","self","Self","static",
+	"struct","super","trait","true","type","unsafe","use","where","while",
+	"abstract","become","box","do","final","macro","override","priv",
+	"typeof","unsized","virtual","yield","try","union","catch","default",
+
+	/* Rust Types */
+	"i8|","i16|","i32|","i64|","i128|","isize|","u8|","u16|","u32|","u64|",
+	"u128|","usize|","f32|","f64|","bool|","char|","str|","String|","Vec|",
+	"HashMap|","HashSet|","BTreeMap|","BTreeSet|","Option|","Result|","Box|",
+	"Rc|","Arc|","RefCell|","Cell|","Mutex|","RwLock|","thread|","Clone|",
+	"Copy|","Send|","Sync|","Drop|","Display|","Debug|","Default|","PartialEq|",
+	"Eq|","PartialOrd|","Ord|","Hash|","Iterator|","IntoIterator|",NULL
+};
+
+/* ======================= Shell ============================================ */
+
+char *Shell_HL_extensions[] = {
+	".sh",".bash",".zsh",".ksh",".csh",".tcsh",
+	".profile",".bashrc",".bash_profile",".bash_login",
+	".zshrc",".zshenv",".zlogin",".zprofile",
+	NULL
+};
+char *Shell_HL_keywords[] = {
+	/* Shell Keywords */
+	"if","then","else","elif","fi","case","esac","for","while",
+	"until","do","done","select","function","in","time","coproc",
+
+	/* Common commands */
+	"alias|","bg|","bind|","break|","builtin|","caller|","cd|",
+	"command|","compgen|","complete|","continue|","declare|",
+	"dirs|","disown|","echo|","enable|","eval|","exec|","exit|",
+	"export|","false|","fc|","fg|","getopts|","hash|","help|",
+	"history|","jobs|","kill|","let|","local|","logout|","mapfile|",
+	"popd|","printf|","pushd|","pwd|","read|","readarray|",
+	"readonly|","return|","set|","shift|","shopt|","source|",
+	"suspend|","test|","times|","trap|","true|","type|","typeset|",
+	"ulimit|","umask|","unalias|","unset|","wait|",
+
+	/* System utilities */
+	"awk|","cat|","chmod|","chown|","cp|","curl|","cut|","date|",
+	"df|","diff|","dig|","du|","find|","grep|","head|","ln|","ls|",
+	"mkdir|","mv|","ping|","ps|","rm|","rsync|","scp|","sed|",
+	"ssh|","sudo|","tail|","tar|","top|","touch|","tr|","uniq|",
+	"wc|","wget|","which|","xargs|",
+
+	/* Special variables */
+	"$BASH|","$BASHOPTS|","$BASHPID|","$BASH_ALIASES|",
+	"$BASH_ARGC|","$BASH_ARGV|","$BASH_CMDS|","$BASH_COMMAND|",
+	"$BASH_ENV|","$BASH_LINENO|","$BASH_SOURCE|","$BASH_SUBSHELL|",
+	"$BASH_VERSION|","$DIRSTACK|","$EUID|","$FUNCNAME|",
+	"$GROUPS|","$HOME|","$HOSTNAME|","$HOSTTYPE|","$IFS|",
+	"$LINENO|","$MACHTYPE|","$OLDPWD|","$OPTARG|","$OPTIND|",
+	"$OSTYPE|","$PATH|","$PIPESTATUS|","$PPID|","$PS1|",
+	"$PS2|","$PS3|","$PS4|","$PWD|","$RANDOM|","$REPLY|",
+	"$SECONDS|","$SHELL|","$SHELLOPTS|","$SHLVL|","$UID|",
+	NULL
+};
+
 /* ======================= Language Database ================================ */
 
 /* Array of syntax highlights by extensions, keywords, comments delimiters and flags. */
@@ -152,6 +306,60 @@ struct t_editor_syntax HLDB[] = {
         "",  /* No separators */
         0,  /* No flags */
         HL_TYPE_MARKDOWN
+    },
+    {
+        /* JavaScript */
+        JavaScript_HL_extensions,
+        JavaScript_HL_keywords,
+        "//","/*","*/",
+        ",.()+-/*=~%<>[]{}:;&|!?",  /* Separators */
+        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
+        HL_TYPE_C
+    },
+    {
+        /* TypeScript */
+        TypeScript_HL_extensions,
+        TypeScript_HL_keywords,
+        "//","/*","*/",
+        ",.()+-/*=~%<>[]{}:;&|!?",  /* Separators */
+        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
+        HL_TYPE_C
+    },
+    {
+        /* Swift */
+        Swift_HL_extensions,
+        Swift_HL_keywords,
+        "//","/*","*/",
+        ",.()+-/*=~%<>[]{}:;&|!?",  /* Separators */
+        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
+        HL_TYPE_C
+    },
+    {
+        /* SQL */
+        SQL_HL_extensions,
+        SQL_HL_keywords,
+        "--","/*","*/",
+        ",.()+-/*=~%<>[]{}:;",  /* Separators */
+        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
+        HL_TYPE_C
+    },
+    {
+        /* Rust */
+        Rust_HL_extensions,
+        Rust_HL_keywords,
+        "//","/*","*/",
+        ",.()+-/*=~%<>[]{}:;&|!?",  /* Separators */
+        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
+        HL_TYPE_C
+    },
+    {
+        /* Shell */
+        Shell_HL_extensions,
+        Shell_HL_keywords,
+        "#","","",  /* Shell uses # for comments, no block comments */
+        ",.()+-/*=~%<>[]{}:;&|!?$",  /* Separators (note: $ included for variables) */
+        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
+        HL_TYPE_C
     }
 };
 
