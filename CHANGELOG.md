@@ -39,7 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - Line insert/delete (newline split/merge)
     - All operations recorded with cursor position for accurate restoration
   - **Architecture**:
-    - New module: `src/loki_undo.c` (447 lines) and `src/loki_undo.h`
+    - New module: `src/loki_undo.c` (474 lines) and `src/loki_undo.h` (92 lines)
     - Opaque `struct undo_state` - private implementation detail
     - State stored in `editor_ctx_t.undo_state`
     - Zero-dependency implementation (standard library only)
@@ -66,7 +66,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - **Files Modified**:
     - Added: `src/loki_undo.c`, `src/loki_undo.h`, `UNDO.md` (design document)
     - Modified: `src/loki_core.c` (undo recording), `src/loki_modal.c` (keybindings), `src/loki_internal.h` (undo_state field), `CMakeLists.txt` (build integration)
-  - **Design Documentation**: `UNDO.md` includes complete architecture analysis, implementation phases, future enhancements (undo tree, persistent undo), and estimated effort (~900 lines, 5-8 days)
+  - **Design Documentation**: `UNDO.md` (921 lines) includes complete architecture analysis, implementation phases, future enhancements (undo tree, persistent undo), memory/performance analysis, and testing strategy
 
 - **Command Mode (Vim-style :commands)**: Complete implementation of ex-mode command system
   - **Built-in Commands** (10 commands implemented in `src/loki_command.c`):
@@ -105,7 +105,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
       end, "Insert current timestamp")
       ```
   - **Architecture**:
-    - New module: `src/loki_command.c` (491 lines) and `src/loki_command.h`
+    - New module: `src/loki_command.c` (491 lines) and `src/loki_command.h` (100 lines)
     - Command state stored in `editor_ctx_t` (cmd_buffer, cmd_length, cmd_cursor_pos, cmd_history_index)
     - Integrated with modal system via `MODE_COMMAND` enum value
     - Dual registry: built-in commands (static table) + dynamic commands (Lua-registered)
@@ -122,20 +122,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 ### Documentation
 
 - **Design Documents**:
-  - Added `COMMAND.md` - Complete design rationale and implementation guide for command mode system
+  - Added `COMMAND.md` (883 lines) - Complete design rationale and implementation guide for command mode system
     - Architecture analysis (Option A vs B: modal extension vs dedicated module)
-    - Detailed implementation structure with code examples
+    - Detailed implementation structure with code examples (~600 lines of sample code)
     - Integration patterns with modal system and Lua
     - Testing strategy with example test cases
-    - Justification for modular approach (~350 lines for maintainability)
-  - Added `TREE-SITTER.md` - Analysis of tree-sitter syntax highlighting integration
+    - Build system integration
+    - Justification for modular approach (estimated ~350 lines implementation)
+  - Added `TREE-SITTER.md` (500 lines) - Analysis of tree-sitter syntax highlighting integration
     - Current architecture vs tree-sitter comparison
     - Dual-mode architecture proposal (opt-in per language)
-    - Complete implementation guide (~400 lines)
+    - Complete implementation guide with code examples
     - Build system integration with CMake flags
-    - Trade-offs analysis: accuracy vs complexity
+    - Trade-offs analysis: accuracy (95%) vs complexity/dependencies
     - **Recommendation: NOT to implement** - complexity/maintenance burden outweighs accuracy gains for minimalist editor
     - Alternative: hybrid approach using tree-sitter for specific features only
+  - Added `UNDO.md` (921 lines) - Complete undo/redo system design and analysis
+    - Architecture comparison: extend loki_core.c vs dedicated module
+    - Complete implementation with code examples
+    - Memory and performance analysis
+    - Grouping strategy and heuristics
+    - Testing strategy with example test cases
+    - Future enhancements: undo tree, persistent undo, visualization
+    - Implementation phases breakdown (estimated 5-8 days, ~900 lines)
 
 ## [0.4.6] - 2025-01-12
 
