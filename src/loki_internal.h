@@ -237,4 +237,9 @@ void modal_process_visual_mode_key(editor_ctx_t *ctx, int fd, int c);
 void editor_update_syntax(editor_ctx_t *ctx, t_erow *row);
 void editor_update_row(editor_ctx_t *ctx, t_erow *row);
 
+/* Search test functions - for testing only
+ * These functions expose internal search logic for unit testing.
+ * They should not be used in production code. */
+int editor_find_next_match(editor_ctx_t *ctx, const char *query, int start_row, int direction, int *match_offset);
+
 #endif /* LOKI_INTERNAL_H */

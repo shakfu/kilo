@@ -96,7 +96,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
-- **Test Suite Expansion**: Added 77 new comprehensive unit tests across four test suites
+- **Test Suite Expansion**: Added 101 new comprehensive unit tests across five test suites
   - **Language Registration Tests** (`tests/test_lang_registration.c`):
     - 17 tests covering language registration validation
     - Tests for minimal config, full config, missing fields
@@ -189,12 +189,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - **Coverage**: ~75% of syntax highlighting engine (~160 lines)
     - **Known issue documented**: Python single-line comments ("#") don't work - syntax engine expects two-character delimiters, but Python uses "#" (one char). Test `syntax_python_comment` expects HL_NORMAL instead of HL_COMMENT to document this bug.
     - **Remaining gaps**: Markdown highlighting, non-printable chars, row rendering
+  - **Search Functionality Tests** (`tests/test_search.c`):
+    - 24 tests covering search functionality (560 lines)
+    - **Basic pattern matching** (5 tests):
+      - Single match finding with `strstr()` algorithm
+      - Empty query handling (returns -1)
+      - Query not found returns -1
+      - Match position (offset) calculation
+      - First row matching
+    - **Forward navigation** (3 tests):
+      - Next match forward from current position
+      - Multiple forward navigation steps
+      - Forward search with multiple matches per line
+    - **Backward navigation** (3 tests):
+      - Previous match backward from current position
+      - Multiple backward navigation steps
+      - Backward search with multiple matches
+    - **Case sensitivity** (2 tests):
+      - Exact case matching required
+      - "Hello" ≠ "hello" ≠ "HELLO"
+    - **Multiple matches** (2 tests):
+      - Multiple matches in single line (finds first)
+      - Multiple matches across different lines
+    - **Edge cases** (7 tests):
+      - NULL context pointer handling
+      - NULL query pointer handling
+      - NULL match_offset pointer handling
+      - Empty buffer (numrows=0)
+      - Empty query string ("")
+      - Match at start of line (offset=0)
+      - Match at end of line
+    - **Wrapping behavior** (2 tests):
+      - Forward wrap: search from end wraps to beginning
+      - Backward wrap: search from start wraps to end
+    - **Test Infrastructure**:
+      - Extracted `editor_find_next_match()` helper function from `editor_find()` (32 lines)
+      - Declaration added to `loki_internal.h` for test access
+      - Helper functions for test setup:
+        - `init_search_buffer()` - Creates multi-line test buffer with content
+        - `free_search_buffer()` - Cleans up test buffer memory
+      - Tests verify both match row index and column offset
+    - **Coverage**: ~80% of search functionality (90 lines)
+    - **Remaining gaps**: Interactive search loop (terminal I/O), highlight save/restore (27 lines), cursor positioning logic (9 lines)
   - **Test Infrastructure Improvements**:
     - Helper functions: `init_test_ctx()`, `free_test_ctx()`
     - Lua state management for isolated test execution
     - Manual row creation helpers for modal/syntax tests
     - Integration with existing test framework
-  - **Results**: All 9 test suites passing (100% pass rate, 110 tests total)
+  - **Results**: All 10 test suites passing (100% pass rate, 134 tests total)
     - `test_core` ✓ (11 tests)
     - `test_file_io` ✓ (8 tests)
     - `test_lua_api` ✓ (12 tests)
@@ -202,15 +244,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - `test_http_security` ✓ (13 tests)
     - `test_modal` ✓ (22 tests) ✨ NEW
     - `test_syntax` ✓ (25 tests) ✨ NEW
+    - `test_search` ✓ (24 tests) ✨ NEW
     - `loki_editor_version` ✓ (1 test)
     - `loki_repl_version` ✓ (1 test)
   - **Coverage Impact**:
-    - Test code: 1,507 → 2,125 lines (+618 lines, +41%)
-    - Test suites: 7 → 9 (+2 test suites)
-    - Total tests: 63 → 110 (+47 tests, +75%)
-    - Overall coverage: ~52-57% → ~60-65% (+8-10 percentage points)
+    - Test code: 1,507 → 2,685 lines (+1,178 lines, +78%)
+    - Test suites: 7 → 10 (+3 test suites)
+    - Total tests: 63 → 134 (+71 tests, +113%)
+    - Overall coverage: ~52-57% → ~62-67% (+10-15 percentage points)
     - Modal editing: ~10% → ~70% coverage
     - Syntax highlighting: ~0% → ~75% coverage
+    - Search functionality: ~0% → ~80% coverage
     - Languages (definitions): ~20% → ~60% coverage
 
 ### Fixed

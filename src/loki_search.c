@@ -27,6 +27,39 @@
 #include <string.h>
 #include <ctype.h>
 
+/* Helper function to find the next match in a given direction.
+ * Returns the row index of the match, or -1 if not found.
+ * Sets match_offset to the column position of the match.
+ * This function is exposed for testing purposes. */
+int editor_find_next_match(editor_ctx_t *ctx, const char *query, int start_row, int direction, int *match_offset) {
+    if (!ctx || !query || !match_offset || ctx->numrows == 0 || query[0] == '\0') {
+        return -1;
+    }
+
+    int current = start_row;
+
+    /* Search through all rows */
+    for (int i = 0; i < ctx->numrows; i++) {
+        current += direction;
+
+        /* Wrap around */
+        if (current == -1) {
+            current = ctx->numrows - 1;
+        } else if (current == ctx->numrows) {
+            current = 0;
+        }
+
+        /* Search for query in this row */
+        char *match = strstr(ctx->row[current].render, query);
+        if (match) {
+            *match_offset = match - ctx->row[current].render;
+            return current;
+        }
+    }
+
+    return -1;  /* No match found */
+}
+
 /* Incremental text search with arrow keys navigation.
  * Interactive search that updates as you type and allows navigating
  * between matches. ESC cancels and restores cursor position.

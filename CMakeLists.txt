@@ -237,3 +237,14 @@ target_include_directories(test_syntax PRIVATE
 )
 target_link_libraries(test_syntax PRIVATE libloki test_framework)
 add_test(NAME test_syntax COMMAND test_syntax)
+
+# Unit tests for search functionality
+add_executable(test_search tests/test_search.c)
+target_include_directories(test_search PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
+    ${LUA_INCLUDE_DIR}
+)
+target_link_libraries(test_search PRIVATE libloki test_framework)
+add_test(NAME test_search COMMAND test_search)
