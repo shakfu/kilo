@@ -97,6 +97,7 @@ add_library(libloki ${LOKI_LIBRARY_TYPE}
     src/loki_command.c
     src/loki_terminal.c
     src/loki_undo.c
+    src/loki_buffers.c
 )
 
 target_include_directories(libloki
@@ -250,3 +251,14 @@ target_include_directories(test_search PRIVATE
 )
 target_link_libraries(test_search PRIVATE libloki test_framework)
 add_test(NAME test_search COMMAND test_search)
+
+# Unit tests for buffer management
+add_executable(test_buffers tests/test_buffers.c)
+target_include_directories(test_buffers PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
+    ${LUA_INCLUDE_DIR}
+)
+target_link_libraries(test_buffers PRIVATE libloki test_framework)
+add_test(NAME test_buffers COMMAND test_buffers)

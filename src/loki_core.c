@@ -41,6 +41,7 @@ see LICENSE.
 #include "loki_command.h"
 #include "loki_terminal.h"
 #include "loki_undo.h"
+#include "loki_buffers.h"
 
 /* libcurl for async HTTP */
 #include <curl/curl.h>
@@ -758,6 +759,14 @@ int editor_save(editor_ctx_t *ctx) {
         editor_set_status_msg(ctx, "Can't save! Out of memory");
         return 1;
     }
+
+    /* Check if buffer has a filename */
+    if (ctx->filename == NULL) {
+        free(buf);
+        editor_set_status_msg(ctx, "No file name (use :w <filename> to save)");
+        return 1;
+    }
+
     int fd = open(ctx->filename,O_RDWR|O_CREAT,0644);
     if (fd == -1) goto writeerr;
 
@@ -793,11 +802,19 @@ void editor_refresh_screen(editor_ctx_t *ctx) {
 
     terminal_buffer_append(&ab,"\x1b[?25l",6); /* Hide cursor. */
     terminal_buffer_append(&ab,"\x1b[H",3); /* Go home. */
-    for (y = 0; y < ctx->screenrows; y++) {
+
+    /* Render buffer tabs at top if multiple buffers open */
+    int tabs_showing = (buffer_count() > 1) ? 1 : 0;
+    buffers_render_tabs(&ab, ctx->screencols);
+
+    /* Reduce available rows if tabs are showing */
+    int available_rows = ctx->screenrows - tabs_showing;
+
+    for (y = 0; y < available_rows; y++) {
         int filerow = ctx->rowoff+y;
 
         if (filerow >= ctx->numrows) {
-            if (ctx->numrows == 0 && y == ctx->screenrows/3) {
+            if (ctx->numrows == 0 && y == available_rows/3) {
                 char welcome[80];
                 int welcomelen = snprintf(welcome,sizeof(welcome),
                     "Kilo editor -- version %s\x1b[0K\r\n", LOKI_VERSION);
@@ -926,6 +943,10 @@ void editor_refresh_screen(editor_ctx_t *ctx) {
     }
     terminal_buffer_append(&ab,"\x1b[0m\r\n",6);
 
+    /* Render buffer tabs if multiple buffers are open */
+    /* Note: buffer tabs are rendered in a separate line above the status bar */
+    /* This is done by the buffers module */
+
     /* Second row depends on ctx->statusmsg and the status message update time. */
     terminal_buffer_append(&ab,"\x1b[0K",4);
     int msglen = strlen(ctx->statusmsg);
@@ -965,7 +986,9 @@ void editor_refresh_screen(editor_ctx_t *ctx) {
                 cx++;
             }
         }
-        cursor_row = ctx->cy + 1;
+        /* Account for tab bar at top if multiple buffers are open */
+        int tab_offset = (buffer_count() > 1) ? 1 : 0;
+        cursor_row = ctx->cy + 1 + tab_offset;
         cursor_col = cx;
         if (cursor_col > ctx->screencols) cursor_col = ctx->screencols;
     }

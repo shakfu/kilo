@@ -52,8 +52,10 @@ enum KEY_ACTION{
         ENTER = 13,         /* Enter */
         CTRL_Q = 17,        /* Ctrl-q */
         CTRL_S = 19,        /* Ctrl-s */
+        CTRL_T = 20,        /* Ctrl-t */
         CTRL_U = 21,        /* Ctrl-u */
         CTRL_W = 23,        /* Ctrl-w */
+        CTRL_X = 24,        /* Ctrl-x */
         ESC = 27,           /* Escape */
         BACKSPACE =  127,   /* Backspace */
         /* The following are just soft codes, not really reported by the

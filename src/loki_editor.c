@@ -26,6 +26,7 @@
 #include "loki/lua.h"
 #include "loki_internal.h"
 #include "loki_terminal.h"
+#include "loki_buffers.h"
 
 /* libcurl for async HTTP */
 #include <curl/curl.h>
@@ -926,21 +927,34 @@ int loki_editor_main(int argc, char **argv) {
     /* Initialize REPL */
     lua_repl_init(&E.repl);
 
+    /* Initialize buffer management with the initial editor context */
+    if (buffers_init(&E) != 0) {
+        fprintf(stderr, "Error: Failed to initialize buffer management\n");
+        exit(1);
+    }
+
     /* Enable terminal raw mode and start main loop */
     terminal_enable_raw_mode(&E, STDIN_FILENO);
     editor_set_status_msg(&E,
-        "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-W = wrap | Ctrl-L = repl | Ctrl-C = copy");
+        "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-T = new buf | Ctrl-X n/p/k = buf nav");
 
     while(1) {
-        terminal_handle_resize(&E);
-
-        /* Process any pending async HTTP requests */
-        if (E.L) {
-            loki_poll_async_http(&E, E.L);
+        /* Get current buffer context */
+        editor_ctx_t *ctx = buffer_get_current();
+        if (!ctx) {
+            fprintf(stderr, "Error: No active buffer\n");
+            exit(1);
         }
 
-        editor_refresh_screen(&E);
-        editor_process_keypress(&E, STDIN_FILENO);
+        terminal_handle_resize(ctx);
+
+        /* Process any pending async HTTP requests */
+        if (ctx->L) {
+            loki_poll_async_http(ctx, ctx->L);
+        }
+
+        editor_refresh_screen(ctx);
+        editor_process_keypress(ctx, STDIN_FILENO);
     }
 
     return 0;

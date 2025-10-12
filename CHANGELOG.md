@@ -17,6 +17,68 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **Multiple Buffers Module**: Complete implementation of tab-based multi-file editing
+  - **Core Features**:
+    - Edit up to 16 files simultaneously in independent buffers
+    - Each buffer maintains independent state (content, cursor, undo history, filename, dirty flag)
+    - Tab bar shows buffer numbers `[1] [2] [3]` at top of screen
+    - Current buffer highlighted with reverse video
+    - Tab bar auto-hides when only one buffer is open
+  - **Keybindings**:
+    - `Ctrl-T` - Create new empty buffer
+    - `Ctrl-X n` - Switch to next buffer (circular)
+    - `Ctrl-X p` - Switch to previous buffer (circular)
+    - `Ctrl-X k` - Close current buffer (with unsaved changes warning)
+    - `Ctrl-X 1-9` - Jump directly to buffer by number
+  - **Architecture**:
+    - New module: `src/loki_buffers.c` (426 lines) and `src/loki_buffers.h` (118 lines)
+    - Buffer management with array of `buffer_entry_t` structures (MAX_BUFFERS = 16)
+    - Each buffer wraps an `editor_ctx_t` with metadata (ID, display name, active flag)
+    - Shared terminal state (screencols, screenrows, rawmode, Lua state, colors)
+    - Independent undo system per buffer (1000 operations, 10MB limit each)
+  - **User Experience**:
+    - Simplified tab bar showing only buffer numbers (no filenames to avoid clutter)
+    - Filename and modified status shown in bottom status bar
+    - Tab bar positioned at top of screen (line 1)
+    - Editor content area adjusted to account for tab bar (one less row when visible)
+    - Cursor properly offset to avoid tab area
+    - Tab line cleared to end to prevent visual artifacts
+  - **Buffer Operations**:
+    - `buffer_create(filename)` - Create new buffer (empty or from file)
+    - `buffer_close(buffer_id, force)` - Close buffer with unsaved changes check
+    - `buffer_switch(buffer_id)` - Switch to specific buffer by ID
+    - `buffer_next()` / `buffer_prev()` - Circular buffer navigation
+    - `buffer_get_current()` - Get current buffer's editor context
+    - `buffer_count()` - Get number of open buffers
+    - `buffer_is_modified(buffer_id)` - Check for unsaved changes
+  - **Implementation Details**:
+    - Empty buffers initialized with one empty row for proper display
+    - Display names cached and updated when filename changes (via `:w filename`)
+    - Terminal state copied from template buffer when creating new buffers
+    - Selective state copying (no pointer aliasing) to avoid undo_state corruption
+    - Integration with command mode (`:w` updates buffer display name)
+  - **Rendering**:
+    - `buffers_render_tabs(ab, max_width)` - Render tab bar at top
+    - Tab format: `[1] [2] [3]` with current buffer in reverse video
+    - Clear to end of line (`\x1b[0K`) after tabs to prevent artifacts
+    - Newline separator (`\r\n`) between tabs and editor content
+    - Cursor row offset calculation includes tab bar when visible
+  - **Testing**:
+    - 10 comprehensive tests in `tests/test_buffers.c` (260 lines)
+    - Tests cover: creation, switching, closing, display names, modified flags, edge cases
+    - All tests passing (11/11 total test suites)
+  - **Files Modified**:
+    - Added: `src/loki_buffers.c`, `src/loki_buffers.h`, `tests/test_buffers.c`
+    - Modified: `src/loki_editor.c` (main loop uses `buffer_get_current()`), `src/loki_modal.c` (buffer keybindings), `src/loki_core.c` (tab rendering and cursor offset), `src/loki_command.c` (buffer display name updates), `src/loki_internal.h` (key definitions), `CMakeLists.txt` (build integration)
+  - **UX Improvements**:
+    - Fixed empty buffer display (insert one empty row, reset dirty flag)
+    - Fixed ghost text issue (copy terminal state when creating buffers)
+    - Fixed tab bar positioning (render at top with proper line clearing)
+    - Fixed cursor positioning (offset by 1 row when tabs visible)
+    - Simple numeric tabs reduce visual clutter (filename in status bar)
+
 ### Changed
 
 - **Language Definition Architecture Migration**: Migrated from C-only to hybrid C/Lua system with lazy loading

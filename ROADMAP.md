@@ -24,7 +24,7 @@ This roadmap outlines future development ideas for Loki, organized around the **
 
 ### New Feature Modules
 
-#### 1. Undo/Redo Module (`loki_undo.c`) ⭐ High Priority
+#### [x] 1. Undo/Redo Module (`loki_undo.c`) ⭐ High Priority
 
 **Impact:** Essential for production use
 **Complexity:** Medium (~200-300 lines)
@@ -53,7 +53,7 @@ void undo_clear(editor_ctx_t *ctx);
 
 ---
 
-#### 2. Multiple Buffers Module (`loki_buffers.c`) ⭐ High Priority
+#### [x] 2. Multiple Buffers Module (`loki_buffers.c`) ⭐ High Priority
 
 **Impact:** Edit multiple files simultaneously
 **Complexity:** Medium (~250-350 lines)
@@ -109,7 +109,7 @@ int clipboard_available(void);
 
 ### Feature Module Enhancements
 
-#### 4. Modal Editing Enhancements (`loki_modal.c`)
+#### [x] 4. Modal Editing Enhancements (`loki_modal.c`)
 
 **Impact:** More vim-like editing power
 **Complexity:** Low-Medium (incremental additions)

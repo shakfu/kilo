@@ -36,6 +36,7 @@
 #include "loki_command.h"
 #include "loki_terminal.h"
 #include "loki_undo.h"
+#include "loki_buffers.h"
 #include <stdlib.h>
 
 /* Control key definition (if not already defined) */
@@ -418,6 +419,72 @@ void modal_process_keypress(editor_ctx_t *ctx, int fd) {
             return;
         }
         exit(0);
+    }
+
+    /* Handle buffer operations globally */
+    if (c == CTRL_T) {
+        /* Create new buffer */
+        int new_id = buffer_create(NULL);
+        if (new_id >= 0) {
+            buffer_switch(new_id);
+            editor_set_status_msg(ctx, "Created buffer %d", new_id);
+        } else {
+            editor_set_status_msg(ctx, "Error: Could not create buffer (max %d buffers)", MAX_BUFFERS);
+        }
+        quit_times = KILO_QUIT_TIMES;
+        return;
+    }
+
+    if (c == CTRL_X) {
+        /* Ctrl-X prefix - read next key for buffer command */
+        int next = terminal_read_key(fd);
+
+        if (next == 'n') {
+            /* Next buffer */
+            int next_id = buffer_next();
+            if (next_id >= 0) {
+                editor_set_status_msg(ctx, "Switched to buffer %d", next_id);
+            }
+        } else if (next == 'p') {
+            /* Previous buffer */
+            int prev_id = buffer_prev();
+            if (prev_id >= 0) {
+                editor_set_status_msg(ctx, "Switched to buffer %d", prev_id);
+            }
+        } else if (next == 'k') {
+            /* Close buffer */
+            int current_id = buffer_get_current_id();
+            int result = buffer_close(current_id, 0);
+            if (result == 1) {
+                editor_set_status_msg(ctx, "Buffer has unsaved changes! Use Ctrl-X K to force close");
+            } else if (result == 0) {
+                editor_set_status_msg(ctx, "Closed buffer %d", current_id);
+            } else {
+                editor_set_status_msg(ctx, "Cannot close last buffer");
+            }
+        } else if (next == 'K') {
+            /* Force close buffer */
+            int current_id = buffer_get_current_id();
+            int result = buffer_close(current_id, 1);
+            if (result == 0) {
+                editor_set_status_msg(ctx, "Force closed buffer %d", current_id);
+            } else {
+                editor_set_status_msg(ctx, "Cannot close last buffer");
+            }
+        } else if (next >= '1' && next <= '9') {
+            /* Switch to buffer by number (1-9) */
+            int ids[MAX_BUFFERS];
+            int count = buffer_get_list(ids);
+            int index = next - '1';
+            if (index < count) {
+                buffer_switch(ids[index]);
+                editor_set_status_msg(ctx, "Switched to buffer %d", ids[index]);
+            } else {
+                editor_set_status_msg(ctx, "Buffer %d not found", index + 1);
+            }
+        }
+        quit_times = KILO_QUIT_TIMES;
+        return;
     }
 
     /* Dispatch to mode-specific handler */

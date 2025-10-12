@@ -7,6 +7,7 @@
 #include "loki_command.h"
 #include "loki_internal.h"
 #include "loki_terminal.h"
+#include "loki_buffers.h"
 #include <lua.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -340,6 +341,9 @@ int cmd_write(editor_ctx_t *ctx, const char *args) {
             free(ctx->filename);
         }
         ctx->filename = strdup(args);
+
+        /* Update buffer display name */
+        buffer_update_display_name(buffer_get_current_id());
     }
 
     if (!ctx->filename) {
