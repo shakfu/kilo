@@ -189,7 +189,7 @@ int editor_start_async_http(
 );
 
 /* Poll async HTTP requests (called from main loop) */
-void editor_poll_async_http(lua_State *L);
+void editor_poll_async_http(struct lua_State *L);
 
 /* ============================================================================
  * Initialization and Cleanup

@@ -155,3 +155,41 @@ add_custom_target(show-config
 enable_testing()
 add_test(NAME loki_editor_version COMMAND $<TARGET_FILE:loki_editor> --version)
 add_test(NAME loki_repl_version COMMAND $<TARGET_FILE:loki_repl> --version)
+
+# Test framework library
+add_library(test_framework STATIC tests/test_framework.c)
+target_include_directories(test_framework PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+# Unit tests for core functionality
+add_executable(test_core tests/test_core.c)
+target_include_directories(test_core PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
+)
+target_link_libraries(test_core PRIVATE libloki test_framework)
+add_test(NAME test_core COMMAND test_core)
+
+# Integration tests for file I/O
+add_executable(test_file_io tests/test_file_io.c)
+target_include_directories(test_file_io PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
+)
+target_link_libraries(test_file_io PRIVATE libloki test_framework)
+add_test(NAME test_file_io COMMAND test_file_io)
+
+# Integration tests for Lua API
+add_executable(test_lua_api tests/test_lua_api.c)
+target_include_directories(test_lua_api PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
+    ${LUA_INCLUDE_DIR}
+)
+target_link_libraries(test_lua_api PRIVATE libloki test_framework)
+add_test(NAME test_lua_api COMMAND test_lua_api)

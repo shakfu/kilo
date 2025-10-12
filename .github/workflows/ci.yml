@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main, develop ]
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        build_type: [Debug, Release]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install dependencies (Ubuntu)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake \
+          build-essential \
+          liblua5.4-dev \
+          libcurl4-openssl-dev \
+          libedit-dev
+
+    - name: Install dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install cmake lua curl
+
+    - name: Configure CMake
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DCMAKE_VERBOSE_MAKEFILE=ON
+
+    - name: Build
+      run: cmake --build build --config ${{ matrix.build_type }} -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
+
+    - name: Run tests
+      run: |
+        cd build
+        ctest --output-on-failure --verbose
+
+    - name: Check executables
+      run: |
+        ./build/loki-editor --version
+        ./build/loki-repl --version
+
+  code-style:
+    name: Code Style Check
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Check for trailing whitespace
+      run: |
+        ! git grep -I --line-number '\s$' -- '*.c' '*.h' || \
+          (echo "Found trailing whitespace in the lines above" && false)
+
+    - name: Check for tabs in source
+      run: |
+        ! git grep -I --line-number $'\t' -- '*.c' '*.h' || \
+          (echo "Found tabs instead of spaces in the lines above" && false)
+
+  memory-check:
+    name: Memory Check (Valgrind)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake \
+          build-essential \
+          liblua5.4-dev \
+          libcurl4-openssl-dev \
+          libedit-dev \
+          valgrind
+
+    - name: Configure CMake (Debug build)
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_C_FLAGS="-g -O0"
+
+    - name: Build
+      run: cmake --build build -j$(nproc)
+
+    - name: Run tests with Valgrind
+      run: |
+        cd build
+        valgrind --leak-check=full --error-exitcode=1 --track-origins=yes \
+          ./test_core
+        valgrind --leak-check=full --error-exitcode=1 --track-origins=yes \
+          ./test_file_io
+        valgrind --leak-check=full --error-exitcode=1 --track-origins=yes \
+          ./test_lua_api

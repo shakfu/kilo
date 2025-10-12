@@ -599,7 +599,7 @@ void editor_insert_char(editor_ctx_t *ctx, int c) {
         ctx->coloff++;
     else
         ctx->cx++;
-    ctx->dirty++;
+    /* Note: dirty already incremented by editor_row_insert_char */
 }
 
 /* Inserting a newline is slightly complex as we have to handle inserting a
@@ -671,7 +671,7 @@ void editor_del_char(editor_ctx_t *ctx) {
             ctx->cx--;
     }
     if (row) editor_update_row(ctx, row);
-    ctx->dirty++;
+    /* Note: dirty already incremented by editor_row_del_char or editor_del_row */
 }
 
 /* Load the specified program in the editor memory and returns 0 on success
