@@ -33,11 +33,11 @@ end
 -- Load Core Modules
 -- ==============================================================================
 
--- Load language definitions
-local languages = require("languages")
-local lang_count = languages.load_all()
+-- Load language definitions (lazy loading - loads on file open)
+languages = require("languages")  -- Global for REPL access
+local ext_count = languages.init()
 
--- Load markdown and TODO highlighting
+-- Load markdown and TODO highlighting module (for advanced markdown features)
 local markdown = require("markdown")
 markdown.install()
 
@@ -121,8 +121,8 @@ end
 -- Startup Message
 -- ==============================================================================
 
-if lang_count > 0 then
-    loki.status(string.format("Loki initialized! Loaded %d language(s).", lang_count))
+if ext_count > 0 then
+    loki.status(string.format("Loki initialized! %d extensions available (lazy loading).", ext_count))
 else
     loki.status("Loki initialized! Press Ctrl-L to run commands.")
 end

@@ -1,21 +1,10 @@
-/* loki_languages.c - Built-in language syntax definitions
+/* loki_languages.c - Language syntax infrastructure
  *
- * This file contains the syntax highlighting definitions for built-in languages.
- * Each language definition includes:
- * - File extensions
- * - Keywords (control flow and types)
- * - Comment delimiters (single-line and multi-line)
- * - Separator characters
- * - Highlighting flags
+ * This file now contains ONLY infrastructure for syntax highlighting.
+ * All language definitions have been moved to Lua files in .loki/languages/
  *
- * To add a new language:
- * 1. Define extension array: char *YourLang_HL_extensions[]
- * 2. Define keywords array: char *YourLang_HL_keywords[]
- *    - Use "|" suffix for type keywords
- * 3. Add entry to HLDB array with comment delimiters and separators
- *
- * Note: The characters for single and multi line comments must be exactly two
- * and must be provided (see the C language example).
+ * Minimal C keyword arrays are kept ONLY for markdown code block highlighting.
+ * For actual C file editing, the full definition loads from .loki/languages/c.lua
  */
 
 #include "loki_internal.h"
@@ -24,343 +13,84 @@
 #include <string.h>
 #include <ctype.h>
 
-/* ======================= C / C++ ========================================== */
+/* ======================= Minimal Keywords for Markdown ==================== */
+/* These are ONLY used for syntax highlighting within markdown code blocks.
+ * For editing actual source files, full definitions load from Lua. */
 
-char *C_HL_extensions[] = {".c",".h",".cpp",".hpp",".cc",NULL};
+/* Minimal C keywords (for markdown code blocks) */
 char *C_HL_keywords[] = {
-	/* C Keywords */
-	"auto","break","case","continue","default","do","else","enum",
-	"extern","for","goto","if","register","return","sizeof","static",
-	"struct","switch","typedef","union","volatile","while","NULL",
-
-	/* C++ Keywords */
-	"alignas","alignof","and","and_eq","asm","bitand","bitor","class",
-	"compl","constexpr","const_cast","deltype","delete","dynamic_cast",
-	"explicit","export","false","friend","inline","mutable","namespace",
-	"new","noexcept","not","not_eq","nullptr","operator","or","or_eq",
-	"private","protected","public","reinterpret_cast","static_assert",
-	"static_cast","template","this","thread_local","throw","true","try",
-	"typeid","typename","virtual","xor","xor_eq",
-
-	/* C types */
-        "int|","long|","double|","float|","char|","unsigned|","signed|",
-        "void|","short|","auto|","const|","bool|",NULL
+	"if","else","for","while","return","break","continue","NULL",
+	"int|","char|","void|","float|","double|",NULL
 };
 
-/* ======================= Python =========================================== */
-
-char *Python_HL_extensions[] = {".py",".pyw",NULL};
+/* Minimal Python keywords (for markdown code blocks) */
 char *Python_HL_keywords[] = {
-	/* Python keywords */
-	"False","None","True","and","as","assert","async","await","break",
-	"class","continue","def","del","elif","else","except","finally",
-	"for","from","global","if","import","in","is","lambda","nonlocal",
-	"not","or","pass","raise","return","try","while","with","yield",
-
-	/* Python built-in types */
-	"int|","float|","str|","bool|","list|","dict|","tuple|","set|",
-	"frozenset|","bytes|","bytearray|","object|","type|",NULL
+	"def","class","if","else","elif","for","while","return","import","from",
+	"str|","int|","float|","bool|","list|","dict|",NULL
 };
 
-/* ======================= Lua ============================================== */
-
-char *Lua_HL_extensions[] = {".lua",NULL};
+/* Minimal Lua keywords (for markdown code blocks) */
 char *Lua_HL_keywords[] = {
-	/* Lua keywords */
-	"and","break","do","else","elseif","end","false","for","function",
-	"goto","if","in","local","nil","not","or","repeat","return","then",
-	"true","until","while",
-
-	/* Lua built-in functions */
-	"assert|","collectgarbage|","dofile|","error|","getmetatable|",
-	"ipairs|","load|","loadfile|","next|","pairs|","pcall|","print|",
-	"rawequal|","rawget|","rawlen|","rawset|","require|","select|",
-	"setmetatable|","tonumber|","tostring|","type|","xpcall|",NULL
+	"function","if","else","elseif","for","while","return","local","end",
+	"string|","number|","boolean|","table|",NULL
 };
 
-/* ======================= Cython =========================================== */
-
-char *Cython_HL_extensions[] = {".pyx",".pxd",".pxi",NULL};
+/* Minimal Cython keywords (for markdown code blocks) */
 char *Cython_HL_keywords[] = {
-	/* Python keywords */
-	"False","None","True","and","as","assert","async","await","break",
-	"class","continue","def","del","elif","else","except","finally",
-	"for","from","global","if","import","in","is","lambda","nonlocal",
-	"not","or","pass","raise","return","try","while","with","yield",
-
-	/* Cython-specific keywords */
-	"cdef","cpdef","cimport","ctypedef","struct","union","enum",
-	"public","readonly","extern","nogil","gil","inline","api",
-	"DEF","IF","ELIF","ELSE",
-
-	/* Python/Cython built-in types */
-	"int|","long|","float|","double|","char|","short|","void|",
-	"signed|","unsigned|","const|","volatile|","size_t|",
-	"str|","bool|","list|","dict|","tuple|","set|","frozenset|",
-	"bytes|","bytearray|","object|","type|",NULL
+	"cdef","cpdef","def","class","if","else","for","while","return",
+	"int|","float|","double|","str|",NULL
 };
 
-/* ======================= Markdown ========================================= */
-
+/* Extensions */
+char *C_HL_extensions[] = {".c",".h",".cpp",".hpp",".cc",NULL};
+char *Python_HL_extensions[] = {".py",".pyw",NULL};
+char *Lua_HL_extensions[] = {".lua",NULL};
 char *MD_HL_extensions[] = {".md",".markdown",NULL};
 
-/* ======================= JavaScript ======================================= */
+/* ======================= Language Database (MINIMAL) ======================== */
+/* Minimal static definitions kept for backward compatibility with tests.
+ * Full language definitions load dynamically from Lua (.loki/languages/).
+ * These entries have minimal keywords suitable for testing and markdown code blocks. */
 
-char *JavaScript_HL_extensions[] = {".js",".jsx",".mjs",".cjs",NULL};
-char *JavaScript_HL_keywords[] = {
-	/* JavaScript Keywords */
-	"break","case","catch","class","const","continue","debugger","default",
-	"delete","do","else","export","extends","finally","for","function",
-	"if","import","in","instanceof","let","new","return","super","switch",
-	"this","throw","try","typeof","var","void","while","with","yield",
-	"async","await","of","true","false","null","undefined",
-
-	/* JavaScript Built-ins */
-	"Array|","Object|","String|","Number|","Boolean|","Date|","Math|",
-	"RegExp|","Error|","JSON|","console|","window|","document|","setTimeout|",
-	"setInterval|","clearTimeout|","clearInterval|","parseInt|","parseFloat|",
-	"isNaN|","isFinite|","encodeURI|","decodeURI|","Promise|","Map|","Set|",
-	"WeakMap|","WeakSet|","Symbol|","Proxy|","Reflect|","Generator|",NULL
-};
-
-/* ======================= TypeScript ======================================= */
-
-char *TypeScript_HL_extensions[] = {".ts",".tsx",NULL};
-char *TypeScript_HL_keywords[] = {
-	/* TypeScript Keywords (includes JavaScript) */
-	"break","case","catch","class","const","continue","debugger","default",
-	"delete","do","else","export","extends","finally","for","function",
-	"if","import","in","instanceof","let","new","return","super","switch",
-	"this","throw","try","typeof","var","void","while","with","yield",
-	"async","await","of","true","false","null","undefined",
-
-	/* TypeScript Specific */
-	"interface","type","enum","namespace","module","declare","abstract",
-	"implements","private","protected","public","readonly","static",
-	"get","set","as","keyof","infer","is","asserts",
-
-	/* TypeScript Types */
-	"string|","number|","boolean|","object|","any|","unknown|","never|",
-	"void|","bigint|","symbol|","Array|","Promise|","Record|","Partial|",
-	"Required|","Pick|","Omit|","Exclude|","Extract|","NonNullable|",NULL
-};
-
-/* ======================= Swift ============================================ */
-
-char *Swift_HL_extensions[] = {".swift",NULL};
-char *Swift_HL_keywords[] = {
-	/* Swift Keywords */
-	"associatedtype","class","deinit","enum","extension","fileprivate","func",
-	"import","init","inout","internal","let","open","operator","private",
-	"protocol","public","static","struct","subscript","typealias","var",
-	"break","case","continue","default","defer","do","else","fallthrough",
-	"for","guard","if","in","repeat","return","switch","where","while",
-	"as","catch","false","is","nil","rethrows","super","self","Self",
-	"throw","throws","true","try","async","await","some","any",
-
-	/* Swift Types */
-	"Int|","Double|","Float|","Bool|","String|","Character|","Array|",
-	"Dictionary|","Set|","Optional|","Result|","Error|","AnyObject|",
-	"AnyClass|","Protocol|","Codable|","Hashable|","Equatable|",
-	"Comparable|","Collection|","Sequence|",NULL
-};
-
-/* ======================= SQL ============================================== */
-
-char *SQL_HL_extensions[] = {".sql",".ddl",".dml",NULL};
-char *SQL_HL_keywords[] = {
-	/* SQL Keywords */
-	"SELECT","FROM","WHERE","INSERT","UPDATE","DELETE","CREATE","DROP",
-	"ALTER","TABLE","INDEX","VIEW","DATABASE","SCHEMA","COLUMN","PRIMARY",
-	"FOREIGN","KEY","REFERENCES","CONSTRAINT","UNIQUE","NOT","NULL","DEFAULT",
-	"AUTO_INCREMENT","IDENTITY","SERIAL","BOOLEAN","TINYINT","SMALLINT",
-	"MEDIUMINT","INT","INTEGER","BIGINT","DECIMAL","NUMERIC","FLOAT","DOUBLE",
-	"REAL","BIT","DATE","TIME","DATETIME","TIMESTAMP","YEAR","CHAR","VARCHAR",
-	"BINARY","VARBINARY","TINYBLOB","BLOB","MEDIUMBLOB","LONGBLOB","TINYTEXT",
-	"TEXT","MEDIUMTEXT","LONGTEXT","ENUM","SET","JSON","GEOMETRY","POINT",
-	"LINESTRING","POLYGON","MULTIPOINT","MULTILINESTRING","MULTIPOLYGON",
-	"GEOMETRYCOLLECTION","AND","OR","IN","BETWEEN","LIKE","IS","EXISTS",
-	"ANY","ALL","SOME","UNION","INTERSECT","EXCEPT","INNER","LEFT","RIGHT",
-	"FULL","OUTER","JOIN","ON","USING","GROUP","BY","HAVING","ORDER","ASC",
-	"DESC","LIMIT","OFFSET","DISTINCT","AS","CASE","WHEN","THEN","ELSE","END",
-	"IF","IFNULL","ISNULL","COALESCE","NULLIF","CAST","CONVERT","SUBSTRING",
-	"LENGTH","UPPER","LOWER","TRIM","LTRIM","RTRIM","REPLACE","CONCAT",
-	"CURRENT_DATE","CURRENT_TIME","CURRENT_TIMESTAMP","NOW","COUNT","SUM",
-	"AVG","MIN","MAX","STDDEV","VARIANCE","BEGIN","COMMIT","ROLLBACK",
-	"TRANSACTION","SAVEPOINT","GRANT","REVOKE","LOCK","UNLOCK",
-
-	/* SQL Functions and Operators */
-	"TRUE|","FALSE|","UNKNOWN|",NULL
-};
-
-/* ======================= Rust ============================================= */
-
-char *Rust_HL_extensions[] = {".rs",".rlib",NULL};
-char *Rust_HL_keywords[] = {
-	/* Rust Keywords */
-	"as","async","await","break","const","continue","crate","dyn","else",
-	"enum","extern","false","fn","for","if","impl","in","let","loop",
-	"match","mod","move","mut","pub","ref","return","self","Self","static",
-	"struct","super","trait","true","type","unsafe","use","where","while",
-	"abstract","become","box","do","final","macro","override","priv",
-	"typeof","unsized","virtual","yield","try","union","catch","default",
-
-	/* Rust Types */
-	"i8|","i16|","i32|","i64|","i128|","isize|","u8|","u16|","u32|","u64|",
-	"u128|","usize|","f32|","f64|","bool|","char|","str|","String|","Vec|",
-	"HashMap|","HashSet|","BTreeMap|","BTreeSet|","Option|","Result|","Box|",
-	"Rc|","Arc|","RefCell|","Cell|","Mutex|","RwLock|","thread|","Clone|",
-	"Copy|","Send|","Sync|","Drop|","Display|","Debug|","Default|","PartialEq|",
-	"Eq|","PartialOrd|","Ord|","Hash|","Iterator|","IntoIterator|",NULL
-};
-
-/* ======================= Shell ============================================ */
-
-char *Shell_HL_extensions[] = {
-	".sh",".bash",".zsh",".ksh",".csh",".tcsh",
-	".profile",".bashrc",".bash_profile",".bash_login",
-	".zshrc",".zshenv",".zlogin",".zprofile",
-	NULL
-};
-char *Shell_HL_keywords[] = {
-	/* Shell Keywords */
-	"if","then","else","elif","fi","case","esac","for","while",
-	"until","do","done","select","function","in","time","coproc",
-
-	/* Common commands */
-	"alias|","bg|","bind|","break|","builtin|","caller|","cd|",
-	"command|","compgen|","complete|","continue|","declare|",
-	"dirs|","disown|","echo|","enable|","eval|","exec|","exit|",
-	"export|","false|","fc|","fg|","getopts|","hash|","help|",
-	"history|","jobs|","kill|","let|","local|","logout|","mapfile|",
-	"popd|","printf|","pushd|","pwd|","read|","readarray|",
-	"readonly|","return|","set|","shift|","shopt|","source|",
-	"suspend|","test|","times|","trap|","true|","type|","typeset|",
-	"ulimit|","umask|","unalias|","unset|","wait|",
-
-	/* System utilities */
-	"awk|","cat|","chmod|","chown|","cp|","curl|","cut|","date|",
-	"df|","diff|","dig|","du|","find|","grep|","head|","ln|","ls|",
-	"mkdir|","mv|","ping|","ps|","rm|","rsync|","scp|","sed|",
-	"ssh|","sudo|","tail|","tar|","top|","touch|","tr|","uniq|",
-	"wc|","wget|","which|","xargs|",
-
-	/* Special variables */
-	"$BASH|","$BASHOPTS|","$BASHPID|","$BASH_ALIASES|",
-	"$BASH_ARGC|","$BASH_ARGV|","$BASH_CMDS|","$BASH_COMMAND|",
-	"$BASH_ENV|","$BASH_LINENO|","$BASH_SOURCE|","$BASH_SUBSHELL|",
-	"$BASH_VERSION|","$DIRSTACK|","$EUID|","$FUNCNAME|",
-	"$GROUPS|","$HOME|","$HOSTNAME|","$HOSTTYPE|","$IFS|",
-	"$LINENO|","$MACHTYPE|","$OLDPWD|","$OPTARG|","$OPTIND|",
-	"$OSTYPE|","$PATH|","$PIPESTATUS|","$PPID|","$PS1|",
-	"$PS2|","$PS3|","$PS4|","$PWD|","$RANDOM|","$REPLY|",
-	"$SECONDS|","$SHELL|","$SHELLOPTS|","$SHLVL|","$UID|",
-	NULL
-};
-
-/* ======================= Language Database ================================ */
-
-/* Array of syntax highlights by extensions, keywords, comments delimiters and flags. */
 struct t_editor_syntax HLDB[] = {
+    /* C/C++ - minimal definition for tests and markdown */
     {
-        /* C / C++ */
         C_HL_extensions,
         C_HL_keywords,
         "//","/*","*/",
-        ",.()+-/*=~%[];",  /* Separators */
+        ",.()+-/*=~%<>[]{}:;",
         HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
         HL_TYPE_C
     },
+    /* Python - minimal definition for tests and markdown */
     {
-        /* Python */
         Python_HL_extensions,
         Python_HL_keywords,
-        "#","","",  /* Python uses # for comments, no block comments */
-        ",.()+-/*=~%[]{}:",  /* Separators */
+        "#","","",
+        ",.()+-/*=~%<>[]{}:;",
         HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
         HL_TYPE_C
     },
+    /* Lua - minimal definition for tests and markdown */
     {
-        /* Lua */
         Lua_HL_extensions,
         Lua_HL_keywords,
-        "--","--[[","]]",  /* Lua comments */
-        ",.()+-/*=~%[]{}:",  /* Separators */
+        "--","","",
+        ",.()+-/*=~%<>[]{}:;",
         HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
         HL_TYPE_C
     },
+    /* Markdown - special handling via markdown module */
     {
-        /* Cython */
-        Cython_HL_extensions,
-        Cython_HL_keywords,
-        "#","","",  /* Same as Python */
-        ",.()+-/*=~%[]{}:",  /* Separators */
-        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
-        HL_TYPE_C
-    },
-    {
-        /* Markdown */
         MD_HL_extensions,
-        NULL,  /* No keywords */
-        "","","",  /* No comments */
-        "",  /* No separators */
-        0,  /* No flags */
+        NULL,
+        "","","",
+        ",.()+-/*=~%[]{}:;",
+        0,
         HL_TYPE_MARKDOWN
     },
-    {
-        /* JavaScript */
-        JavaScript_HL_extensions,
-        JavaScript_HL_keywords,
-        "//","/*","*/",
-        ",.()+-/*=~%<>[]{}:;&|!?",  /* Separators */
-        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
-        HL_TYPE_C
-    },
-    {
-        /* TypeScript */
-        TypeScript_HL_extensions,
-        TypeScript_HL_keywords,
-        "//","/*","*/",
-        ",.()+-/*=~%<>[]{}:;&|!?",  /* Separators */
-        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
-        HL_TYPE_C
-    },
-    {
-        /* Swift */
-        Swift_HL_extensions,
-        Swift_HL_keywords,
-        "//","/*","*/",
-        ",.()+-/*=~%<>[]{}:;&|!?",  /* Separators */
-        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
-        HL_TYPE_C
-    },
-    {
-        /* SQL */
-        SQL_HL_extensions,
-        SQL_HL_keywords,
-        "--","/*","*/",
-        ",.()+-/*=~%<>[]{}:;",  /* Separators */
-        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
-        HL_TYPE_C
-    },
-    {
-        /* Rust */
-        Rust_HL_extensions,
-        Rust_HL_keywords,
-        "//","/*","*/",
-        ",.()+-/*=~%<>[]{}:;&|!?",  /* Separators */
-        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
-        HL_TYPE_C
-    },
-    {
-        /* Shell */
-        Shell_HL_extensions,
-        Shell_HL_keywords,
-        "#","","",  /* Shell uses # for comments, no block comments */
-        ",.()+-/*=~%<>[]{}:;&|!?$",  /* Separators (note: $ included for variables) */
-        HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
-        HL_TYPE_C
-    }
+    /* Terminator */
+    {NULL, NULL, "", "", "", NULL, 0, HL_TYPE_C}
 };
 
 #define HLDB_ENTRIES (sizeof(HLDB)/sizeof(HLDB[0]))
@@ -370,7 +100,7 @@ unsigned int loki_get_builtin_language_count(void) {
     return HLDB_ENTRIES;
 }
 
-/* ======================= Syntax Highlighting Functions ==================== */
+/* ======================= Helper Functions for Markdown ==================== */
 
 /* Helper function to highlight code block content with specified language rules.
  * This is a simplified version of editor_update_syntax for use within markdown. */
@@ -381,9 +111,9 @@ void highlight_code_line(t_erow *row, char **keywords, char *scs, char *separato
     char *p = row->render;
 
     while (i < row->rsize) {
-        /* Handle // comments (if scs is provided) */
+        /* Handle // or # comments (if scs is provided) */
         if (scs && scs[0] && prev_sep && i < row->rsize - 1 &&
-            p[i] == scs[0] && p[i+1] == scs[1]) {
+            p[i] == scs[0] && (scs[1] == '\0' || p[i+1] == scs[1])) {
             memset(row->hl + i, HL_COMMENT, row->rsize - i);
             return;
         }
@@ -399,21 +129,21 @@ void highlight_code_line(t_erow *row, char **keywords, char *scs, char *separato
             }
             if (p[i] == in_string) in_string = 0;
             i++;
+            prev_sep = 0;
             continue;
-        } else {
-            if (p[i] == '"' || p[i] == '\'') {
-                in_string = p[i];
-                row->hl[i] = HL_STRING;
-                i++;
-                prev_sep = 0;
-                continue;
-            }
+        }
+
+        if (p[i] == '"' || p[i] == '\'') {
+            in_string = p[i];
+            row->hl[i] = HL_STRING;
+            i++;
+            prev_sep = 0;
+            continue;
         }
 
         /* Handle numbers */
         if ((isdigit(p[i]) && (prev_sep || row->hl[i-1] == HL_NUMBER)) ||
-            (p[i] == '.' && i > 0 && row->hl[i-1] == HL_NUMBER &&
-             i < row->rsize - 1 && isdigit(p[i+1]))) {
+            (p[i] == '.' && i > 0 && row->hl[i-1] == HL_NUMBER)) {
             row->hl[i] = HL_NUMBER;
             i++;
             prev_sep = 0;
@@ -428,27 +158,51 @@ void highlight_code_line(t_erow *row, char **keywords, char *scs, char *separato
                 int kw2 = keywords[j][klen-1] == '|';
                 if (kw2) klen--;
 
-                if (i + klen <= row->rsize &&
-                    !memcmp(p + i, keywords[j], klen) &&
-                    is_separator(p[i + klen], separators))
-                {
-                    memset(row->hl + i, kw2 ? HL_KEYWORD2 : HL_KEYWORD1, klen);
+                if (!memcmp(p+i,keywords[j],klen) &&
+                    (i+klen >= row->rsize || is_separator(p[i+klen], separators))) {
+                    memset(row->hl+i, kw2 ? HL_KEYWORD2 : HL_KEYWORD1, klen);
                     i += klen;
-                    break;
+                    prev_sep = 0;
+                    goto next;
                 }
-            }
-            if (keywords[j] != NULL) {
-                prev_sep = 0;
-                continue;
             }
         }
 
         prev_sep = is_separator(p[i], separators);
         i++;
+next:
+        continue;
     }
 }
 
-/* Markdown syntax highlighting. */
+/* Detect code block language from fence marker (e.g., ```python) */
+int detect_code_block_language(const char *line) {
+    /* Skip opening fence characters */
+    const char *p = line;
+    while (*p && (*p == '`' || *p == '~')) p++;
+
+    /* Check language identifier */
+    if (!*p) return CB_LANG_NONE;
+
+    if (strncmp(p, "c", 1) == 0 || strncmp(p, "cpp", 3) == 0 ||
+        strncmp(p, "C", 1) == 0 || strncmp(p, "C++", 3) == 0) {
+        return CB_LANG_C;
+    }
+    if (strncmp(p, "python", 6) == 0 || strncmp(p, "py", 2) == 0) {
+        return CB_LANG_PYTHON;
+    }
+    if (strncmp(p, "lua", 3) == 0) {
+        return CB_LANG_LUA;
+    }
+    if (strncmp(p, "cython", 6) == 0 || strncmp(p, "pyx", 3) == 0) {
+        return CB_LANG_CYTHON;
+    }
+
+    return CB_LANG_NONE;
+}
+
+/* Update syntax highlighting for markdown files (proper editor integration).
+ * This is the main entry point called by the editor core. */
 void editor_update_syntax_markdown(editor_ctx_t *ctx, t_erow *row) {
     unsigned char *new_hl = realloc(row->hl, row->rsize);
     if (new_hl == NULL) return;
@@ -700,3 +454,41 @@ struct t_editor_syntax *get_dynamic_language(int index) {
 int get_dynamic_language_count(void) {
     return HLDB_dynamic_count;
 }
+
+/* ======================= Note ============================================== */
+/*
+ * Language Definition System:
+ *
+ * This file maintains MINIMAL static definitions for backward compatibility:
+ *   - C/C++ (HLDB[0])    - Minimal keywords for tests and markdown code blocks
+ *   - Python (HLDB[1])   - Minimal keywords for tests and markdown code blocks
+ *   - Lua (HLDB[2])      - Minimal keywords for tests and markdown code blocks
+ *   - Markdown (HLDB[3]) - Special handling via editor_update_syntax_markdown()
+ *
+ * FULL language definitions are loaded dynamically from Lua:
+ *   .loki/languages/c.lua          - C/C++ (full keyword set, all extensions)
+ *   .loki/languages/python.lua     - Python (full keyword set, all builtins)
+ *   .loki/languages/lua.lua        - Lua (full keyword set, all builtins)
+ *   .loki/languages/cython.lua     - Cython
+ *   .loki/languages/javascript.lua - JavaScript
+ *   .loki/languages/typescript.lua - TypeScript
+ *   .loki/languages/rust.lua       - Rust
+ *   .loki/languages/go.lua         - Go
+ *   .loki/languages/java.lua       - Java
+ *   .loki/languages/swift.lua      - Swift
+ *   .loki/languages/sql.lua        - SQL
+ *   .loki/languages/shell.lua      - Shell scripts
+ *   .loki/languages/markdown.lua   - Markdown
+ *
+ * When opening a file:
+ *   1. Editor checks static HLDB for matching extension
+ *   2. If found in HLDB, uses minimal static definition
+ *   3. Lua module (.loki/modules/languages.lua) can override with full definition
+ *   4. Languages are loaded on-demand (lazy loading) when needed
+ *
+ * Benefits of this approach:
+ *   - Backward compatibility: Tests and C code can use HLDB directly
+ *   - Extensibility: Users can add new languages via Lua without recompiling
+ *   - Performance: Only loads language definitions when actually needed
+ *   - Simplicity: Minimal C code, maximum flexibility via Lua
+ */
