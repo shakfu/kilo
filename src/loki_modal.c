@@ -33,8 +33,15 @@
 #include "loki_internal.h"
 #include "loki_selection.h"
 #include "loki_search.h"
+#include "loki_command.h"
 #include "loki_terminal.h"
+#include "loki_undo.h"
 #include <stdlib.h>
+
+/* Control key definition (if not already defined) */
+#ifndef CTRL_R
+#define CTRL_R 18
+#endif
 
 /* Number of times CTRL-Q must be pressed before actually quitting */
 #define KILO_QUIT_TIMES 3
@@ -137,8 +144,12 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
             break;
 
         /* Enter insert mode */
-        case 'i': ctx->mode = MODE_INSERT; break;
+        case 'i':
+            undo_break_group(ctx);  /* Break undo group on mode change */
+            ctx->mode = MODE_INSERT;
+            break;
         case 'a':
+            undo_break_group(ctx);  /* Break undo group on mode change */
             editor_move_cursor(ctx, ARROW_RIGHT);
             ctx->mode = MODE_INSERT;
             break;
@@ -171,9 +182,30 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
             ctx->sel_end_y = ctx->cy;
             break;
 
+        /* Enter command mode */
+        case ':':
+            command_mode_enter(ctx);
+            break;
+
         /* Delete character */
         case 'x':
             editor_del_char(ctx);
+            break;
+
+        /* Undo/Redo */
+        case 'u':
+            if (undo_perform(ctx)) {
+                editor_set_status_msg(ctx, "Undo");
+            } else {
+                editor_set_status_msg(ctx, "Already at oldest change");
+            }
+            break;
+        case CTRL_R:
+            if (redo_perform(ctx)) {
+                editor_set_status_msg(ctx, "Redo");
+            } else {
+                editor_set_status_msg(ctx, "Already at newest change");
+            }
             break;
 
         /* Global commands (work in all modes) */
@@ -400,7 +432,7 @@ void modal_process_keypress(editor_ctx_t *ctx, int fd) {
             process_visual_mode(ctx, fd, c);
             break;
         case MODE_COMMAND:
-            /* TODO: implement command mode */
+            command_mode_handle_key(ctx, fd, c);
             break;
     }
 

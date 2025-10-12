@@ -31,6 +31,7 @@
 #include "loki_internal.h"  /* Internal structures and functions */
 #include "loki_terminal.h"  /* Terminal functions */
 #include "loki_languages.h"  /* Language definitions and dynamic registration */
+#include "loki_command.h"  /* Command mode and ex-style commands */
 
 /* ======================= Lua API bindings ================================ */
 
@@ -312,6 +313,107 @@ static int lua_loki_register_command(lua_State *L) {
 
     lua_pop(L, 1); /* Pop the registry table */
     return 0;
+}
+
+/* C wrapper for Lua ex-command callbacks */
+static int lua_ex_command_handler(editor_ctx_t *ctx, const char *args) {
+    if (!ctx || !ctx->L) return 0;
+    lua_State *L = ctx->L;
+
+    /* Get command name from somewhere - for now we'll use a registry */
+    /* This is called from C, so we need to look up the Lua function */
+    /* The function is stored in _loki_ex_commands table by command name */
+
+    /* Get the command name from the current command being executed */
+    /* We'll pass it through a global for simplicity */
+    lua_getglobal(L, "_loki_ex_command_executing");
+    if (!lua_isstring(L, -1)) {
+        lua_pop(L, 1);
+        return 0;
+    }
+    const char *cmd_name = lua_tostring(L, -1);
+    lua_pop(L, 1);
+
+    /* Get the callback function */
+    lua_getglobal(L, "_loki_ex_commands");
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 1);
+        return 0;
+    }
+
+    lua_getfield(L, -1, cmd_name);
+    if (!lua_isfunction(L, -1)) {
+        lua_pop(L, 2);
+        return 0;
+    }
+
+    /* Call the Lua function with args */
+    lua_pushstring(L, args ? args : "");
+    if (lua_pcall(L, 1, 1, 0) != LUA_OK) {
+        const char *error = lua_tostring(L, -1);
+        editor_set_status_msg(ctx, "Error: %s", error);
+        lua_pop(L, 2);  /* Pop error and table */
+        return 0;
+    }
+
+    /* Get return value (boolean for success/failure) */
+    int result = lua_toboolean(L, -1);
+    lua_pop(L, 2);  /* Pop result and table */
+    return result;
+}
+
+/* Lua API: loki.register_ex_command(name, callback, help) - Register ex-mode command
+ *
+ * name: Command name (without ':')
+ * callback: Function that takes (args) and returns boolean (success)
+ * help: Help text for the command
+ *
+ * Example:
+ *   loki.register_ex_command("timestamp", function(args)
+ *       loki.insert_text(os.date("%Y-%m-%d %H:%M:%S"))
+ *       return true
+ *   end, "Insert current timestamp")
+ *
+ * Then use: :timestamp
+ */
+static int lua_loki_register_ex_command(lua_State *L) {
+    const char *name = luaL_checkstring(L, 1);
+    luaL_checktype(L, 2, LUA_TFUNCTION);  /* callback */
+    const char *help = luaL_optstring(L, 3, "Custom command");
+
+    /* Store callback in global registry */
+    lua_getglobal(L, "_loki_ex_commands");
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 1);
+        lua_newtable(L);
+        lua_pushvalue(L, -1);
+        lua_setglobal(L, "_loki_ex_commands");
+    }
+
+    /* Store: _loki_ex_commands[name] = callback */
+    lua_pushstring(L, name);
+    lua_pushvalue(L, 2);  /* Push callback function */
+    lua_settable(L, -3);
+    lua_pop(L, 1);  /* Pop table */
+
+    /* Register with C command system */
+    /* We need to create a wrapper that will call the Lua function */
+    /* The wrapper needs to know the command name to look up the function */
+
+    /* For now, we'll use a simple approach: store the command name in a global
+     * before calling the handler, then the handler looks it up */
+
+    /* Register command with C system */
+    int success = command_register(name, lua_ex_command_handler, help, 0, -1);
+
+    if (!success) {
+        lua_pushnil(L);
+        lua_pushstring(L, "Failed to register command (already exists or registry full)");
+        return 2;
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
 }
 
 /* Lua API: loki.async_http(url, method, body, headers, callback) - Async HTTP request */
@@ -798,6 +900,9 @@ void loki_lua_bind_editor(lua_State *L) {
 
     lua_pushcfunction(L, lua_loki_register_command);
     lua_setfield(L, -2, "register_command");
+
+    lua_pushcfunction(L, lua_loki_register_ex_command);
+    lua_setfield(L, -2, "register_ex_command");
 
     lua_pushcfunction(L, lua_loki_async_http);
     lua_setfield(L, -2, "async_http");

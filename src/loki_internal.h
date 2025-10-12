@@ -84,6 +84,11 @@ enum KEY_ACTION{
 #define LUA_REPL_TOTAL_ROWS (LUA_REPL_OUTPUT_ROWS + 1)
 #define LUA_REPL_PROMPT ">> "
 
+/* ======================= Forward Declarations ============================= */
+
+/* Undo/redo state - opaque pointer, defined in loki_undo.c */
+struct undo_state;
+
 /* ======================= Data Structures ================================== */
 
 /* Syntax highlighting color definition */
@@ -162,6 +167,15 @@ struct editor_ctx {
 
     /* Window resize state (checked in main loop, set by signal handler) */
     volatile sig_atomic_t winsize_changed; /* Non-zero if window size changed */
+
+    /* Command mode state */
+    char cmd_buffer[256];      /* Command input buffer */
+    int cmd_length;            /* Length of command */
+    int cmd_cursor_pos;        /* Cursor position in command */
+    int cmd_history_index;     /* Current history position */
+
+    /* Undo/redo state */
+    struct undo_state *undo_state;  /* NULL if undo disabled */
 };
 
 /* Legacy type name for compatibility during migration.

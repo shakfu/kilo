@@ -38,7 +38,9 @@ see LICENSE.
 #include "loki_selection.h"
 #include "loki_search.h"
 #include "loki_modal.h"
+#include "loki_command.h"
 #include "loki_terminal.h"
+#include "loki_undo.h"
 
 /* libcurl for async HTTP */
 #include <curl/curl.h>
@@ -113,6 +115,10 @@ void editor_ctx_init(editor_ctx_t *ctx) {
     /* Window resize flag - already zeroed by memset above */
     ctx->winsize_changed = 0;
     memset(ctx->colors, 0, sizeof(ctx->colors));
+    /* Command mode state */
+    command_mode_init(ctx);
+    /* Undo/redo system (1000 operations, 10MB memory limit) */
+    undo_init(ctx, 1000, 10 * 1024 * 1024);
 }
 
 /* Free all dynamically allocated memory in a context.
@@ -131,6 +137,12 @@ void editor_ctx_free(editor_ctx_t *ctx) {
 
     /* Note: We don't free ctx->L (Lua state) as it's shared across contexts
      * and managed separately by the editor instance */
+
+    /* Free command mode state */
+    command_mode_free(ctx);
+
+    /* Free undo/redo state */
+    undo_free(ctx);
 
     /* Clear the structure */
     memset(ctx, 0, sizeof(editor_ctx_t));
@@ -595,6 +607,10 @@ void editor_insert_char(editor_ctx_t *ctx, int c) {
     }
     row = &ctx->row[filerow];
     editor_row_insert_char(ctx, row,filecol,c);
+
+    /* Record undo operation */
+    undo_record_insert_char(ctx, filerow, filecol, c);
+
     if (ctx->cx == ctx->screencols-1)
         ctx->coloff++;
     else
@@ -612,6 +628,7 @@ void editor_insert_newline(editor_ctx_t *ctx) {
     if (!row) {
         if (filerow == ctx->numrows) {
             editor_insert_row(ctx, filerow,"",0);
+            undo_record_insert_line(ctx, filerow, filecol, "", 0);
             goto fixcursor;
         }
         return;
@@ -621,9 +638,13 @@ void editor_insert_newline(editor_ctx_t *ctx) {
     if (filecol >= row->size) filecol = row->size;
     if (filecol == 0) {
         editor_insert_row(ctx, filerow,"",0);
+        undo_record_insert_line(ctx, filerow, filecol, "", 0);
     } else {
         /* We are in the middle of a line. Split it between two rows. */
-        editor_insert_row(ctx, filerow+1,row->chars+filecol,row->size-filecol);
+        char *split_content = row->chars + filecol;
+        int split_length = row->size - filecol;
+        editor_insert_row(ctx, filerow+1, split_content, split_length);
+        undo_record_insert_line(ctx, filerow, filecol, split_content, split_length);
         row = &ctx->row[filerow];
         row->chars[filecol] = '\0';
         row->size = filecol;
@@ -650,6 +671,8 @@ void editor_del_char(editor_ctx_t *ctx) {
         /* Handle the case of column 0, we need to move the current line
          * on the right of the previous one. */
         filecol = ctx->row[filerow-1].size;
+        /* Record deleting the newline (merging lines) */
+        undo_record_delete_line(ctx, filerow - 1, filecol, row->chars, row->size);
         editor_row_append_string(ctx, &ctx->row[filerow-1],row->chars,row->size);
         editor_del_row(ctx, filerow);
         row = NULL;
@@ -664,6 +687,9 @@ void editor_del_char(editor_ctx_t *ctx) {
             ctx->coloff += shift;
         }
     } else {
+        /* Record deleting the character */
+        char deleted_char = row->chars[filecol-1];
+        undo_record_delete_char(ctx, filerow, filecol-1, deleted_char);
         editor_row_del_char(ctx, row,filecol-1);
         if (ctx->cx == 0 && ctx->coloff)
             ctx->coloff--;

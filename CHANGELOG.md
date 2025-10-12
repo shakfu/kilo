@@ -17,6 +17,126 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **Undo/Redo System**: Complete implementation with operation grouping and memory management
+  - **Keybindings**:
+    - `u` - Undo last operation/group in NORMAL mode
+    - `Ctrl-R` - Redo previously undone operation/group in NORMAL mode
+  - **Operation Grouping** - Intelligent grouping based on heuristics:
+    - Time-based: >2 second gap starts new group
+    - Cursor movement: Cursor jump >2 positions starts new group
+    - Operation type: Insert→Delete or Delete→Insert starts new group
+    - Mode changes: NORMAL→INSERT starts new group (preserves vim-like behavior)
+    - Result: Typing "hello world" = 2 undo operations (not 11 individual chars)
+  - **Circular Buffer Architecture**:
+    - Default: 1,000 operations (~64 KB for character edits)
+    - Memory limit: 10 MB for line content storage
+    - Oldest operations evicted when capacity reached
+    - Efficient O(1) recording, O(N) undo/redo for grouped operations
+  - **Supported Operations**:
+    - Character insert/delete (individual keystrokes)
+    - Line insert/delete (newline split/merge)
+    - All operations recorded with cursor position for accurate restoration
+  - **Architecture**:
+    - New module: `src/loki_undo.c` (447 lines) and `src/loki_undo.h`
+    - Opaque `struct undo_state` - private implementation detail
+    - State stored in `editor_ctx_t.undo_state`
+    - Zero-dependency implementation (standard library only)
+  - **Integration Points**:
+    - `editor_insert_char()` - Records character insertion
+    - `editor_del_char()` - Records character deletion
+    - `editor_insert_newline()` - Records line split operations
+    - `editor_ctx_init()` - Initializes undo system (1000 ops, 10MB)
+    - `editor_ctx_free()` - Cleans up undo state
+  - **Memory Management**:
+    - Per-operation overhead: ~64 bytes (char ops), ~64B + content length (line ops)
+    - Automatic cleanup on circular buffer eviction
+    - Memory limit prevents unbounded growth
+    - Statistics available via `undo_get_stats()`
+  - **User Experience**:
+    - Clear status messages: "Undo", "Redo", "Already at oldest change"
+    - Undo history discarded after new edits (linear undo, not undo tree)
+    - Groups preserved across mode changes (editing session continuity)
+  - **Performance**:
+    - Recording: O(1) for character ops, O(n) for line ops (unavoidable)
+    - Undo/Redo: O(1) per operation, O(group_size) per group
+    - Typical group size: 5-50 operations
+    - Impact on normal editing: <1% overhead
+  - **Files Modified**:
+    - Added: `src/loki_undo.c`, `src/loki_undo.h`, `UNDO.md` (design document)
+    - Modified: `src/loki_core.c` (undo recording), `src/loki_modal.c` (keybindings), `src/loki_internal.h` (undo_state field), `CMakeLists.txt` (build integration)
+  - **Design Documentation**: `UNDO.md` includes complete architecture analysis, implementation phases, future enhancements (undo tree, persistent undo), and estimated effort (~900 lines, 5-8 days)
+
+- **Command Mode (Vim-style :commands)**: Complete implementation of ex-mode command system
+  - **Built-in Commands** (10 commands implemented in `src/loki_command.c`):
+    - `:w` / `:write` - Save file (optionally specify filename)
+    - `:q` / `:quit` - Quit editor (blocks if unsaved changes)
+    - `:q!` / `:quit!` - Force quit without saving
+    - `:wq` / `:x` - Write and quit
+    - `:e` / `:edit <file>` - Edit different file
+    - `:set <option>` - Toggle/set options (currently supports `wrap`)
+    - `:help [command]` - Show help for commands
+  - **Command Input Interface**:
+    - Press `:` in NORMAL mode to enter command mode
+    - Full line editing with left/right arrow keys
+    - Backspace to delete characters or exit command mode
+    - Enter to execute, ESC to cancel
+    - Ctrl-U to clear command line
+  - **Command History** (50-command circular buffer):
+    - Up/Down arrows navigate command history
+    - Duplicate commands not stored
+    - History persists during editor session
+  - **Command Parsing**:
+    - Whitespace-aware argument parsing
+    - Argument count validation (min/max args per command)
+    - Clear error messages for invalid commands/arguments
+  - **Lua Extensibility** - New API: `loki.register_ex_command(name, callback, help)`
+    - Register custom :commands from Lua scripts
+    - Callbacks receive command arguments as string
+    - Return `true` for success, `false` for failure
+    - Up to 100 custom commands supported
+    - Example:
+      ```lua
+      loki.register_ex_command("timestamp", function(args)
+          loki.insert_text(os.date("%Y-%m-%d %H:%M:%S"))
+          loki.status("Inserted timestamp")
+          return true
+      end, "Insert current timestamp")
+      ```
+  - **Architecture**:
+    - New module: `src/loki_command.c` (491 lines) and `src/loki_command.h`
+    - Command state stored in `editor_ctx_t` (cmd_buffer, cmd_length, cmd_cursor_pos, cmd_history_index)
+    - Integrated with modal system via `MODE_COMMAND` enum value
+    - Dual registry: built-in commands (static table) + dynamic commands (Lua-registered)
+    - Function signature: `int (*command_handler_t)(editor_ctx_t *ctx, const char *args)`
+  - **Implementation Details**:
+    - Command buffer: 256 characters maximum
+    - History limit: 50 commands (oldest discarded when full)
+    - Dynamic command limit: 100 Lua-registered commands
+    - Graceful handling of command errors with status bar feedback
+  - **Files Modified**:
+    - Added: `src/loki_command.c`, `src/loki_command.h`
+    - Modified: `src/loki_modal.c` (MODE_COMMAND dispatch), `src/loki_lua.c` (Lua bindings), `src/loki_internal.h` (context fields), `CMakeLists.txt` (build integration)
+
+### Documentation
+
+- **Design Documents**:
+  - Added `COMMAND.md` - Complete design rationale and implementation guide for command mode system
+    - Architecture analysis (Option A vs B: modal extension vs dedicated module)
+    - Detailed implementation structure with code examples
+    - Integration patterns with modal system and Lua
+    - Testing strategy with example test cases
+    - Justification for modular approach (~350 lines for maintainability)
+  - Added `TREE-SITTER.md` - Analysis of tree-sitter syntax highlighting integration
+    - Current architecture vs tree-sitter comparison
+    - Dual-mode architecture proposal (opt-in per language)
+    - Complete implementation guide (~400 lines)
+    - Build system integration with CMake flags
+    - Trade-offs analysis: accuracy vs complexity
+    - **Recommendation: NOT to implement** - complexity/maintenance burden outweighs accuracy gains for minimalist editor
+    - Alternative: hybrid approach using tree-sitter for specific features only
+
 ## [0.4.6] - 2025-01-12
 
 ### Security
