@@ -32,6 +32,7 @@
 #include "loki_terminal.h"  /* Terminal functions */
 #include "loki_languages.h"  /* Language definitions and dynamic registration */
 #include "loki_command.h"  /* Command mode and ex-style commands */
+#include "loki_markdown.h"  /* Markdown parsing and rendering */
 
 /* ======================= Lua API bindings ================================ */
 
@@ -834,6 +835,250 @@ static int lua_loki_status_stdout(lua_State *L) {
     return 0;
 }
 
+/* ======================= Markdown API bindings ============================ */
+
+/* Lua API: markdown.to_html(text, options) - Convert markdown to HTML */
+static int lua_markdown_to_html(lua_State *L) {
+    const char *text = luaL_checkstring(L, 1);
+    int options = luaL_optinteger(L, 2, LOKI_MD_OPT_DEFAULT);
+
+    size_t len = strlen(text);
+    char *html = loki_markdown_to_html(text, len, options);
+
+    if (html) {
+        lua_pushstring(L, html);
+        free(html);
+        return 1;
+    }
+
+    lua_pushnil(L);
+    return 1;
+}
+
+/* Lua API: markdown.parse(text, options) - Parse markdown to document handle */
+static int lua_markdown_parse(lua_State *L) {
+    const char *text = luaL_checkstring(L, 1);
+    int options = luaL_optinteger(L, 2, LOKI_MD_OPT_DEFAULT);
+
+    size_t len = strlen(text);
+    loki_markdown_doc *doc = loki_markdown_parse(text, len, options);
+
+    if (doc) {
+        loki_markdown_doc **udata = (loki_markdown_doc **)lua_newuserdata(L, sizeof(loki_markdown_doc *));
+        *udata = doc;
+        luaL_getmetatable(L, "markdown_doc");
+        lua_setmetatable(L, -2);
+        return 1;
+    }
+
+    lua_pushnil(L);
+    return 1;
+}
+
+/* Lua API: markdown.parse_file(filename, options) - Parse markdown file */
+static int lua_markdown_parse_file(lua_State *L) {
+    const char *filename = luaL_checkstring(L, 1);
+    int options = luaL_optinteger(L, 2, LOKI_MD_OPT_DEFAULT);
+
+    loki_markdown_doc *doc = loki_markdown_parse_file(filename, options);
+
+    if (doc) {
+        loki_markdown_doc **udata = (loki_markdown_doc **)lua_newuserdata(L, sizeof(loki_markdown_doc *));
+        *udata = doc;
+        luaL_getmetatable(L, "markdown_doc");
+        lua_setmetatable(L, -2);
+        return 1;
+    }
+
+    lua_pushnil(L);
+    return 1;
+}
+
+/* Lua API: doc:render_html(options) - Render document to HTML */
+static int lua_markdown_doc_render_html(lua_State *L) {
+    loki_markdown_doc **doc = (loki_markdown_doc **)luaL_checkudata(L, 1, "markdown_doc");
+    int options = luaL_optinteger(L, 2, LOKI_MD_OPT_DEFAULT);
+
+    if (*doc) {
+        char *html = loki_markdown_render_html(*doc, options);
+        if (html) {
+            lua_pushstring(L, html);
+            free(html);
+            return 1;
+        }
+    }
+
+    lua_pushnil(L);
+    return 1;
+}
+
+/* Lua API: doc:render_xml(options) - Render document to XML */
+static int lua_markdown_doc_render_xml(lua_State *L) {
+    loki_markdown_doc **doc = (loki_markdown_doc **)luaL_checkudata(L, 1, "markdown_doc");
+    int options = luaL_optinteger(L, 2, LOKI_MD_OPT_DEFAULT);
+
+    if (*doc) {
+        char *xml = loki_markdown_render_xml(*doc, options);
+        if (xml) {
+            lua_pushstring(L, xml);
+            free(xml);
+            return 1;
+        }
+    }
+
+    lua_pushnil(L);
+    return 1;
+}
+
+/* Lua API: doc:count_headings() - Count headings in document */
+static int lua_markdown_doc_count_headings(lua_State *L) {
+    loki_markdown_doc **doc = (loki_markdown_doc **)luaL_checkudata(L, 1, "markdown_doc");
+
+    if (*doc) {
+        int count = loki_markdown_count_headings(*doc);
+        lua_pushinteger(L, count);
+        return 1;
+    }
+
+    lua_pushinteger(L, 0);
+    return 1;
+}
+
+/* Lua API: doc:count_code_blocks() - Count code blocks in document */
+static int lua_markdown_doc_count_code_blocks(lua_State *L) {
+    loki_markdown_doc **doc = (loki_markdown_doc **)luaL_checkudata(L, 1, "markdown_doc");
+
+    if (*doc) {
+        int count = loki_markdown_count_code_blocks(*doc);
+        lua_pushinteger(L, count);
+        return 1;
+    }
+
+    lua_pushinteger(L, 0);
+    return 1;
+}
+
+/* Lua API: doc:count_links() - Count links in document */
+static int lua_markdown_doc_count_links(lua_State *L) {
+    loki_markdown_doc **doc = (loki_markdown_doc **)luaL_checkudata(L, 1, "markdown_doc");
+
+    if (*doc) {
+        int count = loki_markdown_count_links(*doc);
+        lua_pushinteger(L, count);
+        return 1;
+    }
+
+    lua_pushinteger(L, 0);
+    return 1;
+}
+
+/* Lua API: doc:extract_headings() - Extract all headings */
+static int lua_markdown_doc_extract_headings(lua_State *L) {
+    loki_markdown_doc **doc = (loki_markdown_doc **)luaL_checkudata(L, 1, "markdown_doc");
+
+    if (*doc) {
+        int count;
+        loki_markdown_heading *headings = loki_markdown_extract_headings(*doc, &count);
+
+        if (headings && count > 0) {
+            lua_createtable(L, count, 0);
+            for (int i = 0; i < count; i++) {
+                lua_createtable(L, 0, 2);
+
+                lua_pushinteger(L, headings[i].level);
+                lua_setfield(L, -2, "level");
+
+                if (headings[i].text) {
+                    lua_pushstring(L, headings[i].text);
+                } else {
+                    lua_pushstring(L, "");
+                }
+                lua_setfield(L, -2, "text");
+
+                lua_rawseti(L, -2, i + 1);
+            }
+
+            loki_markdown_free_headings(headings, count);
+            return 1;
+        }
+    }
+
+    lua_newtable(L);
+    return 1;
+}
+
+/* Lua API: doc:extract_links() - Extract all links */
+static int lua_markdown_doc_extract_links(lua_State *L) {
+    loki_markdown_doc **doc = (loki_markdown_doc **)luaL_checkudata(L, 1, "markdown_doc");
+
+    if (*doc) {
+        int count;
+        loki_markdown_link *links = loki_markdown_extract_links(*doc, &count);
+
+        if (links && count > 0) {
+            lua_createtable(L, count, 0);
+            for (int i = 0; i < count; i++) {
+                lua_createtable(L, 0, 3);
+
+                if (links[i].url) {
+                    lua_pushstring(L, links[i].url);
+                } else {
+                    lua_pushstring(L, "");
+                }
+                lua_setfield(L, -2, "url");
+
+                if (links[i].title) {
+                    lua_pushstring(L, links[i].title);
+                } else {
+                    lua_pushnil(L);
+                }
+                lua_setfield(L, -2, "title");
+
+                if (links[i].text) {
+                    lua_pushstring(L, links[i].text);
+                } else {
+                    lua_pushstring(L, "");
+                }
+                lua_setfield(L, -2, "text");
+
+                lua_rawseti(L, -2, i + 1);
+            }
+
+            loki_markdown_free_links(links, count);
+            return 1;
+        }
+    }
+
+    lua_newtable(L);
+    return 1;
+}
+
+/* Lua API: doc:__gc() - Garbage collector for document */
+static int lua_markdown_doc_gc(lua_State *L) {
+    loki_markdown_doc **doc = (loki_markdown_doc **)luaL_checkudata(L, 1, "markdown_doc");
+    if (*doc) {
+        loki_markdown_free(*doc);
+        *doc = NULL;
+    }
+    return 0;
+}
+
+/* Lua API: markdown.version() - Get cmark version */
+static int lua_markdown_version(lua_State *L) {
+    lua_pushstring(L, loki_markdown_version());
+    return 1;
+}
+
+/* Lua API: markdown.validate(text) - Validate markdown syntax */
+static int lua_markdown_validate(lua_State *L) {
+    const char *text = luaL_checkstring(L, 1);
+    size_t len = strlen(text);
+
+    int valid = loki_markdown_validate(text, len);
+    lua_pushboolean(L, valid);
+    return 1;
+}
+
 void loki_lua_bind_minimal(lua_State *L) {
     lua_getglobal(L, "loki");
     if (!lua_istable(L, -1)) {
@@ -856,6 +1101,83 @@ void loki_lua_bind_minimal(lua_State *L) {
     lua_setfield(L, -2, "repl");
 
     lua_setglobal(L, "loki");
+
+    /* Create markdown metatable for document handles */
+    luaL_newmetatable(L, "markdown_doc");
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -2, "__index");
+
+    lua_pushcfunction(L, lua_markdown_doc_render_html);
+    lua_setfield(L, -2, "render_html");
+
+    lua_pushcfunction(L, lua_markdown_doc_render_xml);
+    lua_setfield(L, -2, "render_xml");
+
+    lua_pushcfunction(L, lua_markdown_doc_count_headings);
+    lua_setfield(L, -2, "count_headings");
+
+    lua_pushcfunction(L, lua_markdown_doc_count_code_blocks);
+    lua_setfield(L, -2, "count_code_blocks");
+
+    lua_pushcfunction(L, lua_markdown_doc_count_links);
+    lua_setfield(L, -2, "count_links");
+
+    lua_pushcfunction(L, lua_markdown_doc_extract_headings);
+    lua_setfield(L, -2, "extract_headings");
+
+    lua_pushcfunction(L, lua_markdown_doc_extract_links);
+    lua_setfield(L, -2, "extract_links");
+
+    lua_pushcfunction(L, lua_markdown_doc_gc);
+    lua_setfield(L, -2, "__gc");
+
+    lua_pop(L, 1);  /* Pop metatable */
+
+    /* Create markdown module table */
+    lua_newtable(L);
+
+    lua_pushcfunction(L, lua_markdown_to_html);
+    lua_setfield(L, -2, "to_html");
+
+    lua_pushcfunction(L, lua_markdown_parse);
+    lua_setfield(L, -2, "parse");
+
+    lua_pushcfunction(L, lua_markdown_parse_file);
+    lua_setfield(L, -2, "parse_file");
+
+    lua_pushcfunction(L, lua_markdown_version);
+    lua_setfield(L, -2, "version");
+
+    lua_pushcfunction(L, lua_markdown_validate);
+    lua_setfield(L, -2, "validate");
+
+    /* Markdown options constants */
+    lua_pushinteger(L, LOKI_MD_OPT_DEFAULT);
+    lua_setfield(L, -2, "OPT_DEFAULT");
+
+    lua_pushinteger(L, LOKI_MD_OPT_SOURCEPOS);
+    lua_setfield(L, -2, "OPT_SOURCEPOS");
+
+    lua_pushinteger(L, LOKI_MD_OPT_HARDBREAKS);
+    lua_setfield(L, -2, "OPT_HARDBREAKS");
+
+    lua_pushinteger(L, LOKI_MD_OPT_SAFE);
+    lua_setfield(L, -2, "OPT_SAFE");
+
+    lua_pushinteger(L, LOKI_MD_OPT_NOBREAKS);
+    lua_setfield(L, -2, "OPT_NOBREAKS");
+
+    lua_pushinteger(L, LOKI_MD_OPT_NORMALIZE);
+    lua_setfield(L, -2, "OPT_NORMALIZE");
+
+    lua_pushinteger(L, LOKI_MD_OPT_VALIDATE_UTF8);
+    lua_setfield(L, -2, "OPT_VALIDATE_UTF8");
+
+    lua_pushinteger(L, LOKI_MD_OPT_SMART);
+    lua_setfield(L, -2, "OPT_SMART");
+
+    /* Set as global 'markdown' */
+    lua_setglobal(L, "markdown");
 }
 
 /* Initialize Lua API */
@@ -942,6 +1264,83 @@ void loki_lua_bind_editor(lua_State *L) {
 
     /* Set as global 'loki' */
     lua_setglobal(L, "loki");
+
+    /* Create markdown metatable for document handles */
+    luaL_newmetatable(L, "markdown_doc");
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -2, "__index");
+
+    lua_pushcfunction(L, lua_markdown_doc_render_html);
+    lua_setfield(L, -2, "render_html");
+
+    lua_pushcfunction(L, lua_markdown_doc_render_xml);
+    lua_setfield(L, -2, "render_xml");
+
+    lua_pushcfunction(L, lua_markdown_doc_count_headings);
+    lua_setfield(L, -2, "count_headings");
+
+    lua_pushcfunction(L, lua_markdown_doc_count_code_blocks);
+    lua_setfield(L, -2, "count_code_blocks");
+
+    lua_pushcfunction(L, lua_markdown_doc_count_links);
+    lua_setfield(L, -2, "count_links");
+
+    lua_pushcfunction(L, lua_markdown_doc_extract_headings);
+    lua_setfield(L, -2, "extract_headings");
+
+    lua_pushcfunction(L, lua_markdown_doc_extract_links);
+    lua_setfield(L, -2, "extract_links");
+
+    lua_pushcfunction(L, lua_markdown_doc_gc);
+    lua_setfield(L, -2, "__gc");
+
+    lua_pop(L, 1);  /* Pop metatable */
+
+    /* Create markdown module table */
+    lua_newtable(L);
+
+    lua_pushcfunction(L, lua_markdown_to_html);
+    lua_setfield(L, -2, "to_html");
+
+    lua_pushcfunction(L, lua_markdown_parse);
+    lua_setfield(L, -2, "parse");
+
+    lua_pushcfunction(L, lua_markdown_parse_file);
+    lua_setfield(L, -2, "parse_file");
+
+    lua_pushcfunction(L, lua_markdown_version);
+    lua_setfield(L, -2, "version");
+
+    lua_pushcfunction(L, lua_markdown_validate);
+    lua_setfield(L, -2, "validate");
+
+    /* Markdown options constants */
+    lua_pushinteger(L, LOKI_MD_OPT_DEFAULT);
+    lua_setfield(L, -2, "OPT_DEFAULT");
+
+    lua_pushinteger(L, LOKI_MD_OPT_SOURCEPOS);
+    lua_setfield(L, -2, "OPT_SOURCEPOS");
+
+    lua_pushinteger(L, LOKI_MD_OPT_HARDBREAKS);
+    lua_setfield(L, -2, "OPT_HARDBREAKS");
+
+    lua_pushinteger(L, LOKI_MD_OPT_SAFE);
+    lua_setfield(L, -2, "OPT_SAFE");
+
+    lua_pushinteger(L, LOKI_MD_OPT_NOBREAKS);
+    lua_setfield(L, -2, "OPT_NOBREAKS");
+
+    lua_pushinteger(L, LOKI_MD_OPT_NORMALIZE);
+    lua_setfield(L, -2, "OPT_NORMALIZE");
+
+    lua_pushinteger(L, LOKI_MD_OPT_VALIDATE_UTF8);
+    lua_setfield(L, -2, "OPT_VALIDATE_UTF8");
+
+    lua_pushinteger(L, LOKI_MD_OPT_SMART);
+    lua_setfield(L, -2, "OPT_SMART");
+
+    /* Set as global 'markdown' */
+    lua_setglobal(L, "markdown");
 }
 
 static void loki_lua_report(const struct loki_lua_opts *opts, const char *fmt, ...) {

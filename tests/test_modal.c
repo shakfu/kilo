@@ -10,6 +10,7 @@
 #include "test_framework.h"
 #include "loki/core.h"
 #include "loki_internal.h"
+#include "loki_selection.h"
 #include <string.h>
 
 /* Helper: Create single-line test context */
@@ -291,14 +292,19 @@ TEST(modal_visual_v_enters_visual) {
     init_simple_ctx(&ctx, "hello");
 
     ctx.cx = 2;
+    ctx.coloff = 0;
+    ctx.rowoff = 0;
     ctx.mode = MODE_NORMAL;
 
     modal_process_normal_mode_key(&ctx, 0, 'v');
 
     ASSERT_EQ(ctx.mode, MODE_VISUAL);
     ASSERT_TRUE(ctx.sel_active);
-    ASSERT_EQ(ctx.sel_start_x, 2);
+    /* Selection should be in file coordinates (coloff + cx, rowoff + cy) */
+    ASSERT_EQ(ctx.sel_start_x, 2);  /* 0 + 2 */
+    ASSERT_EQ(ctx.sel_start_y, 0);  /* 0 + 0 */
     ASSERT_EQ(ctx.sel_end_x, 2);
+    ASSERT_EQ(ctx.sel_end_y, 0);
 
     editor_ctx_free(&ctx);
 }
@@ -308,15 +314,20 @@ TEST(modal_visual_h_extends_left) {
     init_simple_ctx(&ctx, "hello");
 
     ctx.cx = 3;
+    ctx.coloff = 0;
+    ctx.rowoff = 0;
     ctx.mode = MODE_VISUAL;
     ctx.sel_active = 1;
     ctx.sel_start_x = 3;
+    ctx.sel_start_y = 0;
     ctx.sel_end_x = 3;
+    ctx.sel_end_y = 0;
 
     modal_process_visual_mode_key(&ctx, 0, 'h');
 
     ASSERT_EQ(ctx.cx, 2);
-    ASSERT_EQ(ctx.sel_end_x, 2);
+    /* Selection end should be in file coordinates (coloff + cx) */
+    ASSERT_EQ(ctx.sel_end_x, 2);  /* 0 + 2 */
 
     editor_ctx_free(&ctx);
 }
@@ -326,15 +337,20 @@ TEST(modal_visual_l_extends_right) {
     init_simple_ctx(&ctx, "hello");
 
     ctx.cx = 2;
+    ctx.coloff = 0;
+    ctx.rowoff = 0;
     ctx.mode = MODE_VISUAL;
     ctx.sel_active = 1;
     ctx.sel_start_x = 2;
+    ctx.sel_start_y = 0;
     ctx.sel_end_x = 2;
+    ctx.sel_end_y = 0;
 
     modal_process_visual_mode_key(&ctx, 0, 'l');
 
     ASSERT_EQ(ctx.cx, 3);
-    ASSERT_EQ(ctx.sel_end_x, 3);
+    /* Selection end should be in file coordinates (coloff + cx) */
+    ASSERT_EQ(ctx.sel_end_x, 3);  /* 0 + 3 */
 
     editor_ctx_free(&ctx);
 }
@@ -361,12 +377,42 @@ TEST(modal_visual_y_yanks) {
     ctx.mode = MODE_VISUAL;
     ctx.sel_active = 1;
     ctx.sel_start_x = 0;
+    ctx.sel_start_y = 0;
     ctx.sel_end_x = 4;
+    ctx.sel_end_y = 0;
 
     modal_process_visual_mode_key(&ctx, 0, 'y');
 
     ASSERT_EQ(ctx.mode, MODE_NORMAL);
     ASSERT_FALSE(ctx.sel_active);
+
+    editor_ctx_free(&ctx);
+}
+
+TEST(modal_visual_selection_highlighting) {
+    editor_ctx_t ctx;
+    init_simple_ctx(&ctx, "hello world");
+
+    /* Set up visual mode selection in file coordinates */
+    ctx.mode = MODE_VISUAL;
+    ctx.sel_active = 1;
+    ctx.sel_start_x = 2;  /* Start at 'l' in "hello" */
+    ctx.sel_start_y = 0;
+    ctx.sel_end_x = 7;    /* End at 'w' in "world" */
+    ctx.sel_end_y = 0;
+
+    /* Test that characters in range are selected */
+    ASSERT_TRUE(is_selected(&ctx, 0, 2));   /* 'l' at position 2 */
+    ASSERT_TRUE(is_selected(&ctx, 0, 3));   /* 'l' at position 3 */
+    ASSERT_TRUE(is_selected(&ctx, 0, 4));   /* 'o' at position 4 */
+    ASSERT_TRUE(is_selected(&ctx, 0, 5));   /* ' ' at position 5 */
+    ASSERT_TRUE(is_selected(&ctx, 0, 6));   /* 'w' at position 6 */
+
+    /* Test that characters outside range are not selected */
+    ASSERT_FALSE(is_selected(&ctx, 0, 0));  /* 'h' at position 0 */
+    ASSERT_FALSE(is_selected(&ctx, 0, 1));  /* 'e' at position 1 */
+    ASSERT_FALSE(is_selected(&ctx, 0, 7));  /* 'o' at position 7 (end is exclusive) */
+    ASSERT_FALSE(is_selected(&ctx, 0, 8));  /* 'r' at position 8 */
 
     editor_ctx_free(&ctx);
 }
@@ -447,6 +493,7 @@ BEGIN_TEST_SUITE("Modal Editing")
     RUN_TEST(modal_visual_l_extends_right);
     RUN_TEST(modal_visual_esc_returns_normal);
     RUN_TEST(modal_visual_y_yanks);
+    RUN_TEST(modal_visual_selection_highlighting);
 
     /* Mode transitions */
     RUN_TEST(modal_default_is_normal);

@@ -19,6 +19,109 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **Markdown Parsing and Rendering**: Integrated cmark library (CommonMark) for full markdown support
+  - **Module Structure**:
+    - New module: `src/loki_markdown.c` (421 lines) and `src/loki_markdown.h` (284 lines)
+    - Statically links cmark library from `thirdparty/cmark/` (no external dependencies)
+  - **Core Functions**:
+    - `loki_markdown_parse(text, len, options)` - Parse markdown text to AST
+    - `loki_markdown_parse_file(filename, options)` - Parse markdown from file
+    - `loki_markdown_free(doc)` - Free parsed document
+  - **Rendering Formats**:
+    - `loki_markdown_render_html(doc, options)` - Convert to HTML
+    - `loki_markdown_render_xml(doc, options)` - Convert to XML
+    - `loki_markdown_render_man(doc, options, width)` - Convert to man page format
+    - `loki_markdown_render_commonmark(doc, options, width)` - Convert back to markdown
+    - `loki_markdown_render_latex(doc, options, width)` - Convert to LaTeX
+    - `loki_markdown_to_html(text, len, options)` - Direct conversion (one-step API)
+  - **Document Analysis**:
+    - `loki_markdown_count_headings(doc)` - Count h1-h6 headings
+    - `loki_markdown_count_code_blocks(doc)` - Count fenced and indented code blocks
+    - `loki_markdown_count_links(doc)` - Count inline and reference links
+  - **Structure Extraction**:
+    - `loki_markdown_extract_headings(doc, &count)` - Extract all headings with levels and text
+    - `loki_markdown_extract_links(doc, &count)` - Extract all links with URLs, titles, and text
+    - Returns dynamically allocated arrays (must free with `loki_markdown_free_headings/links`)
+  - **Utility Functions**:
+    - `loki_markdown_version()` - Get cmark version (0.31.1)
+    - `loki_markdown_validate(text, len)` - Validate markdown syntax
+  - **Lua Integration**: Full API exposed via `markdown` global table
+    - **Quick conversion**: `markdown.to_html(text, options)` returns HTML string
+    - **Parsing**: `doc = markdown.parse(text, options)` returns document handle
+    - **File parsing**: `doc = markdown.parse_file(filename, options)`
+    - **Document methods** (object-oriented syntax):
+      - `doc:render_html(options)` - Render to HTML
+      - `doc:render_xml(options)` - Render to XML
+      - `doc:count_headings()` - Count headings
+      - `doc:count_code_blocks()` - Count code blocks
+      - `doc:count_links()` - Count links
+      - `doc:extract_headings()` - Returns table: `{{level=1, text="Title"}, ...}`
+      - `doc:extract_links()` - Returns table: `{{url="...", title="...", text="..."}, ...}`
+    - **Utility functions**:
+      - `markdown.version()` - Get cmark version string
+      - `markdown.validate(text)` - Returns boolean
+    - **Option constants**: `markdown.OPT_DEFAULT`, `markdown.OPT_SAFE`, `markdown.OPT_SMART`, etc.
+    - **Memory management**: Document handles automatically garbage collected
+  - **Example Usage**:
+    ```lua
+    -- Quick conversion
+    local html = markdown.to_html("# Hello\n\nThis is **markdown**")
+
+    -- Parse and analyze
+    local doc = markdown.parse("# Title\n\n[Link](url)")
+    local headings = doc:extract_headings()  -- {{level=1, text="Title"}}
+    local links = doc:extract_links()        -- {{url="url", text="Link"}}
+    print("Found " .. doc:count_headings() .. " headings")
+
+    -- Render to multiple formats
+    local html = doc:render_html()
+    local latex = doc:render_latex(0, 80)
+    ```
+  - **Integration Points**:
+    - Lua bindings in both editor (`loki_lua_bind_editor`) and REPL (`loki_lua_bind_minimal`)
+    - Available in `loki-editor` and `loki-repl` executables
+    - Metatable with `__gc` for automatic memory cleanup
+  - **Testing**:
+    - Comprehensive test script (`/tmp/test_markdown.lua`) with 9 test cases
+    - Tests parsing, rendering, document analysis, structure extraction, and validation
+    - All tests passing with cmark 0.31.1
+  - **Files Modified**:
+    - Added: `src/loki_markdown.c`, `src/loki_markdown.h`
+    - Modified: `src/loki_lua.c` (Lua bindings), `CMakeLists.txt` (build integration)
+  - **Build System**:
+    - Added cmark include directory to `target_include_directories`
+    - Added `src/loki_markdown.c` to libloki sources
+    - Statically links against `cmark` target from `thirdparty/`
+
+### Fixed
+
+- **Visual Mode Selection Highlighting**: Fixed selection highlighting not working due to coordinate system mismatch
+  - **Problem**: Selection coordinates stored in screen space (cx, cy) but rendering used file coordinates (rowoff+cy, coloff+cx)
+  - **Root Cause**: When entering visual mode (line 178-183 of loki_modal.c), selection was initialized with screen coordinates:
+    ```c
+    ctx->sel_start_x = ctx->cx;        // Screen coordinate
+    ctx->sel_start_y = ctx->cy;        // Screen coordinate
+    ```
+    But rendering code (line 860 of loki_core.c) checked file coordinates:
+    ```c
+    is_selected(ctx, filerow, ctx->coloff + j)  // File coordinates
+    ```
+  - **Solution**: Changed selection to use file coordinates throughout
+    - Updated visual mode entry to store: `ctx->coloff + ctx->cx`, `ctx->rowoff + ctx->cy`
+    - Updated selection extension during movement: `ctx->coloff + ctx->cx`, `ctx->rowoff + ctx->cy`
+    - Rendering code unchanged (already used file coordinates)
+  - **Result**: Selected text now properly highlighted with reverse video (inverted colors)
+  - **Testing**:
+    - Updated 3 existing tests to handle file coordinate system
+    - Added new test `modal_visual_selection_highlighting` verifying `is_selected()` logic
+    - All 11/11 test suites passing
+  - **Files Modified**:
+    - `src/loki_modal.c`: Lines 180-184 (visual mode entry), lines 343-368 (selection updates during movement)
+    - `tests/test_modal.c`: Updated 3 tests, added 1 new test (modal_visual_selection_highlighting)
+  - **User Experience**: Visual mode now works as expected - text highlights as you extend selection with h/j/k/l or arrow keys
+
+### Added
+
 - **Multiple Buffers Module**: Complete implementation of tab-based multi-file editing
   - **Core Features**:
     - Edit up to 16 files simultaneously in independent buffers

@@ -177,10 +177,11 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
         case 'v':
             ctx->mode = MODE_VISUAL;
             ctx->sel_active = 1;
-            ctx->sel_start_x = ctx->cx;
-            ctx->sel_start_y = ctx->cy;
-            ctx->sel_end_x = ctx->cx;
-            ctx->sel_end_y = ctx->cy;
+            /* Store selection in file coordinates (not screen coordinates) */
+            ctx->sel_start_x = ctx->coloff + ctx->cx;
+            ctx->sel_start_y = ctx->rowoff + ctx->cy;
+            ctx->sel_end_x = ctx->coloff + ctx->cx;
+            ctx->sel_end_y = ctx->rowoff + ctx->cy;
             break;
 
         /* Enter command mode */
@@ -338,29 +339,33 @@ static void process_visual_mode(editor_ctx_t *ctx, int fd, int c) {
         case 'h':
         case ARROW_LEFT:
             editor_move_cursor(ctx, ARROW_LEFT);
-            ctx->sel_end_x = ctx->cx;
-            ctx->sel_end_y = ctx->cy;
+            /* Update selection end in file coordinates */
+            ctx->sel_end_x = ctx->coloff + ctx->cx;
+            ctx->sel_end_y = ctx->rowoff + ctx->cy;
             break;
 
         case 'j':
         case ARROW_DOWN:
             editor_move_cursor(ctx, ARROW_DOWN);
-            ctx->sel_end_x = ctx->cx;
-            ctx->sel_end_y = ctx->cy;
+            /* Update selection end in file coordinates */
+            ctx->sel_end_x = ctx->coloff + ctx->cx;
+            ctx->sel_end_y = ctx->rowoff + ctx->cy;
             break;
 
         case 'k':
         case ARROW_UP:
             editor_move_cursor(ctx, ARROW_UP);
-            ctx->sel_end_x = ctx->cx;
-            ctx->sel_end_y = ctx->cy;
+            /* Update selection end in file coordinates */
+            ctx->sel_end_x = ctx->coloff + ctx->cx;
+            ctx->sel_end_y = ctx->rowoff + ctx->cy;
             break;
 
         case 'l':
         case ARROW_RIGHT:
             editor_move_cursor(ctx, ARROW_RIGHT);
-            ctx->sel_end_x = ctx->cx;
-            ctx->sel_end_y = ctx->cy;
+            /* Update selection end in file coordinates */
+            ctx->sel_end_x = ctx->coloff + ctx->cx;
+            ctx->sel_end_y = ctx->rowoff + ctx->cy;
             break;
 
         /* Copy selection */

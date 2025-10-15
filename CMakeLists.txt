@@ -81,6 +81,8 @@ if (NOT LINEEDIT_FOUND)
     message(STATUS "  To enable features: brew install readline (or apt-get install libedit-dev on Linux)")
 endif()
 
+add_subdirectory(thirdparty)
+
 set(LOKI_LIBRARY_TYPE STATIC)
 if (LOKI_BUILD_SHARED)
     set(LOKI_LIBRARY_TYPE SHARED)
@@ -98,6 +100,7 @@ add_library(libloki ${LOKI_LIBRARY_TYPE}
     src/loki_terminal.c
     src/loki_undo.c
     src/loki_buffers.c
+    src/loki_markdown.c
 )
 
 target_include_directories(libloki
@@ -105,6 +108,7 @@ target_include_directories(libloki
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${LUA_INCLUDE_DIR}
         ${CURL_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/cmark/src
 )
 
 target_compile_options(libloki PRIVATE -Wall -Wextra -pedantic)
@@ -115,6 +119,7 @@ target_link_libraries(libloki
         CURL::libcurl
         Threads::Threads
         ${CMAKE_DL_LIBS}
+        cmark
 )
 
 if (NOT MSVC)
