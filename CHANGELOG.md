@@ -19,6 +19,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **Tab Completion in Lua REPL**: Intelligent tab completion for Lua identifiers and table fields
+  - **Activation**: Press `TAB` while typing in the Lua REPL (Ctrl-L to open)
+  - **Completion Types**:
+    - **Global identifiers**: Type `lo<TAB>` completes to `loki`
+    - **Table fields**: Type `loki.<TAB>` shows all loki functions
+    - **Partial completion**: Type `loki.st<TAB>` completes to `loki.status`
+    - **Nested tables**: Supports completion through multiple levels (e.g., `editor.render<TAB>`)
+  - **Behavior**:
+    - **Single match**: Automatically completes the full identifier
+    - **Multiple matches**: Completes to common prefix and shows up to 5 matches in status bar
+    - **No matches**: Does nothing (no error message)
+  - **Implementation**:
+    - Extracts word being typed from REPL input buffer
+    - Splits on dot (`.`) to handle table.field syntax
+    - Queries Lua global table (`_G`) or specific table for matching keys
+    - Finds longest common prefix for multiple matches
+    - Updates input buffer with completion
+  - **Example Session**:
+    ```
+    > lo<TAB>           → loki
+    > loki.<TAB>        → status: loki.status, loki.get_lines, loki.get_cursor, ... (15 more)
+    > loki.st<TAB>      → loki.status
+    > editor.<TAB>      → status: editor.count_lines, editor.cursor, editor.timestamp, ...
+    > markdown.pa<TAB>  → markdown.parse
+    ```
+  - **Features**:
+    - Supports alphanumeric, underscore, and dot characters in identifiers
+    - Handles up to 100 matches (shows first 5 in status bar)
+    - Works with user-defined globals and loaded modules
+    - Efficient single-pass Lua table iteration
+  - **Files Modified**:
+    - `src/loki_lua.c`: Added `lua_repl_complete_input()` function (129 lines)
+    - `src/loki_lua.c`: Added TAB case to `lua_repl_handle_keypress()` switch statement
+  - **Testing**:
+    - Verified with global completion (`loki`, `editor`, `markdown`)
+    - Verified with table field completion (`loki.status`, `editor.render_markdown_to_html`)
+    - Verified multiple match handling and status bar display
+
 - **Markdown Parsing and Rendering**: Integrated cmark library (CommonMark) for full markdown support
   - **Module Structure**:
     - New module: `src/loki_markdown.c` (421 lines) and `src/loki_markdown.h` (284 lines)

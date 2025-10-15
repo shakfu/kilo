@@ -2083,6 +2083,137 @@ static int lua_repl_handle_builtin(editor_ctx_t *ctx, const char *cmd, size_t le
     return 0;
 }
 
+/* Tab completion for Lua identifiers */
+static void lua_repl_complete_input(editor_ctx_t *ctx) {
+    if (!ctx || !ctx->L) return;
+    t_lua_repl *repl = &ctx->repl;
+
+    /* Nothing to complete if input is empty */
+    if (repl->input_len == 0) return;
+
+    /* Extract the word being completed (everything from last non-identifier char) */
+    int word_start = repl->input_len;
+    while (word_start > 0) {
+        char c = repl->input[word_start - 1];
+        if (!isalnum(c) && c != '_' && c != '.') break;
+        word_start--;
+    }
+
+    /* No word to complete */
+    if (word_start >= repl->input_len) return;
+
+    char prefix[KILO_QUERY_LEN];
+    int prefix_len = repl->input_len - word_start;
+    memcpy(prefix, repl->input + word_start, prefix_len);
+    prefix[prefix_len] = '\0';
+
+    /* Handle table.field completion */
+    char *dot = strchr(prefix, '.');
+    char table_name[KILO_QUERY_LEN];
+    char field_prefix[KILO_QUERY_LEN];
+
+    if (dot) {
+        /* Split into table and field parts */
+        int table_len = dot - prefix;
+        memcpy(table_name, prefix, table_len);
+        table_name[table_len] = '\0';
+        strcpy(field_prefix, dot + 1);
+    } else {
+        table_name[0] = '\0';
+        strcpy(field_prefix, prefix);
+    }
+
+    /* Collect matches */
+    char matches[100][KILO_QUERY_LEN];
+    int match_count = 0;
+
+    lua_State *L = ctx->L;
+
+    if (table_name[0] != '\0') {
+        /* Table.field completion - look in specific table */
+        lua_getglobal(L, table_name);
+        if (lua_istable(L, -1)) {
+            lua_pushnil(L);
+            while (lua_next(L, -2) != 0 && match_count < 100) {
+                if (lua_type(L, -2) == LUA_TSTRING) {
+                    const char *key = lua_tostring(L, -2);
+                    if (strncmp(key, field_prefix, strlen(field_prefix)) == 0) {
+                        snprintf(matches[match_count++], KILO_QUERY_LEN, "%s.%s", table_name, key);
+                    }
+                }
+                lua_pop(L, 1);
+            }
+        }
+        lua_pop(L, 1);
+    } else {
+        /* Global completion - look in _G */
+        lua_pushglobaltable(L);
+        lua_pushnil(L);
+        while (lua_next(L, -2) != 0 && match_count < 100) {
+            if (lua_type(L, -2) == LUA_TSTRING) {
+                const char *key = lua_tostring(L, -2);
+                if (strncmp(key, field_prefix, strlen(field_prefix)) == 0) {
+                    strncpy(matches[match_count++], key, KILO_QUERY_LEN - 1);
+                }
+            }
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
+    }
+
+    /* Handle matches */
+    if (match_count == 0) {
+        /* No matches - do nothing */
+        return;
+    } else if (match_count == 1) {
+        /* Single match - complete it */
+        const char *completion = matches[0];
+        int completion_len = strlen(completion);
+        int space_needed = word_start + completion_len;
+
+        if (space_needed < KILO_QUERY_LEN) {
+            /* Replace the partial word with the completion */
+            strcpy(repl->input + word_start, completion);
+            repl->input_len = space_needed;
+            repl->input[repl->input_len] = '\0';
+        }
+    } else {
+        /* Multiple matches - find common prefix and show options */
+        int common_len = strlen(matches[0]);
+        for (int i = 1; i < match_count; i++) {
+            int j = 0;
+            while (j < common_len && matches[i][j] == matches[0][j]) {
+                j++;
+            }
+            common_len = j;
+        }
+
+        /* Complete to common prefix */
+        if (common_len > prefix_len) {
+            int space_needed = word_start + common_len;
+            if (space_needed < KILO_QUERY_LEN) {
+                memcpy(repl->input + word_start, matches[0], common_len);
+                repl->input_len = space_needed;
+                repl->input[repl->input_len] = '\0';
+            }
+        }
+
+        /* Show matches in status message */
+        char status[256] = "";
+        int status_len = 0;
+        for (int i = 0; i < match_count && i < 5; i++) {
+            if (i > 0) {
+                status_len += snprintf(status + status_len, sizeof(status) - status_len, ", ");
+            }
+            status_len += snprintf(status + status_len, sizeof(status) - status_len, "%s", matches[i]);
+        }
+        if (match_count > 5) {
+            snprintf(status + status_len, sizeof(status) - status_len, " ... (%d more)", match_count - 5);
+        }
+        editor_set_status_msg(ctx, "%s", status);
+    }
+}
+
 void lua_repl_handle_keypress(editor_ctx_t *ctx, int key) {
     if (!ctx) return;
     t_lua_repl *repl = &ctx->repl;
@@ -2135,6 +2266,9 @@ void lua_repl_handle_keypress(editor_ctx_t *ctx, int key) {
         if (!repl->active) {
             editor_update_repl_layout(ctx);
         }
+        return;
+    case TAB:
+        lua_repl_complete_input(ctx);
         return;
     default:
         if (isprint(key)) {
