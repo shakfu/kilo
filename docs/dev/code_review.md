@@ -15,7 +15,7 @@ Loki has evolved from a 1K-line educational editor into a **production-grade, mo
 
 ---
 
-## 1. Architecture & Code Organization ⭐⭐⭐⭐⭐
+## 1. Architecture & Code Organization [+][+][+][+][+]
 
 ### Strengths
 
@@ -27,7 +27,7 @@ Languages (494 lines)  - Syntax highlighting, language definitions
 Modal (407 lines)      - Vim-like editing modes
 Selection (156 lines)  - Visual selection, clipboard integration
 Search (128 lines)     - Incremental search
-Undo (475 lines)       - ✅ Recently added - undo/redo with grouping
+Undo (475 lines)       - [x] Recently added - undo/redo with grouping
 ```
 
 **Key Architectural Wins:**
@@ -59,17 +59,17 @@ Undo (475 lines)       - ✅ Recently added - undo/redo with grouping
 
 ---
 
-## 2. Code Quality ⭐⭐⭐⭐½
+## 2. Code Quality [+][+][+][+]½
 
 ### Strengths
 
 **Memory Safety** - Comprehensive protections:
 
-- ✅ All malloc/realloc calls have NULL checks
-- ✅ Bounds checking before array access
-- ✅ Binary file detection (prevents null byte crashes)
-- ✅ Signal handler uses async-signal-safe pattern
-- ✅ Buffer overflow protections in syntax highlighting
+- [x] All malloc/realloc calls have NULL checks
+- [x] Bounds checking before array access
+- [x] Binary file detection (prevents null byte crashes)
+- [x] Signal handler uses async-signal-safe pattern
+- [x] Buffer overflow protections in syntax highlighting
 
 **Error Handling** - Robust throughout:
 
@@ -112,7 +112,7 @@ if (!undo) return;  // Graceful degradation
 
 ---
 
-## 3. Security Posture ⭐⭐⭐⭐⭐
+## 3. Security Posture [+][+][+][+][+]
 
 ### Outstanding Security Hardening
 
@@ -120,13 +120,13 @@ if (!undo) return;  // Graceful degradation
 
 | Protection Layer | Implementation | Status |
 |-----------------|----------------|--------|
-| URL validation | Scheme whitelist (http/https only) | ✅ Excellent |
-| Rate limiting | 100 req/min sliding window | ✅ Production-ready |
-| Request size limits | 5MB body, 2KB URL, 8KB headers | ✅ Industry-standard |
-| Response size limits | 10MB max | ✅ Prevents DoS |
-| SSL/TLS verification | Enabled by default via libcurl | ✅ Secure |
-| Header injection protection | Control character filtering | ✅ Prevents attacks |
-| SSRF protection | Rejects file://, <ftp://>, etc. | ✅ Critical mitigation |
+| URL validation | Scheme whitelist (http/https only) | [x] Excellent |
+| Rate limiting | 100 req/min sliding window | [x] Production-ready |
+| Request size limits | 5MB body, 2KB URL, 8KB headers | [x] Industry-standard |
+| Response size limits | 10MB max | [x] Prevents DoS |
+| SSL/TLS verification | Enabled by default via libcurl | [x] Secure |
+| Header injection protection | Control character filtering | [x] Prevents attacks |
+| SSRF protection | Rejects file://, <ftp://>, etc. | [x] Critical mitigation |
 
 **Comprehensive Security Documentation:**
 
@@ -145,9 +145,9 @@ if (!undo) return;  // Graceful degradation
 ### Security Concerns
 
 1. **Lua scripts have unrestricted access** - By design, but:
-   - ⚠️ **HIGH RISK**: Malicious `.loki/init.lua` can execute arbitrary code
-   - ✅ **Well-documented** in security.md
-   - ⚠️ **User education needed**: README should warn about inspecting init.lua before use
+   - [!] **HIGH RISK**: Malicious `.loki/init.lua` can execute arbitrary code
+   - [x] **Well-documented** in security.md
+   - [!] **User education needed**: README should warn about inspecting init.lua before use
 
 2. **No file path validation** in Lua:
 
@@ -168,7 +168,7 @@ if (!undo) return;  // Graceful degradation
 
 ---
 
-## 4. Testing & Quality Assurance ⭐⭐⭐⭐⭐
+## 4. Testing & Quality Assurance [+][+][+][+][+]
 
 ### Excellent Test Coverage
 
@@ -226,18 +226,18 @@ test_search.c           - Search functionality
 
 ---
 
-## 5. Documentation ⭐⭐⭐⭐½
+## 5. Documentation [+][+][+][+]½
 
 ### Strengths
 
 **Comprehensive Documentation:**
 
-- ✅ Excellent README.md (354 lines)
-- ✅ Detailed CLAUDE.md (project instructions, 650+ lines)
-- ✅ Thorough ROADMAP.md (495 lines)
-- ✅ Security documentation (889 lines)
-- ✅ Architecture docs in `docs/dev/`
-- ✅ Modular design docs (`.loki/modules/README.md`)
+- [x] Excellent README.md (354 lines)
+- [x] Detailed CLAUDE.md (project instructions, 650+ lines)
+- [x] Thorough ROADMAP.md (495 lines)
+- [x] Security documentation (889 lines)
+- [x] Architecture docs in `docs/dev/`
+- [x] Modular design docs (`.loki/modules/README.md`)
 
 **User-Facing Documentation:**
 
@@ -278,34 +278,34 @@ test_search.c           - Search functionality
 
 ---
 
-## 6. Notable Achievements ⭐
+## 6. Notable Achievements [+]
 
-1. **✅ Undo/Redo Implementation** (ROADMAP Item #1)
+1. **[x] Undo/Redo Implementation** (ROADMAP Item #1)
    - Smart operation grouping (time-based, movement-based)
    - Circular buffer with memory limits
    - 475 well-organized lines
    - **Status**: COMPLETED - this was highest priority item
 
-2. **✅ HTTP Security Hardening**
+2. **[x] HTTP Security Hardening**
    - Comprehensive validation layers
    - Rate limiting with sliding window
    - Defense-in-depth architecture
    - Production-grade implementation
 
-3. **✅ Modular Architecture**
+3. **[x] Modular Architecture**
    - Clean separation maintained
    - Core stays under 1,500 lines (1,336 currently)
    - All new features in modules
    - Roadmap philosophy achieved
 
-4. **✅ Test-Driven Development**
+4. **[x] Test-Driven Development**
    - Zero tolerance for test failures (per project rules)
    - All 10 test suites passing
    - Good coverage of new features
 
 ---
 
-## 7. Critical Improvements Needed 🔧
+## 7. Critical Improvements Needed 
 
 ### High Priority
 
@@ -350,7 +350,7 @@ void modal_delete_selection(editor_ctx_t *ctx) {
 **Recommended Addition (after line 35):**
 
 ```markdown
-## ⚠️ Security Notice
+## [!] Security Notice
 
 Loki executes Lua scripts from `.loki/init.lua` with **full user privileges**.
 Always inspect init.lua before opening projects from untrusted sources.
@@ -548,7 +548,7 @@ int main() {
 
 ---
 
-## 8. Important Features to Implement 🚀
+## 8. Important Features to Implement 
 
 ### From ROADMAP (Prioritized)
 
@@ -556,13 +556,13 @@ Based on roadmap analysis and project needs, implement in this order:
 
 #### Tier 1: Essential for Production Use (Next 3 months)
 
-**1. ✅ Undo/Redo** - **COMPLETED!**
+**1. [x] Undo/Redo** - **COMPLETED!**
 
 - Status: Already implemented in `loki_undo.c`
 - Quality: Excellent implementation with grouping
 - Action: Just need to complete visual mode delete
 
-**2. Multiple Buffers Module** (ROADMAP #2) ⭐⭐⭐
+**2. Multiple Buffers Module** (ROADMAP #2) [+][+][+]
 
 - **Why**: Edit multiple files simultaneously
 - **Complexity**: Medium (~250-350 lines)
@@ -582,7 +582,7 @@ Based on roadmap analysis and project needs, implement in this order:
 - **Status bar**: Show buffer list/indicators
 - **File**: `src/loki_buffers.c`, `src/loki_buffers.h`
 
-**3. Clipboard Paste** (ROADMAP #3) ⭐⭐
+**3. Clipboard Paste** (ROADMAP #3) [+][+]
 
 - **Why**: Already have copy (OSC 52), need paste
 - **Complexity**: Low (~50-100 lines)
@@ -596,7 +596,7 @@ Based on roadmap analysis and project needs, implement in this order:
   - `P` - paste before cursor
   - Works over SSH via OSC 52
 
-**4. Modal Editing Enhancements** (ROADMAP #4) ⭐⭐
+**4. Modal Editing Enhancements** (ROADMAP #4) [+][+]
 
 - **Additions needed:**
   - `w`/`b` - word forward/backward
@@ -609,7 +609,7 @@ Based on roadmap analysis and project needs, implement in this order:
 - **Impact**: Makes vim users feel at home
 - **Testing**: Add to `test_modal.c`
 
-**5. Auto-Indent Module** (ROADMAP #9) ⭐
+**5. Auto-Indent Module** (ROADMAP #9) [+]
 
 - **Why**: Developer quality-of-life
 - **Complexity**: Low (~100-150 lines)
@@ -630,7 +630,7 @@ Based on roadmap analysis and project needs, implement in this order:
 
 #### Tier 2: Powerful Additions (3-6 months)
 
-**6. Search Enhancements** (ROADMAP #5) ⭐⭐
+**6. Search Enhancements** (ROADMAP #5) [+][+]
 
 - **Additions:**
   - POSIX regex via `<regex.h>` (no external deps)
@@ -650,7 +650,7 @@ Based on roadmap analysis and project needs, implement in this order:
 
 - **Estimated lines**: ~150-200 additions to `loki_search.c`
 
-**7. Configuration System** (ROADMAP #10) ⭐
+**7. Configuration System** (ROADMAP #10) [+]
 
 - **Format**: TOML (simple parser or minimal library)
 - **Location**: `.loki/config.toml` or `~/.loki/config.toml`
@@ -691,7 +691,7 @@ Based on roadmap analysis and project needs, implement in this order:
 
 - **File**: `src/loki_config.c`, `src/loki_config.h`
 
-**8. Line Numbers Module** (Low complexity) ⭐
+**8. Line Numbers Module** (Low complexity) [+]
 
 - **Features:**
   - Gutter display with configurable width
@@ -761,36 +761,36 @@ Based on roadmap analysis and project needs, implement in this order:
 
 ---
 
-## 9. Features NOT to Implement ❌
+## 9. Features NOT to Implement [X]
 
 ### From ROADMAP (Confirmed Non-Goals)
 
 These are explicitly **excluded** to maintain minimalism:
 
-**1. ❌ GUI Version** - Terminal-native is core identity
+**1. [X] GUI Version** - Terminal-native is core identity
 
 - *Rationale*: Different project entirely, violates minimalist philosophy
 - *Alternative*: Use existing GUI editors (VS Code, Sublime)
 - *Keep*: Terminal-first design, VT100 sequences
 
-**2. ❌ Built-in Terminal** - Use tmux/screen
+**2. [X] Built-in Terminal** - Use tmux/screen
 
 - *Rationale*: Scope creep, external tools excel at this
 - *Alternative*: `Ctrl-Z` to background, `fg` to return, or use tmux
 - *Why not*: Adds complexity, terminal emulation is hard
 
-**3. ❌ Debugger Integration** - Beyond scope
+**3. [X] Debugger Integration** - Beyond scope
 
 - *Rationale*: Use gdb/lldb externally
 - *Alternative*: `:!gdb %` to shell out
 - *Why not*: Massive feature, belongs in IDE not minimal editor
 
-**4. ❌ Email/Web Browser** - Not an editor responsibility
+**4. [X] Email/Web Browser** - Not an editor responsibility
 
 - *Rationale*: "We're not Emacs"
 - *Keep focused*: Text editing only
 
-**5. ❌ AI Training** - Integration yes, training no
+**5. [X] AI Training** - Integration yes, training no
 
 - *Rationale*: Resource intensive, not editor's job
 - *What's okay*: AI completion via API (already supported)
@@ -798,32 +798,32 @@ These are explicitly **excluded** to maintain minimalism:
 
 ### Additional Recommendations (Not to Implement)
 
-**6. ❌ Package Manager for Lua Modules**
+**6. [X] Package Manager for Lua Modules**
 
 - *Why not*: Adds complexity, security risk (dependency chain attacks)
 - *Alternative*: Manual module installation, git submodules
 - *Concern*: Package managers need update mechanisms, version resolution, etc.
 
-**7. ❌ Mouse-Heavy Features** - Keep keyboard-first
+**7. [X] Mouse-Heavy Features** - Keep keyboard-first
 
 - *Why not*: Conflicts with modal editing philosophy
 - *What's okay*: Basic mouse support (click-to-position, scrollwheel)
 - *Not okay*: Context menus, toolbar buttons, drag-and-drop
 
-**8. ❌ Complex Project Management** - Use external tools
+**8. [X] Complex Project Management** - Use external tools
 
 - *Why not*: Make, rake, npm, cargo already exist and excel
 - *Alternative*: Shell out to build tools (`:!make`)
 - *What's okay*: Running single commands, quickfix list
 - *Not okay*: Build system integration, dependency graphs
 
-**9. ❌ Embedded Database** - Overkill
+**9. [X] Embedded Database** - Overkill
 
 - *Why not*: Adds dependency, complexity, binary size
 - *Alternative*: Lua tables, JSON files for session state
 - *Concern*: SQLite is 600KB+ of code
 
-**10. ❌ Built-in Git Client Beyond Basic Status** - Too complex
+**10. [X] Built-in Git Client Beyond Basic Status** - Too complex
 
 - *Why not*: Git CLI is comprehensive and well-designed
 - *What's okay*:
@@ -837,12 +837,12 @@ These are explicitly **excluded** to maintain minimalism:
   - Git log browser
 - *Alternative*: Use `fugitive.vim` pattern - shell out to git
 
-**11. ❌ Collaborative Editing** - Out of scope
+**11. [X] Collaborative Editing** - Out of scope
 
 - *Why not*: Requires server, networking, conflict resolution
 - *Alternative*: Use external tools (tmate, tmux + SSH, VS Code Live Share)
 
-**12. ❌ Plugin Marketplace** - Too much infrastructure
+**12. [X] Plugin Marketplace** - Too much infrastructure
 
 - *Why not*: Needs hosting, curation, security review
 - *Alternative*: GitHub topics, awesome-loki list
@@ -937,10 +937,10 @@ These are explicitly **excluded** to maintain minimalism:
 
 | Dependency | Purpose | License | Version | Status |
 |-----------|---------|---------|---------|--------|
-| Lua or LuaJIT | Scripting engine | MIT | 5.4+ / 2.1+ | ✅ Excellent |
-| libcurl | HTTP client | MIT-like | 7.x+ | ✅ Industry standard |
-| libedit or readline | Line editing (optional) | BSD / GPL | Any | ✅ Fallback exists |
-| pthreads | Threading (implicit) | System | - | ✅ Standard |
+| Lua or LuaJIT | Scripting engine | MIT | 5.4+ / 2.1+ | [x] Excellent |
+| libcurl | HTTP client | MIT-like | 7.x+ | [x] Industry standard |
+| libedit or readline | Line editing (optional) | BSD / GPL | Any | [x] Fallback exists |
+| pthreads | Threading (implicit) | System | - | [x] Standard |
 
 **Strengths:**
 
@@ -952,10 +952,10 @@ These are explicitly **excluded** to maintain minimalism:
 
 **Dependency Management:**
 
-- ✅ CMake finds dependencies automatically
-- ✅ Graceful degradation (editline/readline optional)
-- ✅ Clear error messages if dependencies missing
-- ✅ No vendored dependencies (clean separation)
+- [x] CMake finds dependencies automatically
+- [x] Graceful degradation (editline/readline optional)
+- [x] Clear error messages if dependencies missing
+- [x] No vendored dependencies (clean separation)
 
 ### Recommendations
 
@@ -1147,7 +1147,7 @@ Total Lines of Code: 8,255
 └── Text:               18 (<1%)
 
 Module Distribution:
-├── Core:          1,336 lines (minimal ✅)
+├── Core:          1,336 lines (minimal [x])
 ├── Features:      1,960 lines (modal+undo+selection+search+languages)
 ├── Integration:   2,000 lines (lua+editor+terminal+command)
 ├── Tests:         5,000 lines (excellent coverage)
@@ -1158,34 +1158,34 @@ Module Distribution:
 
 **Compilation:**
 
-- ✅ Warnings: 0 (with `-Wall -Wextra -pedantic`)
-- ✅ Build time: Fast (~2-3 seconds clean build)
-- ✅ Binary size: ~72KB (dynamically linked, stripped)
-- ✅ Dependencies: 3 (Lua, libcurl, pthreads)
+- [x] Warnings: 0 (with `-Wall -Wextra -pedantic`)
+- [x] Build time: Fast (~2-3 seconds clean build)
+- [x] Binary size: ~72KB (dynamically linked, stripped)
+- [x] Dependencies: 3 (Lua, libcurl, pthreads)
 
 **Testing:**
 
-- ✅ Test suites: 10
-- ✅ Test LOC: ~5,000
-- ✅ Pass rate: 100% (10/10)
-- ✅ Execution time: 0.07 seconds
-- ❌ Code coverage: Unknown (no metrics collected)
-- ❌ Mutation testing: Not implemented
+- [x] Test suites: 10
+- [x] Test LOC: ~5,000
+- [x] Pass rate: 100% (10/10)
+- [x] Execution time: 0.07 seconds
+- [X] Code coverage: Unknown (no metrics collected)
+- [X] Mutation testing: Not implemented
 
 **Memory:**
 
-- ✅ Static analysis: Clean (no obvious leaks in code review)
-- ❌ Valgrind: Not run in CI
-- ❌ AddressSanitizer: Not enabled by default
-- ✅ NULL checks: Present on all allocations
+- [x] Static analysis: Clean (no obvious leaks in code review)
+- [X] Valgrind: Not run in CI
+- [X] AddressSanitizer: Not enabled by default
+- [x] NULL checks: Present on all allocations
 
 **Security:**
 
-- ✅ Buffer overflows: Fixed (comprehensive bounds checking)
-- ✅ NULL dereferences: Protected (checks on all allocations)
-- ✅ Signal safety: Fixed (async-signal-safe pattern)
-- ✅ HTTP security: Hardened (validation, rate limiting, size limits)
-- ✅ Binary file detection: Implemented
+- [x] Buffer overflows: Fixed (comprehensive bounds checking)
+- [x] NULL dereferences: Protected (checks on all allocations)
+- [x] Signal safety: Fixed (async-signal-safe pattern)
+- [x] HTTP security: Hardened (validation, rate limiting, size limits)
+- [x] Binary file detection: Implemented
 
 ### Complexity Metrics (Estimated)
 
@@ -1210,18 +1210,18 @@ Based on code review, approximate cyclomatic complexity:
 
 **Positive factors:**
 
-- ✅ Clear module boundaries
-- ✅ Consistent naming conventions
-- ✅ Well-organized code structure
-- ✅ Good comments in complex sections
-- ✅ Test coverage of core functionality
+- [x] Clear module boundaries
+- [x] Consistent naming conventions
+- [x] Well-organized code structure
+- [x] Good comments in complex sections
+- [x] Test coverage of core functionality
 
 **Negative factors:**
 
-- ⚠️ Some large functions (could be split)
-- ⚠️ Magic numbers without rationale
-- ⚠️ Limited API documentation
-- ⚠️ No inline documentation in some modules
+- [!] Some large functions (could be split)
+- [!] Magic numbers without rationale
+- [!] Limited API documentation
+- [!] No inline documentation in some modules
 
 **Overall Maintainability: High**
 
@@ -1229,9 +1229,9 @@ Based on code review, approximate cyclomatic complexity:
 
 ## 14. Final Recommendations (Prioritized Action Items)
 
-### Immediate (This Week) 🔥
+### Immediate (This Week) 
 
-**1. ✅ Complete Visual Mode Delete**
+**1. [x] Complete Visual Mode Delete**
 
 - File: `loki_modal.c`
 - Lines: ~50-80
@@ -1239,7 +1239,7 @@ Based on code review, approximate cyclomatic complexity:
 - Impact: HIGH - Completes visual mode feature
 - Test: Add to `test_modal.c`
 
-**2. ✅ Add Security Warning to README**
+**2. [x] Add Security Warning to README**
 
 - File: `README.md`
 - Location: After line 35
@@ -1247,7 +1247,7 @@ Based on code review, approximate cyclomatic complexity:
 - Impact: HIGH - Prevents malicious config execution
 - Content: Warn about `.loki/init.lua` inspection
 
-**3. ✅ Improve Git Commit Messages**
+**3. [x] Improve Git Commit Messages**
 
 - Action: Adopt conventional commits
 - Format: `type(scope): description`
@@ -1264,9 +1264,9 @@ Based on code review, approximate cyclomatic complexity:
 
 ---
 
-### Short Term (This Month) 📅
+### Short Term (This Month) [cal]
 
-**4. Implement Multiple Buffers Module** ⭐⭐⭐
+**4. Implement Multiple Buffers Module** [+][+][+]
 
 - File: New `src/loki_buffers.c`
 - Lines: ~250-350
@@ -1279,7 +1279,7 @@ Based on code review, approximate cyclomatic complexity:
   - Status bar shows buffer list
 - Tests: New `test_buffers.c`
 
-**5. Add Clipboard Paste** ⭐⭐
+**5. Add Clipboard Paste** [+][+]
 
 - File: `src/loki_selection.c` (extend existing)
 - Lines: ~50-100
@@ -1292,7 +1292,7 @@ Based on code review, approximate cyclomatic complexity:
   - Internal buffer fallback
 - Tests: Extend `test_modal.c`
 
-**6. Enhance Modal Editing** ⭐⭐
+**6. Enhance Modal Editing** [+][+]
 
 - File: `src/loki_modal.c`
 - Lines: ~150-200 additions
@@ -1306,7 +1306,7 @@ Based on code review, approximate cyclomatic complexity:
   - `C` - change to end of line
 - Tests: Extend `test_modal.c`
 
-**7. Add Auto-Indent Module** ⭐
+**7. Add Auto-Indent Module** [+]
 
 - File: New `src/loki_indent.c`
 - Lines: ~100-150
@@ -1320,9 +1320,9 @@ Based on code review, approximate cyclomatic complexity:
 
 ---
 
-### Medium Term (Next 3 Months) 📆
+### Medium Term (Next 3 Months) [cal]
 
-**8. Search Enhancements** ⭐⭐
+**8. Search Enhancements** [+][+]
 
 - File: `src/loki_search.c` (extend)
 - Lines: ~150-200 additions
@@ -1337,7 +1337,7 @@ Based on code review, approximate cyclomatic complexity:
   - `n`/`N` next/previous
 - Tests: Extend `test_search.c`
 
-**9. Configuration System** ⭐
+**9. Configuration System** [+]
 
 - File: New `src/loki_config.c`
 - Lines: ~200-250
@@ -1350,7 +1350,7 @@ Based on code review, approximate cyclomatic complexity:
   - Exposed to Lua via `loki.config`
 - Tests: New `test_config.c`
 
-**10. Add Fuzzing to CI** 🔒
+**10. Add Fuzzing to CI** 
 
 - Files: New `tests/fuzz_*.c`
 - Effort: 8-12 hours (including corpus)
@@ -1358,14 +1358,14 @@ Based on code review, approximate cyclomatic complexity:
 - Approach: AFL or libFuzzer
 - Targets: File input, Lua scripts
 
-**11. Memory Leak Detection in CI** 🔒
+**11. Memory Leak Detection in CI** 
 
 - Action: Add Valgrind to test workflow
 - Effort: 3-4 hours
 - Impact: MEDIUM - Quality assurance
 - Alternative: AddressSanitizer builds
 
-**12. Performance Benchmarks** 📊
+**12. Performance Benchmarks** 
 
 - Files: New `tests/benchmark_*.c`
 - Effort: 10-15 hours
@@ -1378,7 +1378,7 @@ Based on code review, approximate cyclomatic complexity:
 
 ---
 
-### Long Term (6-12 Months) 🚀
+### Long Term (6-12 Months) 
 
 **13. Split Windows Module**
 
@@ -1420,7 +1420,7 @@ Based on code review, approximate cyclomatic complexity:
 
 ---
 
-### Continuous (Ongoing) ♾️
+### Continuous (Ongoing) 
 
 **18. Documentation Updates**
 
@@ -1446,7 +1446,7 @@ Based on code review, approximate cyclomatic complexity:
 
 ## 15. Overall Assessment
 
-### Strengths ⭐
+### Strengths [+]
 
 **1. Exceptional architecture**
 
@@ -1499,7 +1499,7 @@ Based on code review, approximate cyclomatic complexity:
 
 ---
 
-### Weaknesses ⚠️
+### Weaknesses [!]
 
 **1. Missing security warning in README**
 
@@ -1548,7 +1548,7 @@ Based on code review, approximate cyclomatic complexity:
 
 ---
 
-### Opportunities 🚀
+### Opportunities 
 
 **1. Multiple buffers** (ROADMAP #2)
 
@@ -1587,7 +1587,7 @@ Based on code review, approximate cyclomatic complexity:
 
 ---
 
-### Threats 🛡️
+### Threats 
 
 **1. Scope creep**
 
@@ -1659,8 +1659,8 @@ Based on code review, approximate cyclomatic complexity:
 
 **Path to A (95+)**:
 
-1. Add security warning to README ✅
-2. Complete visual mode delete ✅
+1. Add security warning to README [x]
+2. Complete visual mode delete [x]
 3. Add performance benchmarks
 4. Improve git commit messages
 5. Add fuzzing to CI
@@ -1683,11 +1683,11 @@ Loki is an **exceptionally well-engineered project** that demonstrates professio
 
 Successfully evolved from educational code to production software while:
 
-- ✅ Maintaining minimalist philosophy (core < 1,500 lines)
-- ✅ Adding powerful features (undo/redo, modal editing, async HTTP)
-- ✅ Hardening security (comprehensive HTTP validation)
-- ✅ Building comprehensive tests (100% pass rate)
-- ✅ Creating excellent documentation (2,000+ lines)
+- [x] Maintaining minimalist philosophy (core < 1,500 lines)
+- [x] Adding powerful features (undo/redo, modal editing, async HTTP)
+- [x] Hardening security (comprehensive HTTP validation)
+- [x] Building comprehensive tests (100% pass rate)
+- [x] Creating excellent documentation (2,000+ lines)
 
 ### What Sets Loki Apart
 
@@ -1721,9 +1721,9 @@ Successfully evolved from educational code to production software while:
 
 **Week 1:**
 
-1. ✅ Complete visual mode delete (2-3 hours)
-2. ✅ Add security warning to README (15 minutes)
-3. ✅ Adopt conventional commits (ongoing)
+1. [x] Complete visual mode delete (2-3 hours)
+2. [x] Add security warning to README (15 minutes)
+3. [x] Adopt conventional commits (ongoing)
 
 **Month 1:**
 
@@ -1758,7 +1758,7 @@ Continue current development trajectory - you're building something exceptional.
 
 **Grade: A- (92.55/100)**
 
-Well done! 🎉
+Well done! 
 
 ---
 

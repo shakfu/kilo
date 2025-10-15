@@ -15,7 +15,7 @@ Our current editline/readline integration provides:
 
 ## Missing High-Value Features
 
-### 1. Tab Completion ⭐⭐⭐⭐⭐ (HIGHEST PRIORITY)
+### 1. Tab Completion [+][+][+][+][+] (HIGHEST PRIORITY)
 
 **What it is:** Press Tab to auto-complete identifiers
 
@@ -87,7 +87,7 @@ rl_attempted_completion_function = loki_completion;
 
 ---
 
-### 2. Incremental History Search (Ctrl-R) ⭐⭐⭐⭐
+### 2. Incremental History Search (Ctrl-R) [+][+][+][+]
 
 **What it is:** Search through command history as you type
 
@@ -123,7 +123,7 @@ loki> # Press Ctrl-R, type "print"
 
 ---
 
-### 3. Multi-line Input Support ⭐⭐⭐⭐
+### 3. Multi-line Input Support [+][+][+][+]
 
 **What it is:** Automatically continue to next line for incomplete Lua
 
@@ -187,7 +187,7 @@ while (!is_lua_complete(buffer)) {
 
 ---
 
-### 4. Syntax Hints/Suggestions ⭐⭐⭐
+### 4. Syntax Hints/Suggestions [+][+][+]
 
 **What it is:** Show completion suggestion inline (fish shell style)
 
@@ -212,7 +212,7 @@ loki> pri|nt(1+1)
 
 ---
 
-### 5. Brace/Parenthesis Matching ⭐⭐⭐
+### 5. Brace/Parenthesis Matching [+][+][+]
 
 **What it is:** Highlight matching braces as you type
 
@@ -237,7 +237,7 @@ loki> print(table.concat({1,2,3}, ","))
 
 ---
 
-### 6. Context-aware Completion ⭐⭐⭐⭐
+### 6. Context-aware Completion [+][+][+][+]
 
 **What it is:** Different completions based on context
 
@@ -290,7 +290,7 @@ char **context_aware_completion(const char *text, int start, int end) {
 
 ---
 
-### 7. Line Editing Undo/Redo ⭐⭐
+### 7. Line Editing Undo/Redo [+][+]
 
 **What it is:** Undo changes to current line (Ctrl-_ or Ctrl-X Ctrl-U)
 
@@ -307,7 +307,7 @@ char **context_aware_completion(const char *text, int start, int end) {
 
 ---
 
-### 8. Vi/Emacs Mode Toggle ⭐⭐
+### 8. Vi/Emacs Mode Toggle [+][+]
 
 **What it is:** Switch between vi and emacs key bindings
 
@@ -337,7 +337,7 @@ rl_variable_bind("editing-mode", "vi");  // Vi mode
 
 ---
 
-### 9. Custom Key Bindings ⭐⭐
+### 9. Custom Key Bindings [+][+]
 
 **What it is:** Let users define custom keyboard shortcuts
 
@@ -362,7 +362,7 @@ end)
 
 ---
 
-### 10. History Timestamps ⭐
+### 10. History Timestamps [+]
 
 **What it is:** Record when each command was executed
 
@@ -390,7 +390,7 @@ history_write_timestamps = 1;
 
 ---
 
-### 11. Persistent Variables Across Sessions ⭐⭐⭐
+### 11. Persistent Variables Across Sessions [+][+][+]
 
 **What it is:** Remember variables between REPL sessions
 
@@ -417,7 +417,7 @@ loki> print(x)  -- Still 42!
 
 ---
 
-### 12. Output Paging ⭐⭐
+### 12. Output Paging [+][+]
 
 **What it is:** Page long output with `less`-style pager
 
@@ -441,7 +441,7 @@ loki> for i=1,100 do print(i) end
 
 ---
 
-### 13. Code Execution from External Editor ⭐⭐⭐
+### 13. Code Execution from External Editor [+][+][+]
 
 **What it is:** Edit multi-line code in $EDITOR, then execute
 
@@ -485,7 +485,7 @@ void repl_edit_command(void) {
 
 ---
 
-### 14. Command Aliases ⭐⭐
+### 14. Command Aliases [+][+]
 
 **What it is:** Define short aliases for common commands
 
@@ -510,20 +510,20 @@ loki> p(42)  -- Same as print(42)
 
 | Feature | Value | Effort | Priority | Status |
 |---------|-------|--------|----------|--------|
-| **Tab Completion** | ⭐⭐⭐⭐⭐ | Medium |  Critical | Not started |
-| **Multi-line Input** | ⭐⭐⭐⭐ | Medium |  Critical | Not started |
-| **History Search (Ctrl-R)** | ⭐⭐⭐⭐ | Zero | [x] Done | Works, needs docs |
-| **Context-aware Completion** | ⭐⭐⭐⭐ | High | 🟡 Important | Not started |
-| **External Editor** | ⭐⭐⭐ | Low | 🟡 Important | Not started |
-| **Syntax Hints** | ⭐⭐⭐ | High | 🟢 Nice-to-have | Not started |
-| **Persistent Variables** | ⭐⭐⭐ | Medium | 🟢 Nice-to-have | Not started |
-| **Brace Matching** | ⭐⭐⭐ | Very High | 🟢 Nice-to-have | Not started |
-| **Vi Mode Toggle** | ⭐⭐ | Zero | 🟢 Nice-to-have | Built-in, needs config |
-| **Custom Key Bindings** | ⭐⭐ | Medium | 🟢 Nice-to-have | Not started |
-| **Undo/Redo** | ⭐⭐ | Zero | [x] Done | Works (Ctrl-_) |
-| **Output Paging** | ⭐⭐ | Medium |  Low | Not started |
-| **Command Aliases** | ⭐⭐ | Low |  Low | Not started |
-| **History Timestamps** | ⭐ | Low |  Low | Not started |
+| **Tab Completion** | [+][+][+][+][+] | Medium |  Critical | Not started |
+| **Multi-line Input** | [+][+][+][+] | Medium |  Critical | Not started |
+| **History Search (Ctrl-R)** | [+][+][+][+] | Zero | [x] Done | Works, needs docs |
+| **Context-aware Completion** | [+][+][+][+] | High | [o] Important | Not started |
+| **External Editor** | [+][+][+] | Low | [o] Important | Not started |
+| **Syntax Hints** | [+][+][+] | High | 🟢 Nice-to-have | Not started |
+| **Persistent Variables** | [+][+][+] | Medium | 🟢 Nice-to-have | Not started |
+| **Brace Matching** | [+][+][+] | Very High | 🟢 Nice-to-have | Not started |
+| **Vi Mode Toggle** | [+][+] | Zero | 🟢 Nice-to-have | Built-in, needs config |
+| **Custom Key Bindings** | [+][+] | Medium | 🟢 Nice-to-have | Not started |
+| **Undo/Redo** | [+][+] | Zero | [x] Done | Works (Ctrl-_) |
+| **Output Paging** | [+][+] | Medium |  Low | Not started |
+| **Command Aliases** | [+][+] | Low |  Low | Not started |
+| **History Timestamps** | [+] | Low |  Low | Not started |
 
 ## Implementation Roadmap
 
@@ -727,8 +727,8 @@ static void repl_init_completion(void) {
 
 1. **Tab completion** - Essential for discoverability
 2. **Multi-line input** - Essential for functions/tables
-3. 🟡 **Context-aware completion** - Great UX improvement
-4. 🟡 **External editor** - Important for complex code
+3. [o] **Context-aware completion** - Great UX improvement
+4. [o] **External editor** - Important for complex code
 
 **Quick wins:**
 

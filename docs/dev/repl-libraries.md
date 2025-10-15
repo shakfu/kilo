@@ -103,7 +103,7 @@ int main() {
 - Smaller community than readline/editline
 - No vi mode
 
-**Recommendation:** ⭐⭐⭐⭐⭐ **Best fit for loki's philosophy**
+**Recommendation:** [+][+][+][+][+] **Best fit for loki's philosophy**
 
 ---
 
@@ -177,7 +177,7 @@ int main() {
 - Requires curses/ncurses
 - Larger binary size
 
-**Recommendation:** ⭐⭐⭐⭐ **Current choice - good for Unix systems**
+**Recommendation:** [+][+][+][+] **Current choice - good for Unix systems**
 
 ---
 
@@ -256,7 +256,7 @@ int main() {
 - No Windows support
 - macOS requires Homebrew (keg-only due to GPL)
 
-**Recommendation:** ⭐⭐⭐ **Good fallback, licensing concerns**
+**Recommendation:** [+][+][+] **Good fallback, licensing concerns**
 
 ---
 
@@ -322,7 +322,7 @@ int main() {
 - Smaller community
 - Less battle-tested
 
-**Recommendation:** ⭐⭐⭐ **Good for feature-rich REPLs**
+**Recommendation:** [+][+][+] **Good for feature-rich REPLs**
 
 ---
 
@@ -384,7 +384,7 @@ int main() {
 - Smaller community
 - Single-header = longer compile times
 
-**Recommendation:** ⭐⭐⭐⭐ **Excellent for cross-platform**
+**Recommendation:** [+][+][+][+] **Excellent for cross-platform**
 
 ---
 
@@ -427,7 +427,7 @@ int main() {
 - Not actively maintained
 - Dated website/documentation
 
-**Recommendation:** ⭐⭐ **Dated, better alternatives exist**
+**Recommendation:** [+][+] **Dated, better alternatives exist**
 
 ---
 

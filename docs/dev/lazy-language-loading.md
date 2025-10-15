@@ -1,6 +1,6 @@
 # Lazy Language Loading Architecture
 
-**Status:** ✅ DESIGNED, 🚧 IMPLEMENTING
+**Status:** [x] DESIGNED,  IMPLEMENTING
 **Goal:** Load language definitions on-demand, not at startup
 **Benefit:** Faster startup, lower memory footprint
 
@@ -48,9 +48,9 @@ languages.init()  -- Just sets up infrastructure, doesn't load anything
 
 **Benefits:**
 
-- ✅ Instant startup (0ms language loading)
-- ✅ Lower memory (only loaded languages in RAM)
-- ✅ Partial installation okay (missing Go? Fine, just no .go highlighting)
+- [x] Instant startup (0ms language loading)
+- [x] Lower memory (only loaded languages in RAM)
+- [x] Partial installation okay (missing Go? Fine, just no .go highlighting)
 
 ---
 
@@ -228,7 +228,7 @@ end
 
 ## Migration Steps
 
-### Step 1: Update languages.lua Module ✅
+### Step 1: Update languages.lua Module [x]
 
 Replace `.loki/modules/languages.lua` with lazy loading implementation.
 
@@ -240,7 +240,7 @@ Replace `.loki/modules/languages.lua` with lazy loading implementation.
 - Add extension scanning
 - Always load markdown as fallback
 
-### Step 2: Update init.lua ✅
+### Step 2: Update init.lua [x]
 
 ```lua
 -- .loki/init.lua (NEW)
@@ -264,11 +264,11 @@ end
 loki.status("Loki initialized!")
 ```
 
-### Step 3: Hook into C Code ✅
+### Step 3: Hook into C Code [x]
 
 Modify `editor_select_syntax_highlight()` to trigger lazy loading.
 
-### Step 4: Create Missing Lua Language Files 🚧
+### Step 4: Create Missing Lua Language Files 
 
 **Currently in C only (need to create .lua files):**
 
@@ -280,7 +280,7 @@ Modify `editor_select_syntax_highlight()` to trigger lazy loading.
 - `sql.lua` - SQL
 - `shell.lua` - Shell scripts
 
-### Step 5: Remove C Definitions 🚧
+### Step 5: Remove C Definitions 
 
 Clean out `src/loki_languages.c`:
 
@@ -288,7 +288,7 @@ Clean out `src/loki_languages.c`:
 - Keep only minimal infrastructure
 - Keep Markdown as emergency fallback (if Lua fails)
 
-### Step 6: Testing ✅
+### Step 6: Testing [x]
 
 Test matrix:
 
@@ -503,11 +503,11 @@ Compress keyword lists with trie or DAWG:
 
 **Lazy loading achieves:**
 
-- ✅ 60% faster startup
-- ✅ 32% lower memory (typical usage)
-- ✅ Better user experience (no delay for unused languages)
-- ✅ Graceful degradation (partial installs work)
-- ✅ Markdown as sensible default
+- [x] 60% faster startup
+- [x] 32% lower memory (typical usage)
+- [x] Better user experience (no delay for unused languages)
+- [x] Graceful degradation (partial installs work)
+- [x] Markdown as sensible default
 
 **Implementation complexity:** Medium
 **Estimated effort:** 6-8 hours

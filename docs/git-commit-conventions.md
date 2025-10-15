@@ -80,17 +80,17 @@ Omit scope for project-wide changes: `chore: update copyright year`
 
 **Examples:**
 
-- ✅ `feat(modal): add visual block mode (Ctrl-V)`
-- ✅ `fix(search): handle regex errors gracefully`
-- ✅ `perf(render): reduce screen refresh time by 40%`
+- [x] `feat(modal): add visual block mode (Ctrl-V)`
+- [x] `fix(search): handle regex errors gracefully`
+- [x] `perf(render): reduce screen refresh time by 40%`
 
 **DON'T:**
 
-- ❌ `feat(modal): Added visual block mode.` (wrong tense, period)
-- ❌ `fix: bug fix` (too vague)
-- ❌ `snap` (no context)
-- ❌ `wip` (work in progress - don't commit)
-- ❌ `feat(modal): implemented visual block mode with ctrl-v and added tests and updated docs` (too long)
+- [X] `feat(modal): Added visual block mode.` (wrong tense, period)
+- [X] `fix: bug fix` (too vague)
+- [X] `snap` (no context)
+- [X] `wip` (work in progress - don't commit)
+- [X] `feat(modal): implemented visual block mode with ctrl-v and added tests and updated docs` (too long)
 
 ---
 
@@ -194,14 +194,14 @@ git commit --fixup=abc123
 These are actual commit messages from Loki history that we want to avoid:
 
 ```bash
-❌ "snap"                    # No context whatsoever
-❌ "more tests"              # What tests? For what?
-❌ "added undo/redo"         # Which part? What specifically changed?
-❌ "dropped thirdparty"      # Why? What was removed?
-❌ "wip"                     # Don't commit work in progress
-❌ "fix stuff"               # What stuff?
-❌ "update"                  # Update what?
-❌ "asdf"                    # Not even trying
+[X] "snap"                    # No context whatsoever
+[X] "more tests"              # What tests? For what?
+[X] "added undo/redo"         # Which part? What specifically changed?
+[X] "dropped thirdparty"      # Why? What was removed?
+[X] "wip"                     # Don't commit work in progress
+[X] "fix stuff"               # What stuff?
+[X] "update"                  # Update what?
+[X] "asdf"                    # Not even trying
 ```
 
 **Why these are bad:**
@@ -344,11 +344,11 @@ Closes #67
 
 **Components:**
 
-1. ✅ Type: `feat` (new feature)
-2. ✅ Scope: `modal` (modal editing module)
-3. ✅ Description: Concise, imperative, specific
-4. ✅ Body: Explains what and why
-5. ✅ Footer: References issue
+1. [x] Type: `feat` (new feature)
+2. [x] Scope: `modal` (modal editing module)
+3. [x] Description: Concise, imperative, specific
+4. [x] Body: Explains what and why
+5. [x] Footer: References issue
 
 **Benefits:**
 

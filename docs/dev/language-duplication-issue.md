@@ -1,6 +1,6 @@
 # Language Definition Duplication Issue
 
-**Status:** ⚠️ ARCHITECTURAL DEBT
+**Status:** [!] ARCHITECTURAL DEBT
 **Severity:** MEDIUM
 **Discovered:** 2025-10-12
 **Affects:** Language syntax highlighting definitions
@@ -65,10 +65,10 @@ loki.register_language({
 
 | Language | C Source | Lua Source | Status |
 |----------|----------|------------|--------|
-| Python | `loki_languages.c:52` | `python.lua` | ❌ DUPLICATE |
-| Lua | `loki_languages.c:67` | `lua.lua` | ❌ DUPLICATE |
-| JavaScript | `loki_languages.c:109` | `javascript.lua` | ❌ DUPLICATE |
-| Rust | `loki_languages.c` | `rust.lua` | ❌ DUPLICATE |
+| Python | `loki_languages.c:52` | `python.lua` | [X] DUPLICATE |
+| Lua | `loki_languages.c:67` | `lua.lua` | [X] DUPLICATE |
+| JavaScript | `loki_languages.c:109` | `javascript.lua` | [X] DUPLICATE |
+| Rust | `loki_languages.c` | `rust.lua` | [X] DUPLICATE |
 
 ### Languages in C Only
 
@@ -148,23 +148,23 @@ The duplication exists because of **unclear architecture evolution**:
 
 ## Solution Options
 
-### Option 1: All Languages in Lua (Recommended) ⭐
+### Option 1: All Languages in Lua (Recommended) [+]
 
 **Move all language definitions to Lua, keep only C infrastructure.**
 
 **Pros:**
 
-- ✅ Single source of truth (`.loki/languages/*.lua`)
-- ✅ User-extensible without recompilation
-- ✅ Easy to add/modify languages
-- ✅ Consistent with project philosophy (Lua-powered)
-- ✅ Already have the infrastructure (`loki.register_language()`)
+- [x] Single source of truth (`.loki/languages/*.lua`)
+- [x] User-extensible without recompilation
+- [x] Easy to add/modify languages
+- [x] Consistent with project philosophy (Lua-powered)
+- [x] Already have the infrastructure (`loki.register_language()`)
 
 **Cons:**
 
-- ⚠️ Requires `.loki/languages/` directory to exist
-- ⚠️ Small startup time to load languages (negligible)
-- ⚠️ Editor won't work without Lua files (but already requires Lua anyway)
+- [!] Requires `.loki/languages/` directory to exist
+- [!] Small startup time to load languages (negligible)
+- [!] Editor won't work without Lua files (but already requires Lua anyway)
 
 **Implementation:**
 
@@ -221,17 +221,17 @@ void load_emergency_defaults(void) {
 
 **Pros:**
 
-- ✅ Fast (compiled-in, no runtime loading)
-- ✅ No dependencies on `.loki/` directory
-- ✅ Single source of truth (C code)
+- [x] Fast (compiled-in, no runtime loading)
+- [x] No dependencies on `.loki/` directory
+- [x] Single source of truth (C code)
 
 **Cons:**
 
-- ❌ Not user-extensible (requires recompilation)
-- ❌ Bloats binary (more keywords = larger executable)
-- ❌ Against project philosophy (Lua-powered extensibility)
-- ❌ Wastes the `loki.register_language()` infrastructure
-- ❌ Go and Java would need to move to C
+- [X] Not user-extensible (requires recompilation)
+- [X] Bloats binary (more keywords = larger executable)
+- [X] Against project philosophy (Lua-powered extensibility)
+- [X] Wastes the `loki.register_language()` infrastructure
+- [X] Go and Java would need to move to C
 
 **Not Recommended:** Conflicts with the "Lua-powered" vision.
 
@@ -254,15 +254,15 @@ void load_emergency_defaults(void) {
 
 **Pros:**
 
-- ✅ Editor works without `.loki/` (C/Markdown highlighting)
-- ✅ User-extensible (add languages via Lua)
-- ✅ Clear separation (essentials vs extensions)
+- [x] Editor works without `.loki/` (C/Markdown highlighting)
+- [x] User-extensible (add languages via Lua)
+- [x] Clear separation (essentials vs extensions)
 
 **Cons:**
 
-- ⚠️ Two mechanisms to maintain
-- ⚠️ Need precedence/override logic
-- ⚠️ Still some duplication risk if not disciplined
+- [!] Two mechanisms to maintain
+- [!] Need precedence/override logic
+- [!] Still some duplication risk if not disciplined
 
 **Implementation:**
 
@@ -294,15 +294,15 @@ struct t_editor_syntax HLDB[] = {
 
 **Pros:**
 
-- ✅ Works out of box (C defaults)
-- ✅ Customizable (Lua overrides)
-- ✅ Graceful degradation (no `.loki/` needed)
+- [x] Works out of box (C defaults)
+- [x] Customizable (Lua overrides)
+- [x] Graceful degradation (no `.loki/` needed)
 
 **Cons:**
 
-- ⚠️ Complex precedence logic
-- ⚠️ Still have duplication in codebase
-- ⚠️ Harder to reason about (which definition is active?)
+- [!] Complex precedence logic
+- [!] Still have duplication in codebase
+- [!] Harder to reason about (which definition is active?)
 
 **Not Recommended:** Adds complexity without clear benefit.
 
@@ -320,7 +320,7 @@ struct t_editor_syntax HLDB[] = {
 
 ### Migration Plan
 
-#### Phase 1: Document Current State ✅
+#### Phase 1: Document Current State [x]
 
 - [x] Identify all duplicated languages
 - [x] Document inconsistencies
@@ -344,12 +344,12 @@ struct t_editor_syntax HLDB[] = {
 
 ```bash
 # Verify .loki/languages/ has:
-# - python.lua ✓
-# - lua.lua ✓
-# - javascript.lua ✓
-# - rust.lua ✓
-# - go.lua ✓
-# - java.lua ✓
+# - python.lua [x]
+# - lua.lua [x]
+# - javascript.lua [x]
+# - rust.lua [x]
+# - go.lua [x]
+# - java.lua [x]
 ```
 
 **Step 3: Test that nothing breaks**
@@ -487,14 +487,14 @@ loki.status(string.format("Loaded %d dynamic languages", lang_count))
 
 **Pros:**
 
-- ✅ 15 minutes to implement
-- ✅ Eliminates duplication immediately
-- ✅ No risk (C definitions already work)
+- [x] 15 minutes to implement
+- [x] Eliminates duplication immediately
+- [x] No risk (C definitions already work)
 
 **Cons:**
 
-- ⚠️ Doesn't achieve "all in Lua" vision
-- ⚠️ Temporary fix, not long-term solution
+- [!] Doesn't achieve "all in Lua" vision
+- [!] Temporary fix, not long-term solution
 
 **Use this if:** You want to eliminate duplication NOW and migrate properly later.
 

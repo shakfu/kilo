@@ -22,10 +22,10 @@ editor.render_markdown_to_html()
 ```
 
 **What it does:**
-- ✓ Reads current buffer content
-- ✓ Converts markdown → HTML
-- ✓ Creates standalone HTML file with CSS
-- ✓ Saves as `filename.html`
+- [x] Reads current buffer content
+- [x] Converts markdown → HTML
+- [x] Creates standalone HTML file with CSS
+- [x] Saves as `filename.html`
 
 ### 2. Get Document Statistics
 
