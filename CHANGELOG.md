@@ -17,6 +17,70 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.5.0]
+
+### Added
+
+- **Auto-Indentation Module**: Comprehensive automatic indentation for improved coding experience
+  - **New Module Structure**:
+    - Created `src/loki_indent.c` (~280 lines) and `src/loki_indent.h` (public API)
+    - Opaque `indent_config` structure for clean encapsulation
+    - Test-only accessor functions for internal state verification
+  - **Core Features**:
+    - **Indent Preservation**: Automatically copies indentation from previous line when pressing Enter
+    - **Smart Auto-Indent**: Adds extra indent level after opening braces `{`, brackets `[`, and parentheses `(`
+    - **Electric Dedent**: Automatically dedents when typing closing `}`, `]`, `)` on whitespace-only lines
+    - **Bracket Matching**: Finds matching opening bracket to determine correct dedent target
+    - **Nested Brace Support**: Correctly handles deeply nested code structures
+  - **Indentation Detection**:
+    - **Level Detection**: Counts leading whitespace in spaces (tabs converted based on width)
+    - **Style Detection**: Heuristic-based detection of tabs vs spaces (samples up to 100 lines)
+    - **Mixed Indentation**: Handles files with both tabs and spaces
+  - **Configuration Options**:
+    - **Enable/Disable**: Toggle auto-indent on or off (default: enabled)
+    - **Indent Width**: Configurable width from 1-8 spaces (default: 4)
+    - **Tab/Space Style**: Auto-detected or manually configured
+    - **Electric Dedent Toggle**: Can disable electric behavior independently
+  - **Implementation Details**:
+    - **Integration Points**:
+      - `editor_insert_newline()` calls `indent_apply()` after creating new line
+      - `editor_insert_char()` calls `indent_electric_char()` after inserting character
+      - `editor_ctx_init()` calls `indent_init()` to set up defaults
+      - `editor_ctx_free()` cleans up indent_config
+    - **Smart Trailing Whitespace**: Ignores trailing spaces when detecting line-ending braces
+    - **Respects Disabled State**: Both general and electric-specific disable flags honored
+    - **Efficient Deletion**: Uses `editor_del_char()` for proper backspace behavior
+  - **API Functions** (8 total):
+    - `indent_init(ctx)` - Initialize with sensible defaults
+    - `indent_get_level(ctx, row)` - Get indentation level in spaces
+    - `indent_detect_style(ctx)` - Detect tabs vs spaces heuristically
+    - `indent_apply(ctx)` - Apply indentation to current line
+    - `indent_electric_char(ctx, c)` - Handle electric dedent for closing chars
+    - `indent_set_enabled(ctx, enabled)` - Enable/disable auto-indent
+    - `indent_set_width(ctx, width)` - Set indentation width
+    - Plus 3 test-only accessors for verification
+  - **Comprehensive Testing**:
+    - **25 unit tests** covering all features and edge cases:
+      - 5 tests for `indent_get_level()` (spaces, tabs, mixed, stops at content, empty)
+      - 3 tests for `indent_detect_style()` (tabs, spaces, empty file)
+      - 2 tests for configuration (width, enabled state)
+      - 7 tests for `indent_apply()` (basic, after brace/bracket/paren, trailing space, first line, disabled)
+      - 8 tests for `indent_electric_char()` (dedent brace/bracket/paren, content before cursor, disabled, non-closing, nested, mismatched)
+    - **All tests pass** (25/25, 100% pass rate)
+    - **Zero regressions**: Full test suite passes (12/12 test suites)
+  - **Files Modified**:
+    - Added: `src/loki_indent.c`, `src/loki_indent.h`, `tests/test_indent.c`
+    - Modified: `src/loki_core.c` (added integration calls), `src/loki_internal.h` (added indent_config field and editor_insert_row declaration), `CMakeLists.txt` (added module to build)
+  - **Build Quality**:
+    - Zero compiler warnings
+    - Clean compilation with `-Wall -Wextra -pedantic`
+    - Proper opaque structure usage for encapsulation
+  - **User Experience**:
+    - Seamless integration with existing editor workflow
+    - Professional coding experience similar to Vim/VS Code
+    - Works across all supported languages (C, Python, Lua, JavaScript, etc.)
+    - No configuration required - sensible defaults work immediately
+
 ## [0.4.8]
 
 ### Changed

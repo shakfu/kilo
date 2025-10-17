@@ -43,6 +43,7 @@ see LICENSE.
 #include "loki_undo.h"
 #include "loki_buffers.h"
 #include "loki_syntax.h"
+#include "loki_indent.h"
 
 /* libcurl for async HTTP */
 #include <curl/curl.h>
@@ -121,6 +122,8 @@ void editor_ctx_init(editor_ctx_t *ctx) {
     command_mode_init(ctx);
     /* Undo/redo system (1000 operations, 10MB memory limit) */
     undo_init(ctx, 1000, 10 * 1024 * 1024);
+    /* Auto-indent system */
+    indent_init(ctx);
 }
 
 /* Free all dynamically allocated memory in a context.
@@ -145,6 +148,9 @@ void editor_ctx_free(editor_ctx_t *ctx) {
 
     /* Free undo/redo state */
     undo_free(ctx);
+
+    /* Free indent configuration */
+    free(ctx->indent_config);
 
     /* Clear the structure */
     memset(ctx, 0, sizeof(editor_ctx_t));
@@ -380,6 +386,9 @@ void editor_insert_char(editor_ctx_t *ctx, int c) {
     else
         ctx->cx++;
     /* Note: dirty already incremented by editor_row_insert_char */
+
+    /* Handle electric dedent for closing braces */
+    indent_electric_char(ctx, c);
 }
 
 /* Inserting a newline is slightly complex as we have to handle inserting a
@@ -422,6 +431,9 @@ fixcursor:
     }
     ctx->cx = 0;
     ctx->coloff = 0;
+
+    /* Apply auto-indentation */
+    indent_apply(ctx);
 }
 
 /* Delete the char at the current prompt position. */

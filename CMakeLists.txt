@@ -93,6 +93,7 @@ add_library(libloki ${LOKI_LIBRARY_TYPE}
     src/loki_lua.c
     src/loki_editor.c
     src/loki_syntax.c
+    src/loki_indent.c
     src/loki_languages.c
     src/loki_selection.c
     src/loki_search.c
@@ -268,3 +269,14 @@ target_include_directories(test_buffers PRIVATE
 )
 target_link_libraries(test_buffers PRIVATE libloki test_framework)
 add_test(NAME test_buffers COMMAND test_buffers)
+
+# Unit tests for auto-indentation
+add_executable(test_indent tests/test_indent.c)
+target_include_directories(test_indent PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests
+    ${LUA_INCLUDE_DIR}
+)
+target_link_libraries(test_indent PRIVATE libloki test_framework)
+add_test(NAME test_indent COMMAND test_indent)

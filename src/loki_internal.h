@@ -178,6 +178,9 @@ struct editor_ctx {
 
     /* Undo/redo state */
     struct undo_state *undo_state;  /* NULL if undo disabled */
+
+    /* Indentation configuration */
+    struct indent_config *indent_config;  /* Auto-indent settings */
 };
 
 /* Legacy type name for compatibility during migration.
@@ -209,6 +212,9 @@ void editor_set_status_msg(editor_ctx_t *ctx, const char *fmt, ...);
 void editor_insert_char(editor_ctx_t *ctx, int c);
 void editor_insert_newline(editor_ctx_t *ctx);
 void editor_del_char(editor_ctx_t *ctx);
+
+/* Row management (test helpers) */
+void editor_insert_row(editor_ctx_t *ctx, int at, char *s, size_t len);
 
 /* Screen rendering */
 void editor_refresh_screen(editor_ctx_t *ctx);
