@@ -2,17 +2,18 @@
 
 This roadmap outlines future development for Loki, organized around the **modular architecture principle**: keep core components focused on essential infrastructure while adding capabilities through feature modules.
 
-## Current Status (v0.4.x)
+## Current Status (v0.4.8)
 
 **Project Metrics:**
 
-- **Core:** ~1,150 lines (loki_core.c) - below 1,500 line target ✅
-- **Total codebase:** ~9,700 lines across modular components
+- **Core:** **891 lines** (loki_core.c) - **33% below 1,000 line milestone!** 🎉
+- **Total codebase:** ~10,000 lines across modular components
 - **Binary size:** ~300KB (editor), ~316KB (REPL)
-- **Module count:** 11 separate modules (buffers, undo, modal, search, markdown, etc.)
+- **Module count:** 12 separate modules (syntax, buffers, undo, modal, search, markdown, etc.)
 
-**Recently Completed (v0.4.x):**
+**Recently Completed (v0.4.8):**
 
+- ✅ **Syntax highlighting extraction** - Moved to dedicated `loki_syntax.c` module (291 lines)
 - ✅ Undo/Redo system with circular buffer
 - ✅ Multiple buffers (tabs) with Ctrl-T/Ctrl-W navigation
 - ✅ Modal editing with vim-like motions (hjkl, word motions, visual mode)
@@ -22,15 +23,34 @@ This roadmap outlines future development for Loki, organized around the **modula
 - ✅ Dynamic language registration system
 - ✅ Advanced Lua scripting with modular configuration
 
+**Architectural Milestone:**
+
+The syntax highlighting extraction brings `loki_core.c` below 900 lines (891 lines), achieving a **22.6% reduction** from the previous 1,152 lines. This is the **first time the core has been below 1,000 lines**, demonstrating the success of the modular architecture strategy.
+
 ## Philosophy
 
 **Modular Architecture Principle:**
 
-- Core remains focused on essential editor infrastructure (< 1,500 lines)
+- Core remains focused on essential editor infrastructure (**now < 900 lines!** ✅)
 - Features implemented as separate, composable modules
 - Each module has single, well-defined responsibility
 - Clear API boundaries between components
 - Testable in isolation with zero tolerance for test failures
+
+**Current Module Breakdown:**
+
+1. **`loki_core.c`** (891 lines) - Terminal I/O, buffer management, file I/O, rendering
+2. **`loki_syntax.c`** (291 lines) - Syntax highlighting and color formatting
+3. **`loki_languages.c`** (494 lines) - Language definitions and markdown highlighting
+4. **`loki_buffers.c`** (426 lines) - Multiple buffer (tab) management
+5. **`loki_undo.c`** (474 lines) - Undo/redo with circular buffer
+6. **`loki_modal.c`** (510 lines) - Vim-like modal editing
+7. **`loki_selection.c`** (156 lines) - Text selection and OSC 52 clipboard
+8. **`loki_search.c`** (128 lines) - Incremental search
+9. **`loki_command.c`** (491 lines) - Ex-mode command system
+10. **`loki_terminal.c`** (125 lines) - Terminal control and window size
+11. **`loki_markdown.c`** (421 lines) - CommonMark parsing and rendering
+12. **`loki_lua.c`** (1,400+ lines) - Lua integration and API bindings
 
 **Module Design Guidelines:**
 
@@ -148,6 +168,33 @@ int config_load_file(const char *path);
 ---
 
 ### Completed Features (v0.4.x)
+
+#### ✅ Syntax Highlighting Module (`loki_syntax.c`)
+
+**Status:** Completed in v0.4.8
+
+- Extracted all syntax highlighting logic from `loki_core.c`
+- **Core reduction:** 1,152 → 891 lines (22.6% reduction, 261 lines removed)
+- 7 functions with consistent `syntax_*` naming:
+  - `syntax_is_separator()` - Character separator detection
+  - `syntax_row_has_open_comment()` - Multi-line comment state tracking
+  - `syntax_name_to_code()` - String to HL_* constant mapping
+  - `syntax_update_row()` - Main syntax highlighting logic
+  - `syntax_format_color()` - RGB color escape sequence formatting
+  - `syntax_select_for_filename()` - File extension to syntax mapping
+  - `syntax_init_default_colors()` - Default color initialization
+- Supports all existing languages (C, Python, Lua, Markdown, etc.)
+- Supports dynamic language registration via Lua
+- True color (24-bit RGB) rendering
+- ~290 lines in dedicated module
+
+**Benefits:**
+- Clean separation: syntax is a feature, not core infrastructure
+- Extensible: Future enhancements (tree-sitter, LSP) stay in module
+- Testable: Isolated unit testing possible
+- Optional: Can be compiled out for minimal builds
+
+---
 
 #### ✅ Undo/Redo Module (`loki_undo.c`)
 
