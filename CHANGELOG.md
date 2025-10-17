@@ -17,6 +17,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.4.8]
+
+### Changed
+
+- **Syntax Highlighting Module Extraction**: Extracted syntax highlighting from core to dedicated module
+  - **New Module Structure**:
+    - Created `src/loki_syntax.c` (290 lines) and `src/loki_syntax.h` (public API)
+    - All syntax highlighting logic now isolated in dedicated module
+  - **Functions Extracted** (7 functions moved from loki_core.c):
+    - `syntax_is_separator()` - Character separator detection (was `is_separator()`)
+    - `syntax_row_has_open_comment()` - Multi-line comment state tracking (was `editor_row_has_open_comment()`)
+    - `syntax_name_to_code()` - String to HL_* constant mapping (was `hl_name_to_code()`)
+    - `syntax_update_row()` - Main syntax highlighting logic (was `editor_update_syntax()`)
+    - `syntax_format_color()` - RGB color escape sequence formatting (was `editor_format_color()`)
+    - `syntax_select_for_filename()` - File extension to syntax mapping (was `editor_select_syntax_highlight()`)
+    - `syntax_init_default_colors()` - Default color initialization (was `init_default_colors()`)
+  - **Core Size Reduction**:
+    - **loki_core.c: 1,152 → 891 lines** (261 lines removed, 22.6% reduction)
+    - **First time below 1,000 line milestone** for core module
+  - **Architecture Benefits**:
+    - **Separation of Concerns**: Syntax highlighting is clearly a feature, not core infrastructure
+    - **Modularity**: Can be compiled out for minimal builds or replaced with alternative highlighters
+    - **Extensibility**: Future enhancements (tree-sitter, LSP semantic tokens) stay in module
+    - **Testability**: Easier to unit test syntax highlighting in isolation
+  - **Integration Points**:
+    - Updated all call sites in loki_core.c, loki_editor.c, loki_languages.c
+    - Updated test files (test_core.c, test_syntax.c) to use new function names
+    - Added include to loki_syntax.h in all files using syntax functions
+  - **Files Modified**:
+    - Added: `src/loki_syntax.c`, `src/loki_syntax.h`
+    - Modified: `src/loki_core.c`, `src/loki_editor.c`, `src/loki_languages.c`, `tests/test_core.c`, `tests/test_syntax.c`, `CMakeLists.txt`
+  - **Testing**: All 11 test suites passing (100% pass rate)
+  - **Build**: Zero compiler warnings, clean compilation
+  - **Verification**: Manual testing confirms syntax highlighting working correctly for all languages
+
 ### Added
 
 - **Tab Completion in Lua REPL**: Intelligent tab completion for Lua identifiers and table fields
