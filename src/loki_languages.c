@@ -8,6 +8,7 @@
  */
 
 #include "loki_internal.h"
+#include "loki_syntax.h"
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -159,7 +160,7 @@ void highlight_code_line(t_erow *row, char **keywords, char *scs, char *separato
                 if (kw2) klen--;
 
                 if (!memcmp(p+i,keywords[j],klen) &&
-                    (i+klen >= row->rsize || is_separator(p[i+klen], separators))) {
+                    (i+klen >= row->rsize || syntax_is_separator(p[i+klen], separators))) {
                     memset(row->hl+i, kw2 ? HL_KEYWORD2 : HL_KEYWORD1, klen);
                     i += klen;
                     prev_sep = 0;
@@ -168,7 +169,7 @@ void highlight_code_line(t_erow *row, char **keywords, char *scs, char *separato
             }
         }
 
-        prev_sep = is_separator(p[i], separators);
+        prev_sep = syntax_is_separator(p[i], separators);
         i++;
 next:
         continue;

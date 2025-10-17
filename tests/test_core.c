@@ -11,6 +11,7 @@
 #include "test_framework.h"
 #include "loki/core.h"
 #include "loki_internal.h"
+#include "loki_syntax.h"
 #include <string.h>
 
 /* Test editor context initialization */
@@ -32,24 +33,24 @@ TEST(editor_ctx_init_initializes_all_fields) {
 /* Test separator detection */
 TEST(is_separator_detects_whitespace) {
     char *seps = " \t,;";
-    ASSERT_TRUE(is_separator(' ', seps));
-    ASSERT_TRUE(is_separator('\t', seps));
-    ASSERT_FALSE(is_separator('a', seps));
-    ASSERT_FALSE(is_separator('1', seps));
+    ASSERT_TRUE(syntax_is_separator(' ', seps));
+    ASSERT_TRUE(syntax_is_separator('\t', seps));
+    ASSERT_FALSE(syntax_is_separator('a', seps));
+    ASSERT_FALSE(syntax_is_separator('1', seps));
 }
 
 TEST(is_separator_detects_custom_separators) {
     char *seps = ",.()+-/*";
-    ASSERT_TRUE(is_separator(',', seps));
-    ASSERT_TRUE(is_separator('.', seps));
-    ASSERT_TRUE(is_separator('(', seps));
-    ASSERT_TRUE(is_separator(')', seps));
-    ASSERT_FALSE(is_separator('a', seps));
+    ASSERT_TRUE(syntax_is_separator(',', seps));
+    ASSERT_TRUE(syntax_is_separator('.', seps));
+    ASSERT_TRUE(syntax_is_separator('(', seps));
+    ASSERT_TRUE(syntax_is_separator(')', seps));
+    ASSERT_FALSE(syntax_is_separator('a', seps));
 }
 
 TEST(is_separator_handles_null_terminator) {
     char *seps = ",;";
-    ASSERT_TRUE(is_separator('\0', seps));
+    ASSERT_TRUE(syntax_is_separator('\0', seps));
 }
 
 /* Test character insertion */

@@ -1,262 +1,63 @@
 # Loki Roadmap
 
-This roadmap outlines future development ideas for Loki, organized around the **minimal core principle**: keep `loki_core.c` focused on essential editor infrastructure while adding capabilities through feature modules.
+This roadmap outlines future development for Loki, organized around the **modular architecture principle**: keep core components focused on essential infrastructure while adding capabilities through feature modules.
+
+## Current Status (v0.4.x)
+
+**Project Metrics:**
+
+- **Core:** ~1,150 lines (loki_core.c) - below 1,500 line target ✅
+- **Total codebase:** ~9,700 lines across modular components
+- **Binary size:** ~300KB (editor), ~316KB (REPL)
+- **Module count:** 11 separate modules (buffers, undo, modal, search, markdown, etc.)
+
+**Recently Completed (v0.4.x):**
+
+- ✅ Undo/Redo system with circular buffer
+- ✅ Multiple buffers (tabs) with Ctrl-T/Ctrl-W navigation
+- ✅ Modal editing with vim-like motions (hjkl, word motions, visual mode)
+- ✅ CommonMark markdown support via cmark (parse, render, analysis)
+- ✅ Tab completion in Lua REPL
+- ✅ Async HTTP client for AI/API integration
+- ✅ Dynamic language registration system
+- ✅ Advanced Lua scripting with modular configuration
 
 ## Philosophy
 
-**Minimal Core Principle:**
+**Modular Architecture Principle:**
 
-- Core remains < 1,500 lines (currently 1,336 lines)
-- New features implemented as separate modules
+- Core remains focused on essential editor infrastructure (< 1,500 lines)
+- Features implemented as separate, composable modules
 - Each module has single, well-defined responsibility
-- Core provides only: terminal I/O, buffers, rendering, syntax infrastructure, file I/O
+- Clear API boundaries between components
+- Testable in isolation with zero tolerance for test failures
 
 **Module Design Guidelines:**
 
-- Self-contained with clear API boundaries
-- Testable in isolation
-- Optional (can be compiled out if not needed)
+- Self-contained with minimal coupling
+- Optional (can be compiled out via CMake if not needed)
 - No direct dependencies on other feature modules
+- Comprehensive error handling and bounds checking
 
 ---
 
 ## Near-Term Improvements (v0.5.x)
 
-### New Feature Modules
+### Priority Features
 
-#### [x] 1. Undo/Redo Module (`loki_undo.c`) ⭐ High Priority
+#### 1. Auto-Indent Module (`loki_indent.c`) ⭐ **HIGHEST PRIORITY**
 
-**Impact:** Essential for production use
-**Complexity:** Medium (~200-300 lines)
-
-**Implementation:**
-
-- Circular buffer of edit operations (insert/delete with position)
-- Store: operation type, position, content, reverse operation
-- Commands: `u` (undo), `Ctrl-R` (redo) in NORMAL mode
-- Memory overhead: ~100KB for 1000 operations
-
-**API:**
-
-```c
-void undo_push(editor_ctx_t *ctx, undo_op_t *op);
-int undo_pop(editor_ctx_t *ctx);
-int redo_pop(editor_ctx_t *ctx);
-void undo_clear(editor_ctx_t *ctx);
-```
-
-**Integration Points:**
-
-- Hook into `editor_insert_char()`, `editor_del_char()`, `editor_insert_newline()`
-- Store before-state in undo buffer
-- No changes to core required
-
----
-
-#### [x] 2. Multiple Buffers Module (`loki_buffers.c`) ⭐ High Priority
-
-**Impact:** Edit multiple files simultaneously
-**Complexity:** Medium (~250-350 lines)
-
-**Implementation:**
-
-- Array of `editor_ctx_t` structures (one per buffer)
-- Tab-like interface in status bar
-- Commands: `Ctrl-T` new buffer, `Ctrl-W` close, `Ctrl-Tab` switch
-- Each buffer maintains independent state (cursor, content, syntax)
-
-**API:**
-
-```c
-int buffer_create(const char *filename);
-void buffer_close(int buffer_id);
-void buffer_switch(int buffer_id);
-int buffer_count(void);
-editor_ctx_t *buffer_get(int buffer_id);
-```
-
-**Benefits:**
-
-- Leverages existing context-passing architecture
-- No global state conflicts (each buffer is independent `editor_ctx_t`)
-- Natural fit with current design
-
----
-
-#### 3. Clipboard Integration Module (`loki_clipboard.c`)
-
-**Impact:** System clipboard copy/paste over SSH
-**Complexity:** Low (~50-100 lines)
-
-**Implementation:**
-
-- Extend OSC 52 support (already in `loki_selection.c`)
-- Add OSC 52 query support for paste (terminal-dependent)
-- Commands: `p`/`P` (paste before/after) in NORMAL mode
-- Fallback: internal clipboard buffer
-
-**API:**
-
-```c
-void clipboard_set(const char *text);
-char *clipboard_get(void);
-int clipboard_available(void);
-```
-
-**Note:** OSC 52 read support varies by terminal emulator
-
----
-
-### Feature Module Enhancements
-
-#### [x] 4. Modal Editing Enhancements (`loki_modal.c`)
-
-**Impact:** More vim-like editing power
-**Complexity:** Low-Medium (incremental additions)
-
-**Additions:**
-
-- **Motion commands:**
-  - `w`/`b` - word forward/backward
-  - `0`/`$` - start/end of line
-  - `gg`/`G` - start/end of file
-  - `%` - matching bracket
-- **Text objects:**
-  - `diw` - delete inner word
-  - `ci"` - change inside quotes
-  - `dap` - delete around paragraph
-- **More insert commands:**
-  - `A` - append at end of line
-  - `I` - insert at start of line
-  - `C` - change to end of line
-- **Visual mode enhancements:**
-  - `V` - line-wise visual mode
-  - `Ctrl-V` - block visual mode (column editing)
-
-**Lines Added:** ~150-200 to `loki_modal.c`
-
----
-
-#### 5. Search Enhancements (`loki_search.c`)
-
-**Impact:** More powerful text finding
-**Complexity:** Medium (~100-150 lines)
-
-**Additions:**
-
-- **POSIX regex support** via `<regex.h>` (standard library)
-- **Replace functionality:** Find-and-replace with confirmation
-- **Search history:** Up/down arrows to recall previous searches
-- **Case sensitivity toggle:** `Ctrl-I` during search
-- **Commands in NORMAL mode:**
-  - `/` - forward search
-  - `?` - backward search
-  - `n`/`N` - next/previous match
-
-**Example:**
-
-```c
-int search_regex(editor_ctx_t *ctx, const char *pattern, int flags);
-void search_replace(editor_ctx_t *ctx, const char *find, const char *replace);
-```
-
----
-
-#### 6. Language Module Enhancements (`loki_languages.c`)
-
-**Impact:** Better syntax highlighting
-**Complexity:** Low-Medium (incremental)
-
-**Additions:**
-
-- **More built-in languages:**
-  - Rust, Go, TypeScript (move from `.loki/languages/` to built-in)
-  - Shell scripts, Makefiles
-  - HTML, CSS, JSON
-- **Semantic highlighting hooks:**
-  - Allow Lua to override/extend syntax rules
-  - Cache compiled regex patterns
-- **Tree-sitter integration (future):**
-  - Optional module for advanced parsing
-  - Separate from core, loaded dynamically
-
----
-
-## Mid-Term Improvements (v0.6.x)
-
-### New Feature Modules
-
-#### 7. Split Windows Module (`loki_windows.c`)
-
-**Impact:** View multiple locations/files simultaneously
-**Complexity:** High (~300-400 lines)
-
-**Implementation:**
-
-- Horizontal/vertical panes
-- Each pane has independent viewport into buffer
-- Commands: `Ctrl-X 2` (split horizontal), `Ctrl-X 3` (split vertical)
-- Window navigation: `Ctrl-X o` (cycle windows)
-
-**Architecture:**
-
-```c
-typedef struct window {
-    editor_ctx_t *ctx;  // Buffer being displayed
-    int row, col;       // Window position on screen
-    int rows, cols;     // Window dimensions
-} window_t;
-
-void window_split_horizontal(void);
-void window_split_vertical(void);
-void window_close(window_t *win);
-void window_switch(window_t *win);
-```
-
-**Rendering:**
-
-- Each window calls `editor_refresh_screen()` with adjusted viewport
-- Status bar shows active window indicator
-- Cursor only shown in active window
-
----
-
-#### 8. Macro Recording Module (`loki_macros.c`)
-
-**Impact:** Automate repetitive edits
+**Impact:** Essential developer quality-of-life
 **Complexity:** Low-Medium (~150-200 lines)
-
-**Implementation:**
-
-- Record keystroke sequences (vim-style)
-- Commands: `q{register}` to record, `@{register}` to replay
-- Store as command arrays in named registers (a-z)
-- Multiple named registers for different macros
-
-**API:**
-
-```c
-void macro_record_start(char register_name);
-void macro_record_stop(void);
-void macro_replay(char register_name);
-int macro_is_recording(void);
-```
-
-**Storage:** In-memory only (not persisted across sessions)
-
----
-
-#### 9. Auto-Indent Module (`loki_indent.c`)
-
-**Impact:** Developer quality-of-life
-**Complexity:** Low (~100-150 lines)
+**Status:** Not started
 
 **Implementation:**
 
 - Copy indentation from previous line on Enter
-- Electric dedent for closing braces `}`
-- Tab/space aware (detect from file or config)
-- Language-specific rules (optional)
+- Electric dedent for closing braces `}`, `]`, `)`
+- Tab/space detection (smart tabs vs spaces)
+- Language-specific rules (optional, via hooks)
+- Preserve indent on blank lines
 
 **API:**
 
@@ -264,44 +65,73 @@ int macro_is_recording(void);
 int indent_get_level(editor_ctx_t *ctx, int row);
 void indent_apply(editor_ctx_t *ctx, int row);
 void indent_electric_char(editor_ctx_t *ctx, char c);
+int indent_detect_style(editor_ctx_t *ctx);  // tabs vs spaces
 ```
 
 **Integration:** Hook into `editor_insert_newline()` and `editor_insert_char()`
 
+**Why highest priority:** Most requested feature by developers, relatively simple to implement
+
 ---
 
-### Architecture Improvements
+#### 2. Enhanced Clipboard Integration (`loki_clipboard.c`) ⭐ **HIGH PRIORITY**
 
-#### 10. Configuration System
+**Status:** Partial (OSC 52 in selection module, needs expansion)
 
-**Impact:** Per-module configuration without touching core
-**Complexity:** Medium (~200 lines)
+**Impact:** Better system clipboard integration
+**Complexity:** Low (~100 lines)
+
+**Enhancements needed:**
+
+- OSC 52 query support for paste (terminal-dependent)
+- Dedicated clipboard commands: `"+y` (yank to system), `"+p` (paste from system)
+- Internal clipboard buffer as fallback
+- Support for multiple clipboard registers (vim-style)
+
+**API expansion:**
+
+```c
+void clipboard_set(const char *text, char register);
+char *clipboard_get(char register);
+int clipboard_system_available(void);  // Check if OSC 52 works
+```
+
+**Integration:** Extend existing `loki_selection.c` module
+
+---
+
+#### 3. Configuration File System ⭐ **HIGH PRIORITY**
+
+**Impact:** User customization without recompilation
+**Complexity:** Medium (~200-250 lines)
+**Status:** Not started (currently Lua-only config)
 
 **Implementation:**
 
-- Configuration registry (key-value store)
-- Modules register their config options
-- Loaded from `~/.loki/config.toml` or `.loki/config.toml`
-- Exposed to Lua via `loki.config` table
+- TOML configuration file support
+- Load from `~/.loki/config.toml` (global) and `.loki/config.toml` (project)
+- Register/validate config options per module
+- Expose to Lua via `loki.config` table
+- Hot-reload on save (optional)
 
 **Example config:**
 
 ```toml
-[core]
+[editor]
 tab_width = 4
-line_numbers = false
+line_numbers = true
+auto_indent = true
 
 [modal]
 enabled = true
 leader_key = "\\"
 
+[theme]
+name = "dracula"
+
 [search]
 case_sensitive = false
 use_regex = true
-
-[indent]
-auto_indent = true
-detect_indent = true
 ```
 
 **API:**
@@ -310,246 +140,686 @@ detect_indent = true
 void config_register(const char *module, const char *key, config_type_t type, void *default_value);
 void config_set(const char *module, const char *key, void *value);
 void *config_get(const char *module, const char *key);
+int config_load_file(const char *path);
+```
+
+**Benefits:** Easier onboarding, standard config format, no Lua required for basics
+
+---
+
+### Completed Features (v0.4.x)
+
+#### ✅ Undo/Redo Module (`loki_undo.c`)
+
+**Status:** Completed in v0.4.x
+
+- Circular buffer with 1000 operation capacity
+- Commands: `u` (undo), `Ctrl-R` (redo) in NORMAL mode
+- Integrated with all edit operations
+- ~450 lines including tests
+
+---
+
+#### ✅ Multiple Buffers Module (`loki_buffers.c`)
+
+**Status:** Completed in v0.4.x
+
+- Tab-style buffer switching
+- Commands: `Ctrl-T` (new), `Ctrl-W` (close), `Ctrl-Tab` (switch)
+- Status bar shows buffer list
+- ~400 lines
+
+---
+
+#### ✅ Modal Editing (`loki_modal.c`)
+
+**Status:** Completed in v0.4.x
+
+**Implemented motions:**
+
+- `hjkl` - directional movement
+- `w`/`b`/`e` - word motions
+- `0`/`$` - line start/end
+- `gg`/`G` - file start/end
+- `{`/`}` - paragraph motions
+- `%` - bracket matching
+
+**Implemented commands:**
+
+- `i`/`a` - insert before/after
+- `o`/`O` - open line below/above
+- `x`/`X` - delete char
+- `dd` - delete line
+- `yy` - yank line
+- Visual mode (`v`) with selections
+
+**Lines:** ~510 lines
+
+---
+
+#### ✅ Markdown Support (`loki_markdown.c`)
+
+**Status:** Completed in v0.4.x
+
+- CommonMark parsing via cmark library
+- Render to HTML, XML, LaTeX, man pages
+- Document analysis (count headings, links, code blocks)
+- Extract structure (headings, links)
+- Exposed to Lua API
+- ~300 lines
+
+---
+
+### Enhancement Priorities
+
+#### 4. Search Enhancements (`loki_search.c`) - **MEDIUM PRIORITY**
+
+**Status:** Basic search exists, needs enhancement
+**Impact:** More powerful text finding
+**Complexity:** Medium (~150-200 lines)
+
+**Planned additions:**
+
+- **POSIX regex support** via `<regex.h>` (standard library)
+- **Replace functionality:** Find-and-replace with confirmation (`:%s/find/replace/gc`)
+- **Search history:** Up/down arrows to recall previous searches
+- **Case sensitivity toggle:** Smart-case (case-insensitive unless uppercase present)
+- **Search commands in NORMAL mode:**
+  - `/` - forward search (already exists as Ctrl-F)
+  - `?` - backward search
+  - `n`/`N` - next/previous match
+  - `*`/`#` - search word under cursor
+
+**API additions:**
+
+```c
+int search_regex(editor_ctx_t *ctx, const char *pattern, int flags);
+void search_replace(editor_ctx_t *ctx, const char *find, const char *replace, int flags);
+void search_word_under_cursor(editor_ctx_t *ctx, int forward);
 ```
 
 ---
 
-#### 11. Module Plugin System
+#### 5. Line Numbers Module (`loki_linenumbers.c`) - **MEDIUM PRIORITY**
 
-**Impact:** User extensibility without core changes
-**Complexity:** Medium-High (~250-300 lines)
+**Impact:** Navigation and reference
+**Complexity:** Low (~120-150 lines)
+**Status:** Not started
 
 **Implementation:**
 
-- Modules as shared objects (.so/.dylib)
-- Load from `~/.loki/plugins/` at startup
-- Modules export standard interface:
+- Optional gutter display with configurable width
+- Relative/absolute number modes (`:set relativenumber`)
+- Adjust screen column offset for gutter
+- Highlight current line number
+- Toggle via command or config
 
-  ```c
-  struct loki_plugin {
-      const char *name;
-      const char *version;
-      int (*init)(editor_ctx_t *ctx);
-      void (*cleanup)(editor_ctx_t *ctx);
-      int (*on_keypress)(editor_ctx_t *ctx, int key);
-      void (*on_save)(editor_ctx_t *ctx);
-  };
-  ```
+**API:**
 
-- Plugin discovery via `dlopen()`/`dlsym()`
+```c
+void linenumbers_enable(editor_ctx_t *ctx, int relative);
+void linenumbers_disable(editor_ctx_t *ctx);
+int linenumbers_get_width(editor_ctx_t *ctx);
+void linenumbers_render(editor_ctx_t *ctx, int row, char *buf);
+```
+
+**Integration:** Hook into screen rendering in `loki_editor.c`
+
+---
+
+#### 6. Language Enhancements (`loki_languages.c`) - **LOW PRIORITY**
+
+**Status:** Dynamic registration working well
+**Complexity:** Low-Medium (incremental)
+
+**Potential additions:**
+
+- **More built-in languages:**
+  - Move popular `.loki/languages/` to built-in (Rust, Go, TypeScript)
+  - Shell scripts, Makefiles, JSON, YAML
+  - HTML, CSS (basic)
+- **Semantic highlighting hooks:**
+  - Allow Lua scripts to override/extend syntax rules
+  - Context-aware highlighting (function names, variables)
+- **Performance:**
+  - Cache compiled regex patterns
+  - Lazy syntax highlighting (only visible rows)
+
+**Note:** Current dynamic system via `.loki/languages/` works well; built-in expansion is low priority
+
+---
+
+## Mid-Term Improvements (v0.6.x)
+
+### Advanced Editing Features
+
+#### 7. Split Windows Module (`loki_windows.c`) - **HIGH IMPACT**
+
+**Impact:** View multiple locations/files simultaneously
+**Complexity:** High (~350-450 lines)
+**Status:** Not started
+
+**Implementation:**
+
+- Horizontal/vertical splits (vim-style)
+- Each window has independent viewport + cursor into buffer
+- Commands: `:split` / `:vsplit` or `Ctrl-W s` / `Ctrl-W v`
+- Window navigation: `Ctrl-W hjkl` (vim-style)
+- Resize: `Ctrl-W +/-/</>` or `:resize N`
+
+**Architecture:**
+
+```c
+typedef struct window {
+    editor_ctx_t *ctx;      // Buffer being displayed
+    int screen_row, screen_col;  // Window position
+    int rows, cols;         // Window dimensions
+    int is_active;          // Active window flag
+} window_t;
+
+window_t *window_split(window_t *win, int vertical);
+void window_close(window_t *win);
+void window_switch(int direction);  // HJKL
+void window_resize(window_t *win, int delta_rows, int delta_cols);
+```
+
+**Rendering:**
+
+- Each window renders independently with clipped viewport
+- Status line per window (bottom border)
+- Only active window shows cursor
+- Shared buffer support (same file in multiple windows)
+
+**Challenges:** Screen coordinate math, resize handling, terminal size changes
+
+---
+
+#### 8. Macro Recording Module (`loki_macros.c`) - **MEDIUM IMPACT**
+
+**Impact:** Automate repetitive edits (vim muscle memory)
+**Complexity:** Medium (~180-220 lines)
+**Status:** Not started
+
+**Implementation:**
+
+- Record keystroke sequences exactly as vim does
+- Commands: `q{a-z}` to record, `q` to stop, `@{a-z}` to replay, `@@` repeat last
+- Store in named registers (a-z), up to 26 macros
+- Count prefix: `10@a` repeats macro 'a' 10 times
+
+**API:**
+
+```c
+void macro_record_start(char register_name);
+void macro_record_stop(void);
+void macro_record_key(int key);  // Called for each keystroke
+void macro_replay(char register_name, int count);
+int macro_is_recording(void);
+```
+
+**Storage:**
+
+- In-memory during session (not persisted)
+- Future: Persist to `~/.loki/macros` as Lua functions
+
+**Integration:** Hook all key processing in modal mode
+
+---
+
+#### 9. Bracket/Paren Matching Visualization - **LOW COMPLEXITY, HIGH VALUE**
+
+**Impact:** Visual pairing feedback
+**Complexity:** Very Low (~80-100 lines)
+**Status:** Not started
+
+**Implementation:**
+
+- Highlight matching `()`, `{}`, `[]`, `<>` when cursor on bracket
+- Show match briefly in status if off-screen (with line number)
+- Flash or underline the matching bracket
+- Support multi-line matching with stack-based search
+
+**API:**
+
+```c
+int find_matching_bracket(editor_ctx_t *ctx, int row, int col);
+void highlight_bracket_pair(editor_ctx_t *ctx);
+```
+
+**Integration:** Call during cursor movement in `editor_refresh_screen()`
+
+---
+
+### Development Infrastructure
+
+#### 10. Language Server Protocol (LSP) Client - **FUTURE CONSIDERATION**
+
+**Impact:** IDE-like features (autocomplete, go-to-def, diagnostics)
+**Complexity:** Very High (~800-1200 lines)
+**Status:** Research phase
+
+**Scope (minimal viable LSP):**
+
+- JSON-RPC 2.0 over stdio (no websockets/TCP)
+- Features: textDocument/completion, textDocument/hover, textDocument/definition
+- Language-specific server config in `.loki/lsp.toml`
+- Async message handling (don't block editor)
+
+**Challenges:**
+
+- JSON parsing without dependencies (write minimal parser or use single-header library)
+- Message framing (Content-Length headers)
+- State synchronization (incremental updates)
+- Popup rendering for completions/hover
+
+**Decision:** Defer to v0.7+ due to complexity; focus on simpler features first
+
+---
+
+#### 11. Plugin System via Lua - **ALTERNATIVE TO BINARY PLUGINS**
+
+**Impact:** User extensibility (already partially exists)
+**Complexity:** Low (~150 lines additional)
+**Status:** Foundation exists, needs formalization
+
+**Current state:**
+
+- Lua already embedded with extensive API
+- Users can write modules in `.loki/modules/`
+- Can register commands, keybindings, ex commands
+
+**Enhancements needed:**
+
+- Formalize plugin discovery (scan `.loki/plugins/` for `plugin.lua`)
+- Plugin metadata (`name`, `version`, `author`, `dependencies`)
+- Plugin lifecycle hooks (`on_load`, `on_buffer_open`, `on_save`, `on_exit`)
+- Plugin manager commands (`:PluginList`, `:PluginEnable`, `:PluginDisable`)
+
+**Example plugin structure:**
+
+```lua
+-- .loki/plugins/my_plugin/plugin.lua
+return {
+    name = "my_plugin",
+    version = "1.0.0",
+
+    on_load = function()
+        loki.register_command("myplugin", function() ... end)
+    end,
+
+    on_save = function(ctx)
+        -- Auto-format on save, etc.
+    end
+}
+```
 
 **Benefits:**
 
-- Community can contribute plugins without core merges
-- Experimental features stay separate
-- Users choose which plugins to load
+- No binary compatibility issues (pure Lua)
+- Easy to write and distribute (just .lua files)
+- Full editor API access
+- Simpler than C plugin system
 
 ---
 
 ## Long-Term Vision (v0.7.x+)
 
-### Advanced Features
+### Transformative Features
 
-#### 12. LSP Client Module (`loki_lsp.c`)
-
-**Impact:** IDE-like intelligence (autocomplete, diagnostics, go-to-definition)
-**Complexity:** Very High (~600-800 lines)
-
-**Implementation:**
-
-- Minimal Language Server Protocol over stdio
-- JSON-RPC parsing (simple state machine, no library needed)
-- Features: autocomplete, diagnostics, hover, go-to-definition
-- Per-language LSP server configuration
-
-**Note:** Most transformative feature but significant complexity
-
----
-
-#### 13. Git Integration Module (`loki_git.c`)
+#### 12. Git Integration Module (`loki_git.c`) - **HIGH VALUE FOR DEVELOPERS**
 
 **Impact:** VCS awareness in editor
-**Complexity:** Medium-High (~200-400 lines)
+**Complexity:** Medium-High (~300-400 lines)
+**Status:** Not started
 
-**Implementation:**
+**Phase 1 - Read-only awareness:**
 
-- Show diff markers in gutter (+/-/~ for add/delete/modify)
-- Commands: `Ctrl-G s` (stage/unstage hunks), `Ctrl-G c` (commit)
-- Use `libgit2` or shell out to `git` command
-- Status line shows branch name and modification count
+- Git status in status line (branch, dirty state)
+- Diff markers in gutter (+/-/~ for add/delete/modify)
+- Blame information (`:Git blame` shows author/date per line)
+- Jump to next/prev hunk (`]c` / `[c`)
+
+**Phase 2 - Interactive git:**
+
+- Stage/unstage hunks (`:Gstage`, `:Gunstage`)
+- Commit from editor (`:Gcommit` opens commit message buffer)
+- View git log (`:Glog` shows commit history)
+- Revert hunks (`:Grevert` undo changes)
+
+**Implementation approach:**
+
+- Shell out to `git` commands (no libgit2 dependency)
+- Parse git output (simple parsing, stable formats)
+- Cache git status per buffer (invalidate on save/external change)
+
+**API:**
+
+```c
+int git_get_status(editor_ctx_t *ctx, git_status_t *status);
+void git_get_hunks(editor_ctx_t *ctx, git_hunk_t **hunks, int *count);
+int git_stage_hunk(git_hunk_t *hunk);
+void git_render_gutter(editor_ctx_t *ctx, int row, char *buf);
+```
 
 ---
 
-#### 14. Tree-sitter Integration Module (`loki_treesitter.c`)
+#### 13. Tree-sitter Integration (Optional) - **RESEARCH PHASE**
 
-**Impact:** Accurate syntax highlighting and structure
-**Complexity:** Very High (~500-700 lines)
+**Impact:** Accurate syntax highlighting + structural navigation
+**Complexity:** Very High (~600-800 lines)
+**Status:** Research only
 
-**Implementation:**
+**Benefits:**
 
-- Optional module (not required for basic use)
-- Language parsers loaded dynamically
-- Provides AST for precise highlighting
-- Enables features: fold/unfold, smart navigation
+- Accurate, context-aware syntax highlighting
+- Structural navigation (functions, classes)
+- AST-based features (fold/unfold, refactoring)
+- Language-agnostic (works for any tree-sitter grammar)
+
+**Challenges:**
+
+- Large dependency (~500KB+ per language)
+- Complex API integration
+- Incremental parsing complexity
+- May conflict with existing simple highlighting
+
+**Decision:** Evaluate after other features complete. May not be worth complexity for minimalist editor.
+
+**Alternative:** Keep simple regex-based highlighting, add semantic hints via LSP instead
 
 ---
 
-## Core Optimizations (No Feature Additions)
+#### 14. Advanced Terminal Features
 
-### Performance Improvements
+**Mouse Support** - Very Low Complexity (~100 lines)
 
-#### 15. Rendering Optimizations
+- Enable SGR mouse mode: `\033[?1006h`
+- Click to position cursor
+- Drag to select text
+- Scroll wheel support
+- Right-click context menu (optional)
 
-**Target:** Faster screen refresh for large files
-**Changes to core:** Yes, but no new features
+**Popup/Floating Windows** - Medium Complexity (~250 lines)
+
+- Render popups over main editor area
+- Use cases: autocomplete menus, hover info, command palette
+- Z-order management
+- Proper clipping and borders
+
+**True Color & Style Support** - Low Complexity (~80 lines)
+
+- Already have 24-bit RGB support
+- Add: bold, italic, underline, strikethrough
+- Undercurl for diagnostics (if terminal supports)
+- Configurable per theme
+
+---
+
+## Performance & Scalability (Ongoing)
+
+### Core Optimizations
+
+#### 15. Rendering Performance - **MEDIUM PRIORITY**
+
+**Current state:** Full screen redraw on every change
+**Target:** 2-5x faster for large files
+**Complexity:** Medium (core changes required)
 
 **Optimizations:**
 
-- **Incremental rendering:** Only redraw changed lines
-- **Dirty region tracking:** Track which screen regions need update
-- **Double buffering:** Build screen buffer once, diff before writing
-- **Smart scrolling:** Use VT100 scroll sequences instead of full redraw
+- **Dirty line tracking:** Only redraw modified lines
+- **Viewport-only rendering:** Skip rendering off-screen rows
+- **Smart scrolling:** Use VT100 scroll regions (`\033[L`, `\033[M`)
+- **Diff-based updates:** Compare before/after buffers, emit minimal changes
 
-**Benefit:** 2-5x faster rendering for large files (10K+ lines)
+**Benefit:** Smooth editing in 10K+ line files
+
+**Measurement:** Benchmark with `time ./loki large_file.txt` + scripted edits
 
 ---
 
-#### 16. Memory Efficiency
+#### 16. Memory Efficiency - **LOW PRIORITY**
 
-**Target:** Reduce memory footprint
-**Changes to core:** Yes, but no new features
+**Current state:** ~1KB per line (row struct + render + highlight)
+**Target:** 30-50% reduction
+**Complexity:** High (data structure changes)
 
 **Optimizations:**
 
-- **Lazy row rendering:** Don't render rows outside viewport
-- **Compact row storage:** Use gap buffer for row chars
-- **Shared syntax state:** Don't duplicate syntax info for identical rows
-- **Memory pools:** Reuse allocated row structures
+- **Lazy syntax highlighting:** Only highlight visible + buffer rows
+- **Shared render strings:** Deduplicate identical rendered rows
+- **Compact row storage:** Pack flags, reduce padding
+- **On-demand allocations:** Delay `render` allocation until needed
 
-**Benefit:** 30-50% less memory for large files
+**Current memory usage:** Acceptable for files < 100K lines
+
+**Decision:** Defer until memory becomes actual bottleneck
 
 ---
 
-#### 17. Large File Support
+#### 17. Large File Support - **LOW PRIORITY**
 
-**Target:** Handle files > 1MB efficiently
-**Changes to core:** Yes, but no new features
+**Current limitation:** Entire file loaded into memory
+**Target:** Handle 100MB+ files
+**Complexity:** Very High (architectural change)
 
-**Improvements:**
+**Approaches:**
 
-- **Piece table data structure:** Replace row array with piece table
-- **Lazy loading:** Load file in chunks, not all at once
-- **Virtual scrolling:** Only keep visible + buffer rows in memory
-- **Async file I/O:** Load/save in background thread
+1. **Piece table:** Replace row array (major refactor)
+2. **Memory-mapped I/O:** Use mmap() for large files
+3. **Chunked loading:** Load visible portion + small buffer
+4. **Line index:** Build index for fast row seeking
 
-**Benefit:** Can edit 100MB+ files smoothly
+**Current approach:** Works well for < 1MB files (typical use case)
+
+**Decision:** Not a priority; users editing 100MB files should use specialized tools (hexedit, less, stream editors)
+
+**Note:** If implemented, would be separate module (`loki_largefile.c`), not core change
 
 ---
 
 ## Non-Goals
 
-Things we explicitly **won't** add (to maintain minimalism):
+Things we explicitly **won't** add (preserves minimalist identity):
 
-❌ **GUI version** - Terminal-native is core identity
-❌ **Mouse-heavy features** - Keyboard-first design
-❌ **Complex project management** - Use external tools
-❌ **Debugger integration** - Scope creep
+❌ **GUI version** - Terminal-native is core identity; if you want GUI, use VSCode
+❌ **Complex project management** - Use external tools (tmux, make, IDEs)
+❌ **Debugger integration** - Out of scope; use gdb/lldb directly
 ❌ **Email/web browser** - We're an editor, not Emacs
-❌ **Built-in terminal** - Use tmux/screen
-❌ **AI training** - Integration yes, training no
+❌ **Built-in terminal** - Use tmux/screen for multiplexing
+❌ **AI training** - Integration via API yes, local model training no
+❌ **Package manager** - Lua plugins are just files; use git to distribute
+❌ **WYSIWYG editing** - Plain text only; markdown preview via external tool
+
+**Rationale:** These features either:
+
+1. Violate terminal-first principle
+2. Require massive dependencies
+3. Are better handled by dedicated tools
+4. Would bloat the codebase beyond maintainability
 
 ---
 
 ## Implementation Strategy
 
-### Prioritization Matrix
+### Prioritization Framework (v0.5.x)
 
-**High Impact, Low Complexity (Do First):**
+**Immediate Priorities (v0.5.0 - Next Release):**
 
-1. Undo/Redo module ⭐
-2. Modal editing enhancements ⭐
-3. Auto-indent module ⭐
-4. Clipboard integration ⭐
+1. ✅ Auto-indent module - Most requested feature
+2. ✅ Configuration file system (TOML) - Easier onboarding
+3. ✅ Enhanced clipboard - Better workflow
 
-**High Impact, Medium Complexity (Do Second):**
+**Secondary Priorities (v0.5.x series):**
 
-1. Multiple buffers module
-2. Search enhancements (regex, replace)
-3. Configuration system
-4. Macro recording
+4. Line numbers module - Low complexity, high value
+5. Search enhancements (regex, replace) - Improve existing feature
+6. Bracket matching visualization - Quick win
 
-**High Impact, High Complexity (Long-term):**
+**Future Major Features (v0.6.x+):**
 
-1. Split windows module
-2. LSP client module
-3. Plugin system
-4. Git integration
+7. Split windows - High complexity, plan carefully
+8. Macro recording - Medium complexity, high utility
+9. Git integration (phase 1) - Read-only awareness first
+10. Plugin formalization - Leverage existing Lua foundation
 
-**Core Optimizations (Ongoing):**
+### Development Principles
 
-- Rendering optimizations
-- Memory efficiency
-- Large file support
+**Before adding any feature, ask:**
 
-### Release Cadence
+1. **Does it require core changes?** If yes, very strong justification needed
+2. **Can it be a separate module?** If yes, make it optional
+3. **Can it be done in Lua?** If yes, document as example instead
+4. **Does it maintain < 1500 line core?** Non-negotiable
 
-- **v0.5.x** - Undo/redo, modal enhancements, auto-indent (3-4 months)
-- **v0.6.x** - Multiple buffers, search enhancements, configuration (3-4 months)
-- **v0.7.x** - Split windows, macros, plugin system (4-6 months)
-- **v0.8.x** - LSP client, Git integration (6-12 months)
+**Quality gates:**
+
+- All tests must pass (zero tolerance)
+- No compiler warnings (-Wall -Wextra -pedantic)
+- Memory leak free (valgrind clean)
+- Bounds checking complete
+- Documentation updated
+
+### Release Philosophy
+
+**Semantic versioning:** MAJOR.MINOR.PATCH
+
+- **PATCH (0.4.x):** Bug fixes, no new features
+- **MINOR (0.x.0):** New features, backward compatible
+- **MAJOR (x.0.0):** Breaking changes (config, API, behavior)
+
+**Release cycle:**
+
+- **v0.5.x** - Focus: Auto-indent, config system, enhanced clipboard (~2-3 months)
+- **v0.6.x** - Focus: Split windows, line numbers, search improvements (~3-4 months)
+- **v0.7.x** - Focus: Git integration, macros, plugin formalization (~4-6 months)
+- **v1.0.0** - Stability milestone: Feature-complete for core use cases
+
+**v1.0 criteria (proposed):**
+
+- Auto-indent working ✓
+- Config system (TOML) ✓
+- Split windows ✓
+- Git awareness (phase 1) ✓
+- Comprehensive test coverage (>80%)
+- Documentation complete
+- No known critical bugs
+- Used in production by multiple developers
 
 ### Community Contributions
 
-**Areas welcoming contributions:**
+**Ways to contribute:**
 
-- New language definitions (add to `.loki/languages/`)
-- Color themes (add to `.loki/themes/`)
-- Lua modules (editor utilities, AI integrations)
-- Bug fixes and optimizations
-- Documentation improvements
+1. **Language definitions** - Add to `.loki/languages/` (JavaScript, Python, Rust, etc.)
+2. **Themes** - Add to `.loki/themes/` (Dracula, Monokai, Nord, Solarized, etc.)
+3. **Lua modules** - Editor utilities, AI integrations, formatters
+4. **Core modules** - New C modules following architecture guidelines
+5. **Bug fixes** - All contributions welcome, large or small
+6. **Documentation** - Tutorials, examples, API docs
+7. **Testing** - Test coverage, edge cases, platform testing
 
 **Module contribution guidelines:**
 
-- Must not require changes to core
-- Must be self-contained with clear API
-- Must include tests and documentation
-- Must compile independently (can be disabled via CMake option)
+- Must not require changes to `loki_core.c`
+- Must be self-contained with clear API (`loki_*.h` header)
+- Must include unit tests and pass all existing tests
+- Must be optional (can be compiled out via CMake)
+- Must follow coding style (C99, no VLAs, bounds checking)
+- Must update CLAUDE.md with module documentation
+
+**Pull request checklist:**
+
+- [ ] All tests pass (`make test`)
+- [ ] No compiler warnings (`make` with strict flags)
+- [ ] Valgrind clean (no leaks, no errors)
+- [ ] Documentation updated (CLAUDE.md, comments)
+- [ ] Example usage provided (if new feature)
 
 ---
 
 ## Measuring Success
 
-**Minimal Core Maintained:**
+**Architecture Goals:**
 
-- `loki_core.c` stays < 1,500 lines ✅
-- Core has zero feature-specific code ✅
-- All new capabilities in separate modules ✅
+- ✅ `loki_core.c` < 1,500 lines (current: ~1,150)
+- ✅ Core has zero feature-specific code
+- ✅ All features in separate modules
+- ✅ Modular design with clean APIs
 
 **Quality Metrics:**
 
-- All tests passing (zero tolerance for failures)
-- No memory leaks (valgrind clean)
-- No compiler warnings (-Wall -Wextra -pedantic)
-- Binary size < 150KB (with all modules)
+- ✅ All tests passing (zero tolerance)
+- ✅ No compiler warnings (-Wall -Wextra -pedantic)
+- ⚠️ Binary size: ~300KB (target: <200KB for core features)
+- ⏳ Valgrind clean (ongoing testing)
 
-**User Experience:**
+**Performance Targets:**
 
-- Fast: < 50ms to open 10K line file
-- Responsive: No lag during editing
-- Reliable: No crashes, no data loss
-- Intuitive: Vim users feel at home
+- ✅ < 50ms to open 10K line file
+- ✅ Responsive editing (no lag)
+- ✅ No crashes, no data loss
+- ✅ Vim users feel at home
+
+**Adoption Metrics (qualitative):**
+
+- Daily use by core developers ✅
+- GitHub stars/forks trending ⏳
+- Community contributions (PRs, issues) ⏳
+- Real-world usage reports ⏳
 
 ---
 
-## Conclusion
+## Current Status Summary
 
-The modular architecture provides a strong foundation for growth. By keeping the core minimal and adding capabilities through feature modules, we can build a powerful editor that remains maintainable, understandable, and true to its minimalist roots.
+**What works well (v0.4.x):**
 
-**Next Steps:**
+- ✅ Stable core editor with robust error handling
+- ✅ Modal editing with vim-like motions
+- ✅ Multiple buffers (tabs)
+- ✅ Undo/redo system
+- ✅ Syntax highlighting (dynamic language support)
+- ✅ Markdown parsing and rendering (cmark)
+- ✅ Lua scripting with extensive API
+- ✅ Async HTTP for AI integration
+- ✅ Tab completion in REPL
 
-1. Implement undo/redo module (highest priority)
-2. Enhance modal editing with basic vim motions
-3. Add configuration system for module settings
-4. Begin work on multiple buffers support
+**What needs work:**
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+- 🔨 Auto-indent (most requested)
+- 🔨 Configuration file system (ease of use)
+- 🔨 Line numbers (common request)
+- 🔨 Search & replace (enhance existing)
+- 🔨 Split windows (complex but valuable)
+
+**What's stable and proven:**
+
+- Architecture: Modular design scales well
+- Testing: Zero tolerance policy prevents regressions
+- API: Lua integration is powerful and extensible
+- Performance: Fast enough for typical use cases
+
+---
+
+## Next Steps (v0.5.0)
+
+**Immediate focus (prioritized by impact/effort ratio):**
+
+1. **Auto-indent module** (~2 weeks) - Highest user value
+2. **TOML config system** (~1-2 weeks) - Better onboarding
+3. **Line numbers module** (~1 week) - Quick win
+4. **Enhanced search** (~2 weeks) - Improve existing feature
+
+**Total estimated time for v0.5.0:** 6-7 weeks
+
+**Success criteria for v0.5.0:**
+
+- Auto-indent works for all common languages
+- Config file replaces most Lua config needs
+- Line numbers toggle-able and performant
+- Search supports regex and replace
+
+**Looking forward:**
+
+The modular architecture has proven successful. By maintaining discipline around core separation and module boundaries, Loki can evolve into a powerful editor while preserving its minimalist, hackable nature.
+
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines (if it exists), or open an issue to discuss new features.

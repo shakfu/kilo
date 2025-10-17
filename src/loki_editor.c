@@ -27,6 +27,7 @@
 #include "loki_internal.h"
 #include "loki_terminal.h"
 #include "loki_buffers.h"
+#include "loki_syntax.h"
 
 /* libcurl for async HTTP */
 #include <curl/curl.h>
@@ -713,7 +714,7 @@ static int lua_apply_span_table(editor_ctx_t *ctx, t_erow *row, int table_index)
 
             lua_getfield(L, -1, "style");
             if (lua_isstring(L, -1)) {
-                style = hl_name_to_code(lua_tostring(L, -1));
+                style = syntax_name_to_code(lua_tostring(L, -1));
             } else if (lua_isnumber(L, -1)) {
                 style = (int)lua_tointeger(L, -1);
             }
@@ -722,7 +723,7 @@ static int lua_apply_span_table(editor_ctx_t *ctx, t_erow *row, int table_index)
             if (style < 0) {
                 lua_getfield(L, -1, "type");
                 if (lua_isstring(L, -1)) {
-                    style = hl_name_to_code(lua_tostring(L, -1));
+                    style = syntax_name_to_code(lua_tostring(L, -1));
                 } else if (lua_isnumber(L, -1)) {
                     style = (int)lua_tointeger(L, -1);
                 }
@@ -904,7 +905,7 @@ int loki_editor_main(int argc, char **argv) {
 
     /* Initialize editor core */
     init_editor(&E);
-    editor_select_syntax_highlight(&E, argv[1]);
+    syntax_select_for_filename(&E, argv[1]);
     editor_open(&E, argv[1]);
 
     /* Initialize Lua */

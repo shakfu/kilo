@@ -12,6 +12,7 @@
 #include "test_framework.h"
 #include "loki/core.h"
 #include "loki_internal.h"
+#include "loki_syntax.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -29,7 +30,7 @@ static void init_c_syntax_row(editor_ctx_t *ctx, t_erow *row, const char *text) 
     extern struct t_editor_syntax HLDB[];
     ctx->syntax = &HLDB[0];  /* C is first in HLDB */
 
-    editor_update_syntax(ctx, row);
+    syntax_update_row(ctx, row);
 }
 
 /* Helper: Free row resources */
@@ -286,8 +287,8 @@ TEST(syntax_c_multiline_comment_continuation) {
     ctx.syntax = &HLDB[0];  /* C syntax */
 
     /* Update syntax for both rows */
-    editor_update_syntax(&ctx, &ctx.row[0]);
-    editor_update_syntax(&ctx, &ctx.row[1]);
+    syntax_update_row(&ctx, &ctx.row[0]);
+    syntax_update_row(&ctx, &ctx.row[1]);
 
     /* First row should have open comment */
     ASSERT_TRUE(ctx.row[0].hl_oc);
@@ -437,7 +438,7 @@ TEST(syntax_python_comment) {
     extern struct t_editor_syntax HLDB[];
     ctx.syntax = &HLDB[1];  /* Python is second in HLDB */
 
-    editor_update_syntax(&ctx, &row);
+    syntax_update_row(&ctx, &row);
 
     /* NOTE: Known issue - Python single-line comments ("#") don't work
      * because the syntax highlighting code expects TWO-character delimiters.
@@ -469,7 +470,7 @@ TEST(syntax_lua_comment) {
     extern struct t_editor_syntax HLDB[];
     ctx.syntax = &HLDB[2];  /* Lua is third in HLDB */
 
-    editor_update_syntax(&ctx, &row);
+    syntax_update_row(&ctx, &row);
 
     /* Lua comment should be HL_COMMENT */
     for (int i = 0; i < row.rsize; i++) {
@@ -497,7 +498,7 @@ TEST(syntax_python_keyword) {
     extern struct t_editor_syntax HLDB[];
     ctx.syntax = &HLDB[1];  /* Python */
 
-    editor_update_syntax(&ctx, &row);
+    syntax_update_row(&ctx, &row);
 
     /* "def" should be KEYWORD1 */
     ASSERT_EQ(row.hl[0], HL_KEYWORD1);
@@ -525,7 +526,7 @@ TEST(syntax_lua_keyword) {
     extern struct t_editor_syntax HLDB[];
     ctx.syntax = &HLDB[2];  /* Lua */
 
-    editor_update_syntax(&ctx, &row);
+    syntax_update_row(&ctx, &row);
 
     /* "function" should be KEYWORD1 */
     ASSERT_EQ(row.hl[0], HL_KEYWORD1);
